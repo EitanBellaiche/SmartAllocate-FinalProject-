@@ -9,12 +9,14 @@ import Users from "./Users";
 export default function App() {
   return (
     <BrowserRouter>
-      <MainLayout />
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/resources" element={<Resources />} />
-        <Route path="/bookings" element={<Booking />} />
-        <Route path="/users" element={<Users />} />
+        {}
+        <Route path="/" element={<MainLayout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="resources" element={<Resources />} />
+          <Route path="bookings" element={<Booking />} />
+          <Route path="users" element={<Users />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
