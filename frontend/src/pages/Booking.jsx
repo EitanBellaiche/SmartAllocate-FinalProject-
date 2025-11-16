@@ -6,57 +6,86 @@ export default function Bookings() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
+    async function loadBookings() {
       try {
         const data = await apiGet("/bookings");
         setBookings(data);
       } catch (err) {
-        console.error("Failed loading bookings:", err);
+        console.error("Error loading bookings:", err);
       } finally {
         setLoading(false);
       }
     }
-    load();
+
+    loadBookings();
   }, []);
 
   if (loading) return <p className="text-gray-500">Loading...</p>;
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">Bookings</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Bookings</h1>
 
-      <div className="bg-white shadow rounded-lg border border-gray-200 p-4">
+        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          + Add Booking
+        </button>
+      </div>
+
+      <div className="bg-white shadow rounded-lg border border-gray-200">
         <table className="w-full text-left">
-          <thead>
-            <tr className="border-b text-gray-500">
-              <th className="py-2">ID</th>
-              <th>Resource</th>
-              <th>User</th>
-              <th>Date</th>
-              <th>Status</th>
+          <thead className="bg-gray-100 text-gray-700">
+            <tr>
+              <th className="p-3">ID</th>
+              <th className="p-3">Resource</th>
+              <th className="p-3">User</th>
+              <th className="p-3">Date</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            {bookings.map((b) => (
-              <tr key={b.id} className="border-b hover:bg-gray-50">
-                <td className="py-2">{b.id}</td>
-                <td>{b.resource_id}</td>
-                <td>{b.user_id}</td>
-                <td>{b.date?.split("T")[0]}</td>
-                <td>
+            {bookings.map((bk) => (
+              <tr key={bk.id} className="border-t">
+                <td className="p-3">{bk.id}</td>
+                <td className="p-3">{bk.resource_id}</td>
+                <td className="p-3">{bk.user_id}</td>
+                <td className="p-3">{bk.date?.split("T")[0]}</td>
+
+                <td className="p-3">
                   <span
                     className={
-                      b.status === "pending"
-                        ? "text-yellow-600 font-medium"
-                        : "text-green-600 font-medium"
+                      "px-2 py-1 rounded text-sm font-medium " +
+                      (bk.status === "pending"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : bk.status === "approved"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700")
                     }
                   >
-                    {b.status}
+                    {bk.status || "pending"}
                   </span>
+                </td>
+
+                <td className="p-3">
+                  <button className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 mr-2">
+                    Edit
+                  </button>
+                  <button className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600">
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}
+
+            {bookings.length === 0 && (
+              <tr>
+                <td colSpan="6" className="text-center p-5 text-gray-500">
+                  No bookings found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
