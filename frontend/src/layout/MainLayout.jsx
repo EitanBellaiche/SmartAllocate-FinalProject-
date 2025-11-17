@@ -16,6 +16,7 @@ export default function MainLayout() {
         </div>
 
         <nav className="flex-1 px-4 pt-4 space-y-2">
+          <NavItem to="/resource-types">Resource Types</NavItem>
           <NavItem to="/">Dashboard</NavItem>
           <NavItem to="/resources">Resources</NavItem>
           <NavItem to="/bookings">Bookings</NavItem>
