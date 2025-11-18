@@ -1,94 +1,175 @@
-import { useEffect, useState } from "react";
-import { apiGet } from "../api/api";
+import { useState, useEffect } from "react";
+import { apiGet, apiPost } from "../api/api";
 
-export default function Bookings() {
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function Booking() {
+  const [resources, setResources] = useState([]);
+  const [selectedResources, setSelectedResources] = useState([]);
+  const [roles, setRoles] = useState({});
+
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadBookings() {
-      try {
-        const data = await apiGet("/bookings");
-        setBookings(data);
-      } catch (err) {
-        console.error("Error loading bookings:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadBookings();
+    loadResources();
   }, []);
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
+  async function loadResources() {
+    try {
+      const data = await apiGet("/resources");
+      setResources(data);
+    } catch (err) {
+      console.error("Error loading resources:", err);
+    }
+  }
+
+  function toggleResource(id) {
+    if (selectedResources.includes(id)) {
+      setSelectedResources(selectedResources.filter(r => r !== id));
+
+      const updated = { ...roles };
+      delete updated[id];
+      setRoles(updated);
+    } else {
+      setSelectedResources([...selectedResources, id]);
+    }
+  }
+
+  function updateRole(id, value) {
+    setRoles(prev => ({
+      ...prev,
+      [id]: value
+    }));
+  }
+
+  async function submitBooking() {
+    if (!date || !startTime || !endTime || selectedResources.length === 0) {
+      setMessage("❗ Please select date, time and at least one resource.");
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage("");
+
+    try {
+      await apiPost("/bookings", {
+        resources: selectedResources,
+        roles,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        user_id: 1 // temporary
+      });
+
+      setMessage("✔ Booking created successfully!");
+
+      setSelectedResources([]);
+      setRoles({});
+      setDate("");
+      setStartTime("");
+      setEndTime("");
+
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        setMessage("❌ Conflict: One or more resources are already booked.");
+      } else {
+        setMessage("❌ Failed to create booking.");
+      }
+      console.error(err);
+    }
+
+    setSubmitting(false);
+  }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Bookings</h1>
+    <div className="p-6 max-w-3xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Create New Booking</h1>
 
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-          + Add Booking
-        </button>
+      {message && (
+        <div className="mb-4 p-2 bg-gray-800 text-white rounded">
+          {message}
+        </div>
+      )}
+
+      {/* DATE */}
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">Date</label>
+        <input
+          type="date"
+          className="border px-3 py-2 rounded w-full"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+        />
       </div>
 
-      <div className="bg-white shadow rounded-lg border border-gray-200">
-        <table className="w-full text-left">
-          <thead className="bg-gray-100 text-gray-700">
-            <tr>
-              <th className="p-3">ID</th>
-              <th className="p-3">Resource</th>
-              <th className="p-3">User</th>
-              <th className="p-3">Date</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {bookings.map((bk) => (
-              <tr key={bk.id} className="border-t">
-                <td className="p-3">{bk.id}</td>
-                <td className="p-3">{bk.resource_id}</td>
-                <td className="p-3">{bk.user_id}</td>
-                <td className="p-3">{bk.date?.split("T")[0]}</td>
-
-                <td className="p-3">
-                  <span
-                    className={
-                      "px-2 py-1 rounded text-sm font-medium " +
-                      (bk.status === "pending"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : bk.status === "approved"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700")
-                    }
-                  >
-                    {bk.status || "pending"}
-                  </span>
-                </td>
-
-                <td className="p-3">
-                  <button className="px-3 py-1 text-sm bg-gray-200 rounded hover:bg-gray-300 mr-2">
-                    Edit
-                  </button>
-                  <button className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600">
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {bookings.length === 0 && (
-              <tr>
-                <td colSpan="6" className="text-center p-5 text-gray-500">
-                  No bookings found.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {/* TIME */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label className="block font-semibold mb-1">Start Time</label>
+          <input
+            type="time"
+            className="border px-3 py-2 rounded w-full"
+            value={startTime}
+            onChange={e => setStartTime(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block font-semibold mb-1">End Time</label>
+          <input
+            type="time"
+            className="border px-3 py-2 rounded w-full"
+            value={endTime}
+            onChange={e => setEndTime(e.target.value)}
+          />
+        </div>
       </div>
+
+      {/* RESOURCES */}
+      <div className="mb-6">
+        <label className="block font-semibold mb-2">Select Resources</label>
+
+        <div className="max-h-64 overflow-y-auto border rounded p-3">
+          {resources.map(r => (
+            <div key={r.id} className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedResources.includes(r.id)}
+                  onChange={() => toggleResource(r.id)}
+                />
+                <span>{r.name}</span>
+              </div>
+
+              {/* ROLE SELECTOR */}
+              {selectedResources.includes(r.id) && (
+                <select
+                  className="border rounded px-2 py-1"
+                  value={roles[r.id] || ""}
+                  onChange={e => updateRole(r.id, e.target.value)}
+                >
+                  <option value="">Role (optional)</option>
+                  <option value="room">Room</option>
+                  <option value="lecturer">Lecturer</option>
+                  <option value="computer">Computer</option>
+                  <option value="equipment">Equipment</option>
+                </select>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* SUBMIT BUTTON */}
+      <button
+        onClick={submitBooking}
+        disabled={submitting}
+        className="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700 disabled:bg-gray-500"
+      >
+        {submitting ? "Creating booking..." : "Create Booking"}
+      </button>
     </div>
   );
 }

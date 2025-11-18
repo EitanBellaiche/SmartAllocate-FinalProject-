@@ -1,21 +1,21 @@
 import { useState, useEffect } from "react";
-import { apiGet, apiPost, apiPut } from "../api/api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../api/api";
 
 export default function ResourceTypes() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ADD MODAL STATE
+  // Add Modal
   const [showAdd, setShowAdd] = useState(false);
 
-  // EDIT MODAL STATE
+  // Edit Modal
   const [editModal, setEditModal] = useState({
     open: false,
     type: null,
     fields: [],
   });
 
-  // FORM FOR NEW TYPE
+  // Form for new type
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -38,7 +38,28 @@ export default function ResourceTypes() {
   }
 
   // -----------------------------
-  // ADD TYPE MODAL LOGIC
+  // DELETE TYPE
+  // -----------------------------
+  async function deleteType(id) {
+    if (!confirm("Are you sure you want to delete this resource type?")) return;
+
+    try {
+      const res = await apiDelete(`/resource-types/${id}`);
+
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+
+      loadTypes();
+    } catch (err) {
+      console.error("Error deleting type:", err);
+      alert("Delete failed");
+    }
+  }
+
+  // -----------------------------
+  // ADD TYPE LOGIC
   // -----------------------------
   function addFieldRow() {
     setForm((prev) => ({
@@ -74,7 +95,7 @@ export default function ResourceTypes() {
   }
 
   // -----------------------------
-  // EDIT TYPE MODAL LOGIC
+  // EDIT TYPE LOGIC
   // -----------------------------
   function openEditModal(typeData) {
     setEditModal({
@@ -121,15 +142,14 @@ export default function ResourceTypes() {
     }
   }
 
-  // ------------------------------------------------
+  // -----------------------------
   // RENDER
-  // ------------------------------------------------
+  // -----------------------------
 
   if (loading) return <p className="text-gray-500">Loading...</p>;
 
   return (
     <div>
-
       {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Resource Types</h1>
@@ -162,12 +182,19 @@ export default function ResourceTypes() {
                 <td className="p-3 font-medium">{t.name}</td>
                 <td className="p-3">{t.description}</td>
                 <td className="p-3">{t.fields?.length || 0}</td>
-                <td className="p-3">
+                <td className="p-3 flex gap-2">
                   <button
                     onClick={() => openEditModal(t)}
                     className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
                   >
                     Edit
+                  </button>
+
+                  <button
+                    onClick={() => deleteType(t.id)}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -182,7 +209,6 @@ export default function ResourceTypes() {
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
           <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
-
             <h2 className="text-xl font-bold mb-4">Add Resource Type</h2>
 
             {/* BASIC INFO */}
@@ -282,7 +308,7 @@ export default function ResourceTypes() {
               </tbody>
             </table>
 
-            {/* ADD FIELD */}
+            {/* ADD FIELD BUTTON */}
             <button
               onClick={addFieldRow}
               className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 mb-4"
@@ -290,7 +316,7 @@ export default function ResourceTypes() {
               + Add Field
             </button>
 
-            {/* ACTIONS */}
+            {/* ACTION BUTTONS */}
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowAdd(false)}
@@ -306,7 +332,6 @@ export default function ResourceTypes() {
                 Save Type
               </button>
             </div>
-
           </div>
         </div>
       )}
@@ -317,7 +342,6 @@ export default function ResourceTypes() {
       {editModal.open && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
           <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
-
             <h2 className="text-xl font-bold mb-4">
               Edit Resource Type – {editModal.type.name}
             </h2>
@@ -425,7 +449,7 @@ export default function ResourceTypes() {
               </tbody>
             </table>
 
-            {/* ADD FIELD */}
+            {/* ADD FIELD BUTTON */}
             <button
               onClick={addEditFieldRow}
               className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 mb-4"
@@ -433,7 +457,7 @@ export default function ResourceTypes() {
               + Add Field
             </button>
 
-            {/* ACTIONS */}
+            {/* ACTION BUTTONS */}
             <div className="flex justify-end gap-2">
               <button
                 onClick={() =>
@@ -451,11 +475,9 @@ export default function ResourceTypes() {
                 Save Changes
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }

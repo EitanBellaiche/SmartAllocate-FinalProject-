@@ -3,92 +3,82 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// GET all bookings
-router.get("/", async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT bookings.*, 
-              resources.name AS resource_name, 
-              users.full_name AS user_name
-       FROM bookings
-       JOIN resources ON bookings.resource_id = resources.id
-       JOIN users ON bookings.user_id = users.id
-       ORDER BY date, start_time`
-    );
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST create booking (WITH CONFLICT + AVAILABILITY CHECK)
+/* -----------------------------
+   CREATE BOOKING WITH RESOURCES
+--------------------------------*/
 router.post("/", async (req, res) => {
-  const { resource_id, user_id, date, start_time, end_time } = req.body;
+  const { resources, roles, date, start_time, end_time, user_id } = req.body;
+
+  if (!resources || resources.length === 0) {
+    return res.status(400).json({ error: "No resources provided" });
+  }
+
+  const client = await pool.connect();
 
   try {
-    // 1) Availability window check
-    const availability = await pool.query(
-      `SELECT * FROM availability
-       WHERE resource_id = $1
-       AND day_of_week = TO_CHAR($2::date, 'dy')
-       AND start_time <= $3
-       AND end_time >= $4`,
-      [resource_id, date, start_time, end_time]
-    );
+    await client.query("BEGIN");
 
-    if (availability.rows.length === 0) {
-      return res.status(400).json({
-        error: "This resource is not available during the requested time",
-      });
-    }
-
-    // 2) Booking conflict
-    const conflictCheck = await pool.query(
-      `SELECT *
-       FROM bookings
-       WHERE resource_id = $1
-       AND date = $2
-       AND (
-          ($3 >= start_time AND $3 < end_time) OR
-          ($4 > start_time AND $4 <= end_time) OR
-          ($3 <= start_time AND $4 >= end_time)
-       )`,
-      [resource_id, date, start_time, end_time]
+    /* 1. Check availability for all selected resources */
+    const conflictCheck = await client.query(
+      `
+      SELECT br.resource_id, b.*
+      FROM booking_resources br
+      JOIN bookings b ON b.id = br.booking_id
+      WHERE br.resource_id = ANY($1)
+      AND b.date = $2
+      AND (
+        ($3 >= b.start_time AND $3 < b.end_time) OR
+        ($4 > b.start_time AND $4 <= b.end_time) OR
+        ($3 <= b.start_time AND $4 >= b.end_time)
+      )
+    `,
+      [resources, date, start_time, end_time]
     );
 
     if (conflictCheck.rows.length > 0) {
-      return res.status(400).json({
-        error: "Time conflict – resource is already booked",
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "Resources conflict",
+        conflicts: conflictCheck.rows
       });
     }
 
-    // 3) Insert booking
-    const result = await pool.query(
-      `INSERT INTO bookings (resource_id, user_id, date, start_time, end_time)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [resource_id, user_id, date, start_time, end_time]
+    /* 2. Create booking */
+    const bookingResult = await client.query(
+      `
+      INSERT INTO bookings (user_id, date, start_time, end_time)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `,
+      [user_id, date, start_time, end_time]
     );
 
-    res.json(result.rows[0]);
+    const booking = bookingResult.rows[0];
+
+    /* 3. Insert into booking_resources */
+    for (let r of resources) {
+      await client.query(
+        `
+        INSERT INTO booking_resources (booking_id, resource_id, role)
+        VALUES ($1, $2, $3)
+      `,
+        [booking.id, r, roles?.[r] || null]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      message: "Booking created",
+      booking
+    });
 
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// REJECT booking
-router.put("/:id/reject", async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const result = await pool.query(
-      "UPDATE bookings SET status = 'rejected' WHERE id = $1 RETURNING *",
-      [id]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query("ROLLBACK");
+    console.error("Booking error:", err);
+    res.status(500).json({ error: "Booking failed" });
+  } finally {
+    client.release();
   }
 });
 

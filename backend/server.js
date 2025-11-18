@@ -10,6 +10,7 @@ import resourcesRoutes from "./routes/resources.js";
 import bookingsRoutes from "./routes/bookings.js";
 import availabilityRoutes from "./routes/availability.js";
 
+
 dotenv.config();
 
 const app = express();
@@ -27,6 +28,7 @@ app.use("/api/resource-types", resourceTypesRoutes);
 app.use("/api/resources", resourcesRoutes);
 app.use("/api/bookings", bookingsRoutes);
 app.use("/api/availability", availabilityRoutes);
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
