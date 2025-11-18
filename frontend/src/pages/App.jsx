@@ -6,6 +6,7 @@ import Resources from "./Resources";
 import Booking from "./Booking";
 import Users from "./Users";
 import ResourceTypes from "./ResourceTypes";
+import Availability from "./Availability";
 
 
 export default function App() {
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="bookings" element={<Booking />} />
           <Route path="users" element={<Users />} />
           <Route path="/resource-types" element={<ResourceTypes />} />
+          <Route path="availability" element={<Availability />} />
         </Route>
       </Routes>
     </BrowserRouter>

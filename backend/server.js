@@ -1,44 +1,34 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const pool = require('./db');
-const resourceTypesRoute = require("./routes/resourceTypes");
-const resourcesRoute = require("./routes/resources");
-const availabilityRoute = require("./routes/availability");
-const bookingsRoute = require("./routes/bookings");
-const usersRoute = require("./routes/users");
+console.log("➡ server.js LOADED");
+console.log("➡ SERVER BASE PATH:", process.cwd());
 
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
 
+import resourceTypesRoutes from "./routes/resourceTypes.js";
+import resourcesRoutes from "./routes/resources.js";
+import bookingsRoutes from "./routes/bookings.js";
+import availabilityRoutes from "./routes/availability.js";
 
+dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Test route
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'SmartAllocate API is running!' });
+// GLOBAL LOGGER — כל בקשה שנכנסת
+app.use((req, res, next) => {
+  console.log(`📥 Incoming: ${req.method} ${req.url}`);
+  next();
 });
 
-// Test DB connection
-app.get('/api/db-test', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ time: result.rows[0] });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.use("/api/resource-types", resourceTypesRoute);
-app.use("/api/resources", resourcesRoute);
-app.use("/api/availability", availabilityRoute);
-app.use("/api/bookings", bookingsRoute);
-app.use("/api/users", usersRoute);
-
-
+// ROUTES
+app.use("/api/resource-types", resourceTypesRoutes);
+app.use("/api/resources", resourcesRoutes);
+app.use("/api/bookings", bookingsRoutes);
+app.use("/api/availability", availabilityRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`SmartAllocate backend running on port ${PORT}`);
+  console.log(`🚀 SmartAllocate backend running on port ${PORT}`);
 });

@@ -1,6 +1,7 @@
-const express = require("express");
+import express from "express";
+import pool from "../db.js";
+
 const router = express.Router();
-const pool = require("../db");
 
 // GET all bookings
 router.get("/", async (req, res) => {
@@ -20,13 +21,12 @@ router.get("/", async (req, res) => {
   }
 });
 
-
 // POST create booking (WITH CONFLICT + AVAILABILITY CHECK)
 router.post("/", async (req, res) => {
   const { resource_id, user_id, date, start_time, end_time } = req.body;
 
   try {
-    // 1) Check for availability window
+    // 1) Availability window check
     const availability = await pool.query(
       `SELECT * FROM availability
        WHERE resource_id = $1
@@ -38,11 +38,11 @@ router.post("/", async (req, res) => {
 
     if (availability.rows.length === 0) {
       return res.status(400).json({
-        error: "This resource is not available during the requested time"
+        error: "This resource is not available during the requested time",
       });
     }
 
-    // 2) Check for booking conflicts
+    // 2) Booking conflict
     const conflictCheck = await pool.query(
       `SELECT *
        FROM bookings
@@ -58,13 +58,15 @@ router.post("/", async (req, res) => {
 
     if (conflictCheck.rows.length > 0) {
       return res.status(400).json({
-        error: "Time conflict – resource is already booked"
+        error: "Time conflict – resource is already booked",
       });
     }
 
     // 3) Insert booking
     const result = await pool.query(
-      "INSERT INTO bookings (resource_id, user_id, date, start_time, end_time) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      `INSERT INTO bookings (resource_id, user_id, date, start_time, end_time)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
       [resource_id, user_id, date, start_time, end_time]
     );
 
@@ -90,5 +92,4 @@ router.put("/:id/reject", async (req, res) => {
   }
 });
 
-
-module.exports = router;
+export default router;
