@@ -1,6 +1,5 @@
 import { Outlet, NavLink } from "react-router-dom";
 
-
 export default function MainLayout() {
   return (
     <div className="flex min-h-screen bg-gray-100 text-gray-900">
@@ -22,6 +21,9 @@ export default function MainLayout() {
           <NavItem to="/availability">Availability</NavItem>
           <NavItem to="/bookings">Bookings</NavItem>
           <NavItem to="/users">Users</NavItem>
+
+          {/* ⭐ הוספת דף החוקים */}
+          <NavItem to="/rules">Rules</NavItem>
         </nav>
 
         <div className="px-4 py-3 text-xs text-gray-400 border-t">
