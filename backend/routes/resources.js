@@ -3,16 +3,26 @@ import pool from "../db.js";
 
 const router = express.Router();
 
-// GET all resources
+// ✅ GET resources (supports optional filter: ?type_id=1)
 router.get("/", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT resources.*, resource_types.name AS type_name
-       FROM resources
-       JOIN resource_types ON resources.type_id = resource_types.id
-       ORDER BY resources.id`
-    );
+    const { type_id } = req.query;
 
+    let query = `
+      SELECT resources.*, resource_types.name AS type_name
+      FROM resources
+      JOIN resource_types ON resources.type_id = resource_types.id
+    `;
+    const params = [];
+
+    if (type_id) {
+      params.push(Number(type_id));
+      query += ` WHERE resources.type_id = $1`;
+    }
+
+    query += ` ORDER BY resources.id`;
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error("Error getting resources:", err);
@@ -20,6 +30,35 @@ router.get("/", async (req, res) => {
   }
 });
 
+// ✅ NEW: GET one resource by id  (/api/resources/:id)
+router.get("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid resource id" });
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT resources.*, resource_types.name AS type_name
+      FROM resources
+      JOIN resource_types ON resources.type_id = resource_types.id
+      WHERE resources.id = $1
+      LIMIT 1
+      `,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Resource not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error getting resource by id:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CREATE resource
 router.post("/", async (req, res) => {
   const { name, type_id, metadata } = req.body;
 
@@ -32,13 +71,11 @@ router.post("/", async (req, res) => {
     );
 
     res.json(result.rows[0]);
-
   } catch (err) {
     console.error("Error creating resource:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 // DELETE a resource
 router.delete("/:id", async (req, res) => {
@@ -60,12 +97,10 @@ router.delete("/:id", async (req, res) => {
     }
 
     res.json({ success: true, deleted: result.rows[0] });
-
   } catch (err) {
     console.error("Error deleting resource:", err);
     res.status(500).json({ error: err.message });
   }
 });
-
 
 export default router;

@@ -1,6 +1,3 @@
-console.log("➡ server.js LOADED");
-console.log("➡ SERVER BASE PATH:", process.cwd());
-
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -9,9 +6,12 @@ import resourceTypesRoutes from "./routes/resourceTypes.js";
 import resourcesRoutes from "./routes/resources.js";
 import bookingsRoutes from "./routes/bookings.js";
 import availabilityRoutes from "./routes/availability.js";
-
+import rulesRoutes from "./routes/rules.js";  
 
 dotenv.config();
+
+console.log("➡ server.js LOADED");
+console.log("➡ SERVER BASE PATH:", process.cwd());
 
 const app = express();
 app.use(cors());
@@ -28,7 +28,7 @@ app.use("/api/resource-types", resourceTypesRoutes);
 app.use("/api/resources", resourcesRoutes);
 app.use("/api/bookings", bookingsRoutes);
 app.use("/api/availability", availabilityRoutes);
-
+app.use("/api/rules", rulesRoutes);           
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
