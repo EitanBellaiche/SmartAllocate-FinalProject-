@@ -13,6 +13,8 @@ export default function ResourceTypes() {
     open: false,
     type: null,
     fields: [],
+    roles: [],
+    roleInput: "",
   });
 
   // Form for new type
@@ -20,7 +22,9 @@ export default function ResourceTypes() {
     name: "",
     description: "",
     fields: [],
+    roles: [],
   });
+  const [roleInput, setRoleInput] = useState("");
 
   useEffect(() => {
     loadTypes();
@@ -87,7 +91,8 @@ export default function ResourceTypes() {
     try {
       await apiPost("/resource-types", form);
       setShowAdd(false);
-      setForm({ name: "", description: "", fields: [] });
+      setForm({ name: "", description: "", fields: [], roles: [] });
+      setRoleInput("");
       loadTypes();
     } catch (err) {
       console.error("Error creating type:", err);
@@ -102,6 +107,8 @@ export default function ResourceTypes() {
       open: true,
       type: { ...typeData },
       fields: JSON.parse(JSON.stringify(typeData.fields || [])),
+      roles: Array.isArray(typeData.roles) ? [...typeData.roles] : [],
+      roleInput: "",
     });
   }
 
@@ -133,9 +140,10 @@ export default function ResourceTypes() {
         name: editModal.type.name,
         description: editModal.type.description,
         fields: editModal.fields,
+        roles: editModal.roles,
       });
 
-      setEditModal({ open: false, type: null, fields: [] });
+      setEditModal({ open: false, type: null, fields: [], roles: [], roleInput: "" });
       loadTypes();
     } catch (err) {
       console.error("Error editing type:", err);
@@ -171,6 +179,7 @@ export default function ResourceTypes() {
               <th className="p-3">Name</th>
               <th className="p-3">Description</th>
               <th className="p-3">Fields</th>
+              <th className="p-3">Roles</th>
               <th className="p-3">Actions</th>
             </tr>
           </thead>
@@ -182,6 +191,7 @@ export default function ResourceTypes() {
                 <td className="p-3 font-medium">{t.name}</td>
                 <td className="p-3">{t.description}</td>
                 <td className="p-3">{t.fields?.length || 0}</td>
+                <td className="p-3">{t.roles?.length || 0}</td>
                 <td className="p-3 flex gap-2">
                   <button
                     onClick={() => openEditModal(t)}
@@ -315,6 +325,54 @@ export default function ResourceTypes() {
             >
               + Add Field
             </button>
+
+            {/* ROLES */}
+            <h3 className="text-lg font-semibold mb-2">Roles</h3>
+
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="Role name"
+                value={roleInput}
+                onChange={(e) => setRoleInput(e.target.value)}
+                className="flex-1 p-2 border rounded"
+              />
+              <button
+                onClick={() => {
+                  if (!roleInput.trim()) return;
+                  setForm((prev) => ({
+                    ...prev,
+                    roles: [...prev.roles, roleInput.trim()],
+                  }));
+                  setRoleInput("");
+                }}
+                className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Add Role
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {form.roles.map((role, i) => (
+                <span
+                  key={`${role}-${i}`}
+                  className="bg-gray-100 px-2 py-1 rounded text-sm"
+                >
+                  {role}
+                  <button
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        roles: prev.roles.filter((_, idx) => idx !== i),
+                      }))
+                    }
+                    className="ml-2 text-red-600"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
 
             {/* ACTION BUTTONS */}
             <div className="flex justify-end gap-2">
@@ -457,11 +515,62 @@ export default function ResourceTypes() {
               + Add Field
             </button>
 
+            {/* ROLES */}
+            <h3 className="text-lg font-semibold mb-2">Roles</h3>
+
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                placeholder="Role name"
+                value={editModal.roleInput}
+                onChange={(e) =>
+                  setEditModal((p) => ({ ...p, roleInput: e.target.value }))
+                }
+                className="flex-1 p-2 border rounded"
+              />
+              <button
+                onClick={() => {
+                  const value = editModal.roleInput.trim();
+                  if (!value) return;
+                  setEditModal((p) => ({
+                    ...p,
+                    roles: [...p.roles, value],
+                    roleInput: "",
+                  }));
+                }}
+                className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Add Role
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {editModal.roles.map((role, i) => (
+                <span
+                  key={`${role}-${i}`}
+                  className="bg-gray-100 px-2 py-1 rounded text-sm"
+                >
+                  {role}
+                  <button
+                    onClick={() =>
+                      setEditModal((p) => ({
+                        ...p,
+                        roles: p.roles.filter((_, idx) => idx !== i),
+                      }))
+                    }
+                    className="ml-2 text-red-600"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+
             {/* ACTION BUTTONS */}
             <div className="flex justify-end gap-2">
               <button
                 onClick={() =>
-                  setEditModal({ open: false, type: null, fields: [] })
+                  setEditModal({ open: false, type: null, fields: [], roles: [], roleInput: "" })
                 }
                 className="px-4 py-2 border rounded"
               >

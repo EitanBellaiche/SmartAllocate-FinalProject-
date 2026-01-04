@@ -13,6 +13,9 @@ router.get("/", async (req, res) => {
       fields: typeof row.fields === "string"
         ? JSON.parse(row.fields)
         : row.fields,
+      roles: typeof row.roles === "string"
+        ? JSON.parse(row.roles)
+        : row.roles,
     }));
 
     res.json(cleaned);
@@ -23,19 +26,44 @@ router.get("/", async (req, res) => {
 
 
 router.post("/", async (req, res) => {
-  const { name, description, fields } = req.body;
+  const { name, description, fields, roles } = req.body;
 
   const jsonFields = JSON.stringify(fields);
+  const jsonRoles = JSON.stringify(roles ?? []);
 
   const result = await pool.query(
-    `INSERT INTO resource_types (name, description, fields)
-     VALUES ($1, $2, $3::jsonb) RETURNING *`,
-    [name, description, jsonFields]
+    `INSERT INTO resource_types (name, description, fields, roles)
+     VALUES ($1, $2, $3::jsonb, $4::jsonb) RETURNING *`,
+    [name, description, jsonFields, jsonRoles]
   );
 
   res.json(result.rows[0]);
 });
 
+// UPDATE a resource type
+router.put("/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, description, fields, roles } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE resource_types
+       SET name = $1, description = $2, fields = $3::jsonb, roles = $4::jsonb
+       WHERE id = $5
+       RETURNING *`,
+      [name, description, JSON.stringify(fields), JSON.stringify(roles ?? []), id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Type not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error updating resource type:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 
 // DELETE a resource type

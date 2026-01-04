@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../db.js";
+import { evaluateRules } from "../rulesEngine.js";
 
 const router = express.Router();
 
@@ -43,7 +44,48 @@ router.post("/", async (req, res) => {
       });
     }
 
-    /* 2. Create booking */
+    /* 2. Load resources + rules for evaluation */
+    const { rows: resourceRows } = await client.query(
+      `
+      SELECT r.*, rt.name AS type_name, rt.roles AS type_roles, rt.fields AS type_fields
+      FROM resources r
+      JOIN resource_types rt ON rt.id = r.type_id
+      WHERE r.id = ANY($1)
+      `,
+      [resources]
+    );
+
+    if (resourceRows.length !== resources.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "One or more resources not found" });
+    }
+
+    const { rows: ruleRows } = await client.query(
+      `SELECT * FROM rules WHERE is_active = true ORDER BY sort_order ASC, id ASC`
+    );
+
+    const ruleEval = evaluateRules({
+      rules: ruleRows,
+      booking: {
+        date,
+        start_time,
+        end_time,
+        user_id,
+      },
+      resources: resourceRows,
+      roles,
+    });
+
+    if (ruleEval.hardViolations.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(422).json({
+        error: "Rule violations",
+        violations: ruleEval.hardViolations,
+        alerts: ruleEval.alerts,
+      });
+    }
+
+    /* 3. Create booking */
     const bookingResult = await client.query(
       `
       INSERT INTO bookings (user_id, date, start_time, end_time)
@@ -70,7 +112,12 @@ router.post("/", async (req, res) => {
 
     res.json({
       message: "Booking created",
-      booking
+      booking,
+      rule_summary: {
+        score: ruleEval.score,
+        soft_matches: ruleEval.softMatches,
+        alerts: ruleEval.alerts,
+      },
     });
 
   } catch (err) {

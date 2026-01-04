@@ -3,12 +3,14 @@ import { apiGet, apiPost } from "../api/api";
 
 export default function Booking() {
   const [resources, setResources] = useState([]);
+  const [resourceTypes, setResourceTypes] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
   const [roles, setRoles] = useState({});
 
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [userId, setUserId] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -19,8 +21,12 @@ export default function Booking() {
 
   async function loadResources() {
     try {
-      const data = await apiGet("/resources");
-      setResources(data);
+      const [resourceData, typeData] = await Promise.all([
+        apiGet("/resources"),
+        apiGet("/resource-types"),
+      ]);
+      setResources(resourceData);
+      setResourceTypes(typeData);
     } catch (err) {
       console.error("Error loading resources:", err);
     }
@@ -46,8 +52,13 @@ export default function Booking() {
   }
 
   async function submitBooking() {
-    if (!date || !startTime || !endTime || selectedResources.length === 0) {
-      setMessage("❗ Please select date, time and at least one resource.");
+    if (!date || !startTime || !endTime || selectedResources.length === 0 || !userId) {
+      setMessage("❗ Please select date, time, user and at least one resource.");
+      return;
+    }
+    const parsedUserId = Number(userId);
+    if (!Number.isFinite(parsedUserId)) {
+      setMessage("❗ User ID must be a number.");
       return;
     }
 
@@ -61,7 +72,7 @@ export default function Booking() {
         date,
         start_time: startTime,
         end_time: endTime,
-        user_id: 1 // temporary
+        user_id: parsedUserId
       });
 
       setMessage("✔ Booking created successfully!");
@@ -71,13 +82,10 @@ export default function Booking() {
       setDate("");
       setStartTime("");
       setEndTime("");
+      setUserId("");
 
     } catch (err) {
-      if (err?.response?.status === 409) {
-        setMessage("❌ Conflict: One or more resources are already booked.");
-      } else {
-        setMessage("❌ Failed to create booking.");
-      }
+      setMessage(`❌ ${err?.message || "Failed to create booking."}`);
       console.error(err);
     }
 
@@ -127,38 +135,54 @@ export default function Booking() {
         </div>
       </div>
 
+      {/* USER */}
+      <div className="mb-4">
+        <label className="block font-semibold mb-1">User ID</label>
+        <input
+          type="number"
+          className="border px-3 py-2 rounded w-full"
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+        />
+      </div>
+
       {/* RESOURCES */}
       <div className="mb-6">
         <label className="block font-semibold mb-2">Select Resources</label>
 
         <div className="max-h-64 overflow-y-auto border rounded p-3">
-          {resources.map(r => (
-            <div key={r.id} className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={selectedResources.includes(r.id)}
-                  onChange={() => toggleResource(r.id)}
-                />
-                <span>{r.name}</span>
-              </div>
+          {resources.map((r) => {
+            const type = resourceTypes.find((t) => t.id === r.type_id);
+            const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
+            return (
+              <div key={r.id} className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedResources.includes(r.id)}
+                    onChange={() => toggleResource(r.id)}
+                  />
+                  <span>{r.name}</span>
+                </div>
 
-              {/* ROLE SELECTOR */}
-              {selectedResources.includes(r.id) && (
-                <select
-                  className="border rounded px-2 py-1"
-                  value={roles[r.id] || ""}
-                  onChange={e => updateRole(r.id, e.target.value)}
-                >
-                  <option value="">Role (optional)</option>
-                  <option value="room">Room</option>
-                  <option value="lecturer">Lecturer</option>
-                  <option value="computer">Computer</option>
-                  <option value="equipment">Equipment</option>
-                </select>
-              )}
-            </div>
-          ))}
+                {/* ROLE SELECTOR */}
+                {selectedResources.includes(r.id) && typeRoles.length > 0 && (
+                  <select
+                    className="border rounded px-2 py-1"
+                    value={roles[r.id] || ""}
+                    onChange={e => updateRole(r.id, e.target.value)}
+                  >
+                    <option value="">Role (optional)</option>
+                    {typeRoles.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 

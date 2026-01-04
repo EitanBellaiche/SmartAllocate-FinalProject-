@@ -12,6 +12,10 @@ const OP_OPTIONS = [
 ];
 
 const REQUEST_REF_OPTIONS = [
+  { label: "booking.date", value: "booking.date" },
+  { label: "booking.start_time", value: "booking.start_time" },
+  { label: "booking.end_time", value: "booking.end_time" },
+  { label: "booking.user_id", value: "booking.user_id" },
   { label: "request.students", value: "request.students" },
   { label: "request.department", value: "request.department" },
   { label: "request.courseName", value: "request.courseName" },
@@ -300,6 +304,11 @@ export default function Rules() {
       { label: "Resource Type ID", value: "resource.type_id" },
       { label: "Resource Type Name", value: "resource.type_name" },
       { label: "Resource Active", value: "resource.active" },
+      { label: "Booking Date", value: "booking.date" },
+      { label: "Booking Start Time", value: "booking.start_time" },
+      { label: "Booking End Time", value: "booking.end_time" },
+      { label: "Booking User ID", value: "booking.user_id" },
+      { label: "Pair Role", value: "pair.role" },
     ];
 
     // metadata keys:
