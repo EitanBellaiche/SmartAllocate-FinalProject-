@@ -9,6 +9,8 @@ const OP_OPTIONS = [
   { label: ">", value: ">" },
   { label: "<", value: "<" },
   { label: "contains", value: "contains" },
+  { label: "in", value: "in" },
+  { label: "overlap", value: "overlap" },
 ];
 
 const REQUEST_REF_OPTIONS = [
@@ -70,6 +72,14 @@ export default function Rules() {
   const [rules, setRules] = useState([]);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [comparison, setComparison] = useState({
+    applyTypeId: "",
+    leftTypeId: "",
+    leftField: "",
+    op: "<",
+    rightTypeId: "",
+    rightField: "",
+  });
 
   // Add Modal
   const [showAdd, setShowAdd] = useState(false);
@@ -101,6 +111,11 @@ export default function Rules() {
     conditions: [
       // { field:"resource.metadata.capacity", op:">=", valueMode:"ref", refValue:"request.students", constValue:"" }
     ],
+
+    // Advanced JSON (optional)
+    useAdvanced: false,
+    advancedConditionText: "",
+    advancedActionText: "",
   });
 
   const conditionJson = useMemo(
@@ -172,6 +187,18 @@ export default function Rules() {
       selectedResourceId: "",
 
       conditions: [],
+
+      useAdvanced: false,
+      advancedConditionText: "",
+      advancedActionText: "",
+    });
+    setComparison({
+      applyTypeId: "",
+      leftTypeId: "",
+      leftField: "",
+      op: "<",
+      rightTypeId: "",
+      rightField: "",
     });
     setShowAdd(true);
   }
@@ -193,6 +220,22 @@ export default function Rules() {
       actionKind = "score";
     }
 
+    let condition = conditionJson;
+    let action = buildActionJson({ actionKind, scoreDelta: form.scoreDelta });
+
+    if (form.useAdvanced) {
+      try {
+        condition = JSON.parse(form.advancedConditionText || "{}");
+      } catch {
+        return alert("Advanced condition JSON is invalid");
+      }
+      try {
+        action = JSON.parse(form.advancedActionText || "{}");
+      } catch {
+        return alert("Advanced action JSON is invalid");
+      }
+    }
+
     const payload = {
       name: form.name.trim(),
       description: form.description ?? "",
@@ -201,8 +244,8 @@ export default function Rules() {
       is_active: !!form.is_active,
       weight: Number(form.weight) || 0,
       sort_order: Number(form.sort_order) || 0,
-      condition: conditionJson,
-      action: buildActionJson({ actionKind, scoreDelta: form.scoreDelta }),
+      condition,
+      action,
     };
 
     try {
@@ -336,6 +379,25 @@ export default function Rules() {
     return [...base, ...meta];
   }, [resources, form.applyMode, form.selectedTypeId, selectedResource]);
 
+  const getTypeFieldOptions = (typeId) => {
+    if (!typeId) return [];
+    const list = resources.filter((r) => String(r.type_id) === String(typeId));
+    const keys = uniq(list.flatMap((r) => Object.keys(r.metadata || {}))).sort();
+
+    const base = [
+      { label: "id", value: "id" },
+      { label: "name", value: "name" },
+      { label: "type_id", value: "type_id" },
+    ];
+
+    const meta = keys.map((k) => ({
+      label: `metadata.${k}`,
+      value: `metadata.${k}`,
+    }));
+
+    return [...base, ...meta];
+  };
+
   function addCondition() {
     const firstField = fieldOptions[0]?.value ?? "resource.id";
     setForm((p) => ({
@@ -386,6 +448,99 @@ export default function Rules() {
 
     return `${parts.join(" ")} ${then}`;
   }, [form.applyMode, form.selectedTypeId, form.conditions.length, form.ruleType, form.scoreDelta, selectedResource, typeOptions]);
+
+  function applyTemplate(templateKey) {
+    if (templateKey === "block-resource") {
+      setForm((p) => ({
+        ...p,
+        name: "Block specific resource",
+        description: "Hard rule that blocks a specific resource",
+        ruleType: "hard",
+        target_type: "pair",
+        applyMode: "resource",
+        selectedTypeId: "",
+        selectedResourceId: "",
+        conditions: [],
+        useAdvanced: false,
+        advancedConditionText: "",
+        advancedActionText: "",
+      }));
+      return;
+    }
+
+    if (templateKey === "prefer-resource") {
+      setForm((p) => ({
+        ...p,
+        name: "Prefer specific resource",
+        description: "Soft rule that adds score to a resource",
+        ruleType: "soft",
+        target_type: "pair",
+        scoreDelta: 30,
+        applyMode: "resource",
+        selectedTypeId: "",
+        selectedResourceId: "",
+        conditions: [],
+        useAdvanced: false,
+        advancedConditionText: "",
+        advancedActionText: "",
+      }));
+      return;
+    }
+
+    if (templateKey === "course-capacity") return;
+  }
+
+  function buildComparisonCondition() {
+    if (!comparison.leftTypeId || !comparison.leftField || !comparison.rightTypeId || !comparison.rightField) {
+      return null;
+    }
+
+    const all = [];
+    if (comparison.applyTypeId) {
+      all.push({
+        field: "resource.type_id",
+        op: "==",
+        value: Number(comparison.applyTypeId),
+      });
+    }
+
+    all.push({
+      field: `resources_by_type_id.${comparison.leftTypeId}.${comparison.leftField}`,
+      op: comparison.op,
+      value: {
+        ref: `resources_by_type_id.${comparison.rightTypeId}.${comparison.rightField}`,
+      },
+    });
+
+    return { all };
+  }
+
+  function applyComparisonRule() {
+    const condition = buildComparisonCondition();
+    if (!condition) return alert("Please select both types and fields.");
+
+    const actionKind =
+      form.ruleType === "hard"
+        ? "forbid"
+        : form.ruleType === "alert"
+        ? "alert"
+        : "score";
+    const action = buildActionJson({ actionKind, scoreDelta: form.scoreDelta });
+
+    setForm((p) => ({
+      ...p,
+      name: p.name || "Compare fields between two resource types",
+      description: p.description || "Generic comparison rule between two resource types",
+      target_type: "pair",
+      applyMode: "all",
+      selectedTypeId: "",
+      selectedResourceId: "",
+      conditions: [],
+      useAdvanced: true,
+      advancedConditionText: JSON.stringify(condition, null, 2),
+      advancedActionText: JSON.stringify(action, null, 2),
+    }));
+  }
 
   // -----------------------------
   // RENDER
@@ -482,9 +637,170 @@ export default function Rules() {
           <div className="bg-white p-6 rounded-lg w-[920px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Add Rule</h2>
 
+            {/* Quick Templates */}
+            <div className="mb-6">
+              <div className="text-sm font-semibold mb-2">Quick Templates</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => applyTemplate("block-resource")}
+                  className="px-3 py-2 border rounded hover:bg-gray-50"
+                >
+                  Block Resource
+                </button>
+                <button
+                  onClick={() => applyTemplate("prefer-resource")}
+                  className="px-3 py-2 border rounded hover:bg-gray-50"
+                >
+                  Prefer Resource
+                </button>
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Use templates to auto-fill the form. You can still edit any field.
+              </div>
+            </div>
+
+            {/* Generic Comparison Rule */}
+            <div className="mb-6 border rounded-lg p-4 bg-gray-50">
+              <div className="text-sm font-semibold mb-2">Generic Comparison Rule</div>
+              <div className="text-xs text-gray-500 mb-3">
+                Compare a numeric field from Resource Type A to Resource Type B in the same booking.
+                Example: Course.students &gt; Classroom.capacity.
+              </div>
+              <div className="text-xs text-gray-500 mb-3">
+                This rule uses the selected types and fields, not hardcoded names.
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Apply when resource is</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white"
+                    value={comparison.applyTypeId}
+                    onChange={(e) => setComparison((p) => ({ ...p, applyTypeId: e.target.value }))}
+                  >
+                    <option value="">Any type</option>
+                    {typeOptions.map((t) => (
+                      <option key={t.type_id} value={t.type_id}>
+                        {t.type_name} (id={t.type_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Left Type</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white"
+                    value={comparison.leftTypeId}
+                    onChange={(e) =>
+                      setComparison((p) => ({
+                        ...p,
+                        leftTypeId: e.target.value,
+                        leftField: "",
+                      }))
+                    }
+                  >
+                    <option value="">Choose type…</option>
+                    {typeOptions.map((t) => (
+                      <option key={t.type_id} value={t.type_id}>
+                        {t.type_name} (id={t.type_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Left Field</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white"
+                    value={comparison.leftField}
+                    onChange={(e) => setComparison((p) => ({ ...p, leftField: e.target.value }))}
+                    disabled={!comparison.leftTypeId}
+                  >
+                    <option value="">Choose field…</option>
+                    {getTypeFieldOptions(comparison.leftTypeId).map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1">Operator</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white"
+                    value={comparison.op}
+                    onChange={(e) => setComparison((p) => ({ ...p, op: e.target.value }))}
+                  >
+                    {OP_OPTIONS.filter((o) => ["<", "<=", ">", ">=", "==", "!="].includes(o.value)).map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Right Type</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white"
+                    value={comparison.rightTypeId}
+                    onChange={(e) =>
+                      setComparison((p) => ({
+                        ...p,
+                        rightTypeId: e.target.value,
+                        rightField: "",
+                      }))
+                    }
+                  >
+                    <option value="">Choose type…</option>
+                    {typeOptions.map((t) => (
+                      <option key={t.type_id} value={t.type_id}>
+                        {t.type_name} (id={t.type_id})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1">Right Field</label>
+                  <select
+                    className="w-full p-2 border rounded bg-white"
+                    value={comparison.rightField}
+                    onChange={(e) => setComparison((p) => ({ ...p, rightField: e.target.value }))}
+                    disabled={!comparison.rightTypeId}
+                  >
+                    <option value="">Choose field…</option>
+                    {getTypeFieldOptions(comparison.rightTypeId).map((f) => (
+                      <option key={f.value} value={f.value}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={applyComparisonRule}
+                  className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Use This Comparison Rule
+                </button>
+                <div className="text-xs text-gray-500">
+                  This fills Advanced JSON for you.
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                Pair rules use the resources selected together in a booking.
+              </div>
+            </div>
+
             {/* Step A: Rule type */}
             <div className="mb-6">
               <div className="text-sm font-semibold mb-2">Step A — Rule Type</div>
+              <div className="text-xs text-gray-500 mb-3">
+                Hard = block. Soft = add score. Choose how the system reacts.
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex items-center gap-2 border rounded p-3 cursor-pointer">
                   <input
@@ -560,6 +876,9 @@ export default function Rules() {
                     <option value="booking">booking</option>
                     <option value="pair">pair</option>
                   </select>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Pair checks each resource in a booking and can compare with other resources.
+                  </div>
                 </div>
               </div>
 
@@ -611,6 +930,9 @@ export default function Rules() {
               {/* Step B: Scope */}
               <div className="border-t pt-4">
                 <div className="text-sm font-semibold mb-2">Step B — Applies to (Scope)</div>
+                <div className="text-xs text-gray-500 mb-3">
+                  Use this to limit the rule to a specific type or a single resource.
+                </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   <label className="flex items-center gap-2 border rounded p-3 cursor-pointer">
@@ -667,6 +989,12 @@ export default function Rules() {
                     </div>
                   </label>
                 </div>
+
+                {form.target_type === "pair" && (
+                  <div className="text-xs text-gray-500 mt-3">
+                    Pair rules apply when multiple resources are selected in the same booking.
+                  </div>
+                )}
 
                 {(form.applyMode === "type" || form.applyMode === "resource") && (
                   <div className="grid grid-cols-2 gap-4 mt-3">
@@ -732,7 +1060,8 @@ export default function Rules() {
                 <div className="text-sm font-semibold mb-2">Step C — Conditions</div>
 
                 <div className="text-xs text-gray-500 mb-3">
-                  השדות מגיעים מ־resource (id/name/type) + המפתחות של metadata לפי מה שבחרת.
+                  Conditions are combined with AND. Fields come from the current resource and its metadata.
+                  {form.useAdvanced ? " Advanced JSON overrides these conditions." : ""}
                 </div>
 
                 {form.conditions.length === 0 && (
@@ -843,6 +1172,48 @@ export default function Rules() {
                 </div>
               </div>
 
+              {/* Advanced JSON */}
+              <div className="border-t pt-4">
+                <label className="flex items-center gap-2 text-sm font-semibold">
+                  <input
+                    type="checkbox"
+                    checked={form.useAdvanced}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, useAdvanced: e.target.checked }))
+                    }
+                  />
+                  Use Advanced JSON
+                </label>
+                <div className="text-xs text-gray-500 mt-1">
+                  Use this for complex rules that compare two resources (e.g., Course vs Classroom).
+                </div>
+
+                {form.useAdvanced && (
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Condition (JSON)</label>
+                      <textarea
+                        className="w-full p-2 border rounded font-mono text-xs h-40"
+                        value={form.advancedConditionText}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, advancedConditionText: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Action (JSON)</label>
+                      <textarea
+                        className="w-full p-2 border rounded font-mono text-xs h-40"
+                        value={form.advancedActionText}
+                        onChange={(e) =>
+                          setForm((p) => ({ ...p, advancedActionText: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Step D: Action */}
               <div className="border-t pt-4">
                 <div className="text-sm font-semibold mb-2">Step D — Action</div>
@@ -880,30 +1251,36 @@ export default function Rules() {
                   🧠 {humanSummary}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <div className="text-xs font-semibold mb-1">Condition JSON (auto)</div>
-                    <pre className="text-xs bg-slate-900 text-slate-100 rounded p-3 overflow-auto">
-                      {jsonPretty(conditionJson)}
-                    </pre>
+                {!form.useAdvanced ? (
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <div className="text-xs font-semibold mb-1">Condition JSON (auto)</div>
+                      <pre className="text-xs bg-slate-900 text-slate-100 rounded p-3 overflow-auto">
+                        {jsonPretty(conditionJson)}
+                      </pre>
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold mb-1">Action JSON (auto)</div>
+                      <pre className="text-xs bg-slate-900 text-slate-100 rounded p-3 overflow-auto">
+                        {jsonPretty(
+                          buildActionJson({
+                            actionKind:
+                              form.ruleType === "hard"
+                                ? "forbid"
+                                : form.ruleType === "alert"
+                                ? "alert"
+                                : "score",
+                            scoreDelta: form.scoreDelta,
+                          })
+                        )}
+                      </pre>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs font-semibold mb-1">Action JSON (auto)</div>
-                    <pre className="text-xs bg-slate-900 text-slate-100 rounded p-3 overflow-auto">
-                      {jsonPretty(
-                        buildActionJson({
-                          actionKind:
-                            form.ruleType === "hard"
-                              ? "forbid"
-                              : form.ruleType === "alert"
-                              ? "alert"
-                              : "score",
-                          scoreDelta: form.scoreDelta,
-                        })
-                      )}
-                    </pre>
+                ) : (
+                  <div className="mt-3 text-xs text-gray-500">
+                    Using Advanced JSON. The preview above is skipped.
                   </div>
-                </div>
+                )}
               </div>
             </div>
 

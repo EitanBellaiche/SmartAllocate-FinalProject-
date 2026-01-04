@@ -159,6 +159,25 @@ export function evaluateRules({ rules, booking, resources, roles }) {
   const resourceRules = rules.filter((r) => r.target_type === "resource");
   const pairRules = rules.filter((r) => r.target_type === "pair");
 
+  const resourcesByType = {};
+  const resourcesByTypeList = {};
+  const resourcesByTypeId = {};
+  const resourcesByTypeIdList = {};
+
+  for (const r of resources) {
+    if (r?.type_name) {
+      if (!resourcesByType[r.type_name]) resourcesByType[r.type_name] = r;
+      if (!resourcesByTypeList[r.type_name]) resourcesByTypeList[r.type_name] = [];
+      resourcesByTypeList[r.type_name].push(r);
+    }
+    if (Number.isFinite(Number(r?.type_id))) {
+      const typeId = Number(r.type_id);
+      if (!resourcesByTypeId[typeId]) resourcesByTypeId[typeId] = r;
+      if (!resourcesByTypeIdList[typeId]) resourcesByTypeIdList[typeId] = [];
+      resourcesByTypeIdList[typeId].push(r);
+    }
+  }
+
   const results = {
     hardViolations: [],
     softMatches: [],
@@ -166,7 +185,15 @@ export function evaluateRules({ rules, booking, resources, roles }) {
     score: 0,
   };
 
-  const bookingContext = { booking, request: booking };
+  const bookingContext = {
+    booking,
+    request: booking,
+    resources,
+    resources_by_type: resourcesByType,
+    resources_by_type_list: resourcesByTypeList,
+    resources_by_type_id: resourcesByTypeId,
+    resources_by_type_id_list: resourcesByTypeIdList,
+  };
   const bookingEval = evaluateRulesForContext(bookingRules, bookingContext, null);
   results.hardViolations.push(...bookingEval.hardViolations);
   results.softMatches.push(...bookingEval.softMatches);
@@ -180,6 +207,11 @@ export function evaluateRules({ rules, booking, resources, roles }) {
       request: booking,
       resource,
       pair: { resource_id: resource.id, role },
+      resources,
+      resources_by_type: resourcesByType,
+      resources_by_type_list: resourcesByTypeList,
+      resources_by_type_id: resourcesByTypeId,
+      resources_by_type_id_list: resourcesByTypeIdList,
     };
 
     const resourceEval = evaluateRulesForContext(resourceRules, context, resource.id);
