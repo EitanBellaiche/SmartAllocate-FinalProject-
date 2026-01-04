@@ -18,7 +18,7 @@ export default function MainLayout() {
           <NavItem to="/">Dashboard</NavItem>
           <NavItem to="/resource-types">Resource Types</NavItem>
           <NavItem to="/resources">Resources</NavItem>
-          <NavItem to="/availability">Availability</NavItem>
+          <NavItem to="/availability">Calendar</NavItem>
           <NavItem to="/bookings">Bookings</NavItem>
           <NavItem to="/users">Users</NavItem>
 

@@ -4,6 +4,54 @@ import { evaluateRules } from "../rulesEngine.js";
 
 const router = express.Router();
 
+// GET bookings (optional filter by resource_id)
+router.get("/", async (req, res) => {
+  try {
+    const { resource_id } = req.query;
+    const params = [];
+    let where = "";
+
+    if (resource_id) {
+      params.push(Number(resource_id));
+      if (!Number.isFinite(params[0])) {
+        return res.status(400).json({ error: "Invalid resource_id" });
+      }
+      where = "WHERE r.id = $1";
+    }
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        b.id,
+        b.date,
+        b.start_time,
+        b.end_time,
+        b.user_id,
+        json_agg(
+          json_build_object(
+            'id', r.id,
+            'name', r.name,
+            'type_id', r.type_id
+          )
+          ORDER BY r.id
+        ) AS resources
+      FROM bookings b
+      JOIN booking_resources br ON br.booking_id = b.id
+      JOIN resources r ON r.id = br.resource_id
+      ${where}
+      GROUP BY b.id
+      ORDER BY b.date ASC, b.start_time ASC, b.id ASC
+      `,
+      params
+    );
+
+    res.json(rows);
+  } catch (err) {
+    console.error("Error getting bookings:", err);
+    res.status(500).json({ error: "Failed to fetch bookings" });
+  }
+});
+
 /* -----------------------------
    CREATE BOOKING WITH RESOURCES
 --------------------------------*/
