@@ -77,6 +77,47 @@ router.post("/", async (req, res) => {
   }
 });
 
+// UPDATE resource
+router.put("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, type_id, metadata } = req.body;
+
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: "Invalid resource id" });
+  }
+
+  try {
+    const updateResult = await pool.query(
+      `UPDATE resources
+       SET name = $1, type_id = $2, metadata = $3
+       WHERE id = $4
+       RETURNING *`,
+      [name, type_id, metadata, id]
+    );
+
+    if (updateResult.rows.length === 0) {
+      return res.status(404).json({ error: "Resource not found" });
+    }
+
+    const resource = updateResult.rows[0];
+    const withType = await pool.query(
+      `
+      SELECT resources.*, resource_types.name AS type_name
+      FROM resources
+      JOIN resource_types ON resources.type_id = resource_types.id
+      WHERE resources.id = $1
+      LIMIT 1
+      `,
+      [resource.id]
+    );
+
+    res.json(withType.rows[0] || resource);
+  } catch (err) {
+    console.error("Error updating resource:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE a resource
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
