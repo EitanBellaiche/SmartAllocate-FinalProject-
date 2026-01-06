@@ -160,16 +160,10 @@ export default function Dashboard() {
   }
 
   function formatMetadataList(metadata) {
-    if (!metadata || Object.keys(metadata).length === 0) return ["—"];
+    if (!metadata || Object.keys(metadata).length === 0) return [];
     return Object.entries(metadata).map(
       ([key, value]) => `${key}: ${String(value)}`
     );
-  }
-
-  function formatRuleTarget(rule, bookingResources) {
-    if (!rule?.resource_id) return "Booking";
-    const match = bookingResources.find((r) => r.id === rule.resource_id);
-    return match ? `Resource: ${match.name}` : `Resource ID: ${rule.resource_id}`;
   }
 
   function formatDate(date) {
@@ -187,9 +181,7 @@ export default function Dashboard() {
     });
 
     try {
-      const bookings = await apiGet(
-        `/bookings?resource_id=${resource.id}&include_rules=1`
-      );
+      const bookings = await apiGet(`/bookings?resource_id=${resource.id}`);
       setViewModal((prev) => ({
         ...prev,
         bookings,
@@ -395,13 +387,18 @@ export default function Dashboard() {
               <div>
                 <strong>ID:</strong> {viewModal.item?.id}
               </div>
-              <div>
-                <strong>Type:</strong> {viewModal.item?.type_name || "—"}
-              </div>
-              <div>
-                <strong>Metadata:</strong>{" "}
-                {metadataSummary(viewModal.item?.metadata)}
-              </div>
+              {viewModal.item?.type_name && (
+                <div>
+                  <strong>Type:</strong> {viewModal.item.type_name}
+                </div>
+              )}
+              {viewModal.item?.metadata &&
+                Object.keys(viewModal.item.metadata).length > 0 && (
+                  <div>
+                    <strong>Metadata:</strong>{" "}
+                    {metadataSummary(viewModal.item.metadata)}
+                  </div>
+                )}
             </div>
 
             <h3 className="font-semibold mb-2">Bookings</h3>
@@ -424,12 +421,16 @@ export default function Dashboard() {
                       <div>
                         <strong>Date:</strong> {formatDate(b.date)}
                       </div>
-                      <div>
-                        <strong>Time:</strong> {b.start_time} - {b.end_time}
-                      </div>
-                      <div>
-                        <strong>User:</strong> {b.user_id || "—"}
-                      </div>
+                      {b.start_time && b.end_time && (
+                        <div>
+                          <strong>Time:</strong> {b.start_time} - {b.end_time}
+                        </div>
+                      )}
+                      {b.user_id && (
+                        <div>
+                          <strong>User:</strong> {b.user_id}
+                        </div>
+                      )}
                     </div>
 
                     <div className="mb-3">
@@ -440,106 +441,31 @@ export default function Dashboard() {
                         {(b.resources || []).map((r) => (
                           <div key={r.id} className="border rounded p-2 bg-white">
                             <div className="font-medium">
-                              {r.name}{" "}
-                              <span className="text-xs text-gray-500">
-                                ({r.type_name || "Unknown type"})
-                              </span>
+                              {r.name}
+                              {r.type_name && (
+                                <span className="text-xs text-gray-500">
+                                  {" "}
+                                  ({r.type_name})
+                                </span>
+                              )}
                             </div>
-                            <div className="text-xs text-gray-500">
-                              Role: {r.role || "—"}
-                            </div>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {formatMetadataList(r.metadata).map((line, idx) => (
-                                <div key={`${r.id}-${idx}`}>{line}</div>
-                              ))}
-                            </div>
+                            {r.role && (
+                              <div className="text-xs text-gray-500">
+                                Role: {r.role}
+                              </div>
+                            )}
+                            {formatMetadataList(r.metadata).length > 0 && (
+                              <div className="text-xs text-gray-600 mt-1">
+                                {formatMetadataList(r.metadata).map((line, idx) => (
+                                  <div key={`${r.id}-${idx}`}>{line}</div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div>
-                      <div className="text-xs font-semibold text-gray-600 mb-1">
-                        Rules Summary
-                      </div>
-                      <div className="text-sm">
-                        <div className="mb-2">
-                          <strong>Total Score:</strong>{" "}
-                          {b.rules_summary?.score ?? 0}
-                        </div>
-
-                        <div className="mb-2">
-                          <strong>Hard Violations:</strong>
-                          {(b.rules_summary?.hardViolations || []).length ===
-                          0 ? (
-                            <div className="text-gray-500">None</div>
-                          ) : (
-                            (b.rules_summary?.hardViolations || []).map(
-                              (rule) => (
-                                <div key={`hard-${rule.id}`} className="mt-1">
-                                  <div className="font-medium">
-                                    {rule.name}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {rule.description || "No description"}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {formatRuleTarget(rule, b.resources || [])}
-                                  </div>
-                                </div>
-                              )
-                            )
-                          )}
-                        </div>
-
-                        <div className="mb-2">
-                          <strong>Alerts:</strong>
-                          {(b.rules_summary?.alerts || []).length === 0 ? (
-                            <div className="text-gray-500">None</div>
-                          ) : (
-                            (b.rules_summary?.alerts || []).map((rule) => (
-                              <div key={`alert-${rule.id}`} className="mt-1">
-                                <div className="font-medium">
-                                  {rule.name}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {rule.description || "No description"}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {formatRuleTarget(rule, b.resources || [])}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-
-                        <div>
-                          <strong>Soft Matches:</strong>
-                          {(b.rules_summary?.softMatches || []).length === 0 ? (
-                            <div className="text-gray-500">None</div>
-                          ) : (
-                            (b.rules_summary?.softMatches || []).map(
-                              (rule) => (
-                                <div key={`soft-${rule.id}`} className="mt-1">
-                                  <div className="font-medium">
-                                    {rule.name}{" "}
-                                    <span className="text-xs text-gray-500">
-                                      (delta {rule.delta})
-                                    </span>
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {rule.description || "No description"}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {formatRuleTarget(rule, b.resources || [])}
-                                  </div>
-                                </div>
-                              )
-                            )
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 ))}
 
