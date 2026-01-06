@@ -121,6 +121,7 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
       hardViolations.push({
         id: rule.id,
         name: rule.name,
+        description: rule.description,
         target_type: rule.target_type,
         resource_id: resourceId,
       });
@@ -131,6 +132,7 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
       alerts.push({
         id: rule.id,
         name: rule.name,
+        description: rule.description,
         target_type: rule.target_type,
         resource_id: resourceId,
         effect,
@@ -144,6 +146,7 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
       softMatches.push({
         id: rule.id,
         name: rule.name,
+        description: rule.description,
         target_type: rule.target_type,
         resource_id: resourceId,
         delta,

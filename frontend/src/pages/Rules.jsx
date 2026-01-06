@@ -32,11 +32,22 @@ function uniq(arr) {
 }
 
 function asNumberIfPossible(v) {
+  if (typeof v === "string") {
+    const lowered = v.trim().toLowerCase();
+    if (lowered === "true") return true;
+    if (lowered === "false") return false;
+  }
   const n = Number(v);
   return Number.isFinite(n) && String(v).trim() !== "" ? n : v;
 }
 
-function buildConditionJson({ applyMode, selectedTypeId, selectedResourceId, conditions }) {
+function buildConditionJson({
+  applyMode,
+  selectedTypeId,
+  selectedResourceId,
+  conditions,
+  otherConditions,
+}) {
   const all = [];
 
   // Base scope condition (hidden logic)
@@ -55,6 +66,20 @@ function buildConditionJson({ applyMode, selectedTypeId, selectedResourceId, con
     else value = asNumberIfPossible(c.constValue);
 
     all.push({ field: c.field, op: c.op, value });
+  }
+
+  for (const c of otherConditions || []) {
+    if (!c.typeId || !c.field || !c.op) continue;
+
+    let value;
+    if (c.valueMode === "ref") value = { ref: c.refValue };
+    else value = asNumberIfPossible(c.constValue);
+
+    all.push({
+      field: `resources_by_type_id.${c.typeId}.${c.field}`,
+      op: c.op,
+      value,
+    });
   }
 
   return { all };
@@ -111,6 +136,7 @@ export default function Rules() {
     conditions: [
       // { field:"resource.metadata.capacity", op:">=", valueMode:"ref", refValue:"request.students", constValue:"" }
     ],
+    otherConditions: [],
 
     // Advanced JSON (optional)
     useAdvanced: false,
@@ -120,7 +146,13 @@ export default function Rules() {
 
   const conditionJson = useMemo(
     () => buildConditionJson(form),
-    [form.applyMode, form.selectedTypeId, form.selectedResourceId, form.conditions]
+    [
+      form.applyMode,
+      form.selectedTypeId,
+      form.selectedResourceId,
+      form.conditions,
+      form.otherConditions,
+    ]
   );
   const actionJson = useMemo(
     () => buildActionJson(form),
@@ -187,6 +219,7 @@ export default function Rules() {
       selectedResourceId: "",
 
       conditions: [],
+      otherConditions: [],
 
       useAdvanced: false,
       advancedConditionText: "",
@@ -427,6 +460,38 @@ export default function Rules() {
     setForm((p) => ({ ...p, conditions: p.conditions.filter((_, i) => i !== idx) }));
   }
 
+  function addOtherCondition() {
+    setForm((p) => ({
+      ...p,
+      otherConditions: [
+        ...p.otherConditions,
+        {
+          typeId: "",
+          field: "",
+          op: "==",
+          valueMode: "const",
+          constValue: "",
+          refValue: "request.students",
+        },
+      ],
+    }));
+  }
+
+  function updateOtherCondition(idx, patch) {
+    setForm((p) => {
+      const next = [...p.otherConditions];
+      next[idx] = { ...next[idx], ...patch };
+      return { ...p, otherConditions: next };
+    });
+  }
+
+  function removeOtherCondition(idx) {
+    setForm((p) => ({
+      ...p,
+      otherConditions: p.otherConditions.filter((_, i) => i !== idx),
+    }));
+  }
+
   // human summary
   const humanSummary = useMemo(() => {
     const parts = [];
@@ -439,7 +504,9 @@ export default function Rules() {
       parts.push("If resource matches conditions");
     }
 
-    if (form.conditions.length) parts.push("and conditions match");
+    if (form.conditions.length || form.otherConditions.length) {
+      parts.push("and conditions match");
+    }
 
     let then = "";
     if (form.ruleType === "hard") then = "→ forbid";
@@ -447,7 +514,16 @@ export default function Rules() {
     else then = `→ add score +${form.scoreDelta}`;
 
     return `${parts.join(" ")} ${then}`;
-  }, [form.applyMode, form.selectedTypeId, form.conditions.length, form.ruleType, form.scoreDelta, selectedResource, typeOptions]);
+  }, [
+    form.applyMode,
+    form.selectedTypeId,
+    form.conditions.length,
+    form.otherConditions.length,
+    form.ruleType,
+    form.scoreDelta,
+    selectedResource,
+    typeOptions,
+  ]);
 
   function applyTemplate(templateKey) {
     if (templateKey === "block-resource") {
@@ -461,6 +537,7 @@ export default function Rules() {
         selectedTypeId: "",
         selectedResourceId: "",
         conditions: [],
+        otherConditions: [],
         useAdvanced: false,
         advancedConditionText: "",
         advancedActionText: "",
@@ -480,6 +557,7 @@ export default function Rules() {
         selectedTypeId: "",
         selectedResourceId: "",
         conditions: [],
+        otherConditions: [],
         useAdvanced: false,
         advancedConditionText: "",
         advancedActionText: "",
@@ -1168,6 +1246,149 @@ export default function Rules() {
                     }
                   >
                     + Add condition
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="text-sm font-semibold mb-2">
+                  Other Resource Conditions (same booking)
+                </div>
+                <div className="text-xs text-gray-500 mb-3">
+                  Use this to reference a different resource type in the same booking.
+                </div>
+
+                {form.otherConditions.length === 0 && (
+                  <div className="p-3 bg-gray-50 border rounded text-sm text-gray-600">
+                    No other-resource conditions yet. Click “+ Add”.
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3">
+                  {form.otherConditions.map((c, idx) => {
+                    const fields = getTypeFieldOptions(c.typeId);
+                    return (
+                      <div key={idx} className="border rounded p-3 grid grid-cols-6 gap-3 items-end">
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Resource Type</label>
+                          <select
+                            className="w-full p-2 border rounded"
+                            value={c.typeId}
+                            onChange={(e) => {
+                              const nextTypeId = e.target.value;
+                              const nextFields = getTypeFieldOptions(nextTypeId);
+                              updateOtherCondition(idx, {
+                                typeId: nextTypeId,
+                                field: nextFields[0]?.value ?? "",
+                              });
+                            }}
+                          >
+                            <option value="">Choose type…</option>
+                            {typeOptions.map((t) => (
+                              <option key={t.type_id} value={t.type_id}>
+                                {t.type_name} (id={t.type_id})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="col-span-2">
+                          <label className="block text-xs font-medium mb-1">Field</label>
+                          <select
+                            className="w-full p-2 border rounded"
+                            value={c.field}
+                            onChange={(e) =>
+                              updateOtherCondition(idx, { field: e.target.value })
+                            }
+                            disabled={!c.typeId}
+                          >
+                            <option value="">Choose field…</option>
+                            {fields.map((f) => (
+                              <option key={f.value} value={f.value}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Op</label>
+                          <select
+                            className="w-full p-2 border rounded"
+                            value={c.op}
+                            onChange={(e) => updateOtherCondition(idx, { op: e.target.value })}
+                          >
+                            {OP_OPTIONS.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Value type</label>
+                          <select
+                            className="w-full p-2 border rounded"
+                            value={c.valueMode}
+                            onChange={(e) =>
+                              updateOtherCondition(idx, { valueMode: e.target.value })
+                            }
+                          >
+                            <option value="const">Constant</option>
+                            <option value="ref">From request</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium mb-1">
+                            {c.valueMode === "ref" ? "Request ref" : "Constant"}
+                          </label>
+                          {c.valueMode === "ref" ? (
+                            <select
+                              className="w-full p-2 border rounded"
+                              value={c.refValue}
+                              onChange={(e) =>
+                                updateOtherCondition(idx, { refValue: e.target.value })
+                              }
+                            >
+                              {REQUEST_REF_OPTIONS.map((r) => (
+                                <option key={r.value} value={r.value}>
+                                  {r.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              className="w-full p-2 border rounded"
+                              value={c.constValue ?? ""}
+                              onChange={(e) =>
+                                updateOtherCondition(idx, { constValue: e.target.value })
+                              }
+                              placeholder='e.g. "intro to cyber"'
+                            />
+                          )}
+                        </div>
+
+                        <div className="flex justify-end col-span-6">
+                          <button
+                            onClick={() => removeOtherCondition(idx)}
+                            className="px-3 py-2 border rounded text-red-600 hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-3">
+                  <button
+                    onClick={addOtherCondition}
+                    className="px-4 py-2 border rounded hover:bg-gray-50"
+                  >
+                    + Add other-resource condition
                   </button>
                 </div>
               </div>

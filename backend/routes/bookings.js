@@ -7,9 +7,13 @@ const router = express.Router();
 // GET bookings (optional filter by resource_id)
 router.get("/", async (req, res) => {
   try {
-    const { resource_id } = req.query;
+    const { resource_id, include_rules, include_details } = req.query;
     const params = [];
     let where = "";
+
+    const wantsRules = include_rules === "1" || include_rules === "true";
+    const wantsDetails =
+      wantsRules || include_details === "1" || include_details === "true";
 
     if (resource_id) {
       params.push(Number(resource_id));
@@ -32,6 +36,8 @@ router.get("/", async (req, res) => {
             'id', r.id,
             'name', r.name,
             'type_id', r.type_id,
+            'type_name', rt.name,
+            'metadata', r.metadata,
             'role', br.role
           )
           ORDER BY r.id
@@ -39,6 +45,7 @@ router.get("/", async (req, res) => {
       FROM bookings b
       JOIN booking_resources br ON br.booking_id = b.id
       JOIN resources r ON r.id = br.resource_id
+      JOIN resource_types rt ON rt.id = r.type_id
       ${where}
       GROUP BY b.id
       ORDER BY b.date ASC, b.start_time ASC, b.id ASC
@@ -46,7 +53,56 @@ router.get("/", async (req, res) => {
       params
     );
 
-    res.json(rows);
+    if (!wantsDetails) {
+      const compact = rows.map((row) => ({
+        ...row,
+        resources: (row.resources || []).map((r) => ({
+          id: r.id,
+          name: r.name,
+          type_id: r.type_id,
+          role: r.role,
+        })),
+      }));
+      return res.json(compact);
+    }
+
+    if (!wantsRules) {
+      return res.json(rows);
+    }
+
+    const { rows: rules } = await pool.query(
+      `SELECT id, name, description, target_type, is_hard, is_active, weight, sort_order, condition, action
+       FROM rules
+       ORDER BY is_active DESC, sort_order ASC, id ASC`
+    );
+
+    const withRules = rows.map((row) => {
+      const booking = {
+        date: row.date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        user_id: row.user_id,
+      };
+
+      const roles = {};
+      for (const r of row.resources || []) {
+        roles[r.id] = r.role ?? null;
+      }
+
+      const ruleSummary = evaluateRules({
+        rules,
+        booking,
+        resources: row.resources || [],
+        roles,
+      });
+
+      return {
+        ...row,
+        rules_summary: ruleSummary,
+      };
+    });
+
+    return res.json(withRules);
   } catch (err) {
     console.error("Error getting bookings:", err);
     res.status(500).json({ error: "Failed to fetch bookings" });
