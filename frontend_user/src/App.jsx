@@ -65,11 +65,16 @@ export default function App() {
   const [resourceQuery, setResourceQuery] = useState("");
   const [resourceLoading, setResourceLoading] = useState(false);
   const [resourceError, setResourceError] = useState("");
-  const [openResourceId, setOpenResourceId] = useState(null);
+  const [selectedResourceId, setSelectedResourceId] = useState(null);
+  const [requestQuery, setRequestQuery] = useState("");
+  const [requestNote, setRequestNote] = useState("");
+  const [requestResourceId, setRequestResourceId] = useState(null);
+  const [requestSent, setRequestSent] = useState("");
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
 
   async function loadBookings() {
     if (!studentId.trim()) {
-      setError("נא להזין תעודת זהות / מזהה סטודנט");
+      setError("Please enter a student ID.");
       return;
     }
     setError("");
@@ -79,7 +84,7 @@ export default function App() {
       setBookings(Array.isArray(data) ? data : []);
       setHasStudent(true);
     } catch (err) {
-      setError(err?.message || "שגיאה בטעינת שיבוצים");
+      setError(err?.message || "Failed to load bookings.");
     } finally {
       setLoading(false);
     }
@@ -121,29 +126,64 @@ export default function App() {
     year: "numeric",
   });
 
+  function isResourceAvailable(resource) {
+    const meta = resource?.metadata || {};
+    if (meta.available === true) return true;
+    const status = `${meta.status || meta.availability || ""}`.toLowerCase();
+    return status === "available" || status === "free" || status === "open";
+  }
+
+  function resourceMatchesQuery(resource, query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const hay = `${resource.name} ${resource.type_name || ""} ${JSON.stringify(
+      resource.metadata || {}
+    )}`.toLowerCase();
+    return hay.includes(q);
+  }
+
   const filteredResources = useMemo(() => {
-    const q = resourceQuery.trim().toLowerCase();
-    if (!q) return [];
-    return resources.filter((r) => {
-      const hay = `${r.name} ${r.type_name} ${JSON.stringify(
-        r.metadata || {}
-      )}`.toLowerCase();
-      return hay.includes(q);
-    });
+    if (!resourceQuery.trim()) return [];
+    return resources.filter((r) => resourceMatchesQuery(r, resourceQuery));
   }, [resources, resourceQuery]);
 
-  async function loadResources() {
-    if (!resourceQuery.trim()) return;
+  const filteredRequestResources = useMemo(() => {
+    return resources.filter((r) => {
+      if (!resourceMatchesQuery(r, requestQuery)) return false;
+      if (onlyAvailable && !isResourceAvailable(r)) return false;
+      return true;
+    });
+  }, [resources, requestQuery, onlyAvailable]);
+
+  const selectedResource = useMemo(() => {
+    if (!selectedResourceId) return null;
+    return resources.find((r) => r.id === selectedResourceId) || null;
+  }, [resources, selectedResourceId]);
+
+  const selectedRequestResource = useMemo(() => {
+    if (!requestResourceId) return null;
+    return resources.find((r) => r.id === requestResourceId) || null;
+  }, [resources, requestResourceId]);
+
+  async function loadResources(options = {}) {
+    const { allowEmptyQuery = false } = options;
+    if (!allowEmptyQuery && !resourceQuery.trim()) return;
     setResourceError("");
     setResourceLoading(true);
     try {
       const data = await getAllResources();
       setResources(Array.isArray(data) ? data : []);
     } catch (err) {
-      setResourceError(err?.message || "שגיאה בטעינת משאבים");
+      setResourceError(err?.message || "Failed to load resources.");
     } finally {
       setResourceLoading(false);
     }
+  }
+
+  function submitResourceRequest() {
+    if (!selectedRequestResource) return;
+    setRequestSent(`Request sent for ${selectedRequestResource.name}.`);
+    setRequestNote("");
   }
 
   // map resource id -> sessions for this student
@@ -171,7 +211,7 @@ export default function App() {
   }, [bookings]);
 
   // Sidebar selection
-  const [section, setSection] = useState("schedule"); // schedule | search
+  const [section, setSection] = useState("schedule"); // schedule | search | requests
 
   if (!hasStudent) {
     return (
@@ -195,7 +235,7 @@ export default function App() {
         >
           <h2 style={{ margin: "0 0 8px", color: "#0f172a" }}>Welcome</h2>
           <p style={{ margin: "0 0 16px", color: "#475569" }}>
-            נא להזין תעודת זהות / מזהה סטודנט כדי לטעון את השיבוצים שלך.
+            Please enter your student ID to load your bookings.
           </p>
           <input
             value={studentId}
@@ -268,7 +308,7 @@ export default function App() {
             cursor: "pointer",
           }}
         >
-          📅 My Schedule
+          My Schedule
         </button>
         <button
           onClick={() => setSection("search")}
@@ -282,7 +322,21 @@ export default function App() {
             cursor: "pointer",
           }}
         >
-          🔍 Find Course/Room
+          Find Resource
+        </button>
+        <button
+          onClick={() => setSection("requests")}
+          style={{
+            textAlign: "left",
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "none",
+            background: section === "requests" ? "#1d4ed8" : "transparent",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          Resource Requests
         </button>
         <div style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>
           Powered by SmartAllocate
@@ -320,7 +374,7 @@ export default function App() {
               <div style={{ flex: 1, minWidth: 200 }}>
                 <h3 style={{ margin: 0, color: "#0f172a" }}>My Bookings</h3>
                 <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
-                  Search by course or room. Switch between month grid and list.
+                  Search by resource or tag. Switch between month grid and list.
                 </p>
               </div>
               <input
@@ -409,7 +463,7 @@ export default function App() {
               </div>
             )}
           </>
-        ) : (
+        ) : section === "search" ? (
           <>
             <header
               style={{
@@ -418,7 +472,7 @@ export default function App() {
                 marginBottom: 16,
               }}
             >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>Find a course / room</h1>
+              <h1 style={{ margin: 0, color: "#0f172a" }}>Find a resource</h1>
               <p style={{ margin: 0, color: "#475569" }}>
                 Search by name or tags, then expand to see your dates & times.
               </p>
@@ -442,7 +496,7 @@ export default function App() {
                 <input
                   value={resourceQuery}
                   onChange={(e) => setResourceQuery(e.target.value)}
-                  placeholder="e.g. intro to JAVA, room 103, lab..."
+                  placeholder="e.g. projector, room 103, prep station..."
                   style={{
                     flex: 1,
                     minWidth: 280,
@@ -490,127 +544,462 @@ export default function App() {
                   </div>
                 )}
 
-              {filteredResources.length > 0 && (
+              {selectedResource ? (
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 18,
+                    borderRadius: 18,
+                    background:
+                      "linear-gradient(135deg, rgba(37,99,235,0.12), rgba(14,116,144,0.12))",
+                    border: "1px solid #e2e8f0",
+                  }}
+                >
+                  <button
+                    onClick={() => setSelectedResourceId(null)}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      color: "#1d4ed8",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      padding: 0,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Back to results
+                  </button>
+                  <div
+                    className="glass"
+                    style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      border: "1px solid #e2e8f0",
+                      background: "#fff",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 12, color: "#64748b" }}>
+                          Resource
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a" }}>
+                          {selectedResource.name}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          background: "#e0e7ff",
+                          color: "#1d4ed8",
+                          padding: "6px 10px",
+                          borderRadius: 999,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {selectedResource.type_name || "Resource"}
+                      </span>
+                    </div>
+
+                    {selectedResource.metadata &&
+                      Object.keys(selectedResource.metadata).length > 0 && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#475569",
+                            lineHeight: 1.6,
+                            padding: "10px 12px",
+                            borderRadius: 12,
+                            background: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            marginBottom: 14,
+                          }}
+                        >
+                          {Object.entries(selectedResource.metadata)
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(" | ")}
+                        </div>
+                      )}
+
+                    <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>
+                      Sessions
+                    </div>
+                    {(resourceSessions[selectedResource.id] || []).length === 0 && (
+                      <div style={{ color: "#475569" }}>
+                        No sessions found for this resource.
+                      </div>
+                    )}
+                    {(resourceSessions[selectedResource.id] || []).length > 0 && (
+                      <div style={{ display: "grid", gap: 10 }}>
+                        {(resourceSessions[selectedResource.id] || []).map((s) => (
+                          <div
+                            key={`${s.bookingId}-${s.start}`}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "6px 1fr",
+                              gap: 12,
+                              alignItems: "stretch",
+                            }}
+                          >
+                            <div
+                              style={{
+                                borderRadius: 999,
+                                background: "linear-gradient(180deg,#2563eb,#0ea5a5)",
+                              }}
+                            />
+                            <div
+                              style={{
+                                padding: "10px 12px",
+                                borderRadius: 12,
+                                background: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                              }}
+                            >
+                              <div style={{ fontWeight: 700 }}>
+                                {formatDate(s.date)}
+                              </div>
+                              <div style={{ color: "#475569", fontSize: 12 }}>
+                                {formatTime(s.start)} - {formatTime(s.end)} - Booking #{s.bookingId}
+                              </div>
+                              {s.role && (
+                                <div style={{ color: "#1d4ed8", fontWeight: 700 }}>
+                                  Role: {s.role}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                filteredResources.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      display: "grid",
+                      gap: 12,
+                    }}
+                  >
+                    {filteredResources.slice(0, 20).map((r) => {
+                      const sessions = resourceSessions[r.id] || [];
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => setSelectedResourceId(r.id)}
+                          className="glass"
+                          style={{
+                            textAlign: "left",
+                            borderRadius: 16,
+                            padding: 14,
+                            border: "1px solid #e2e8f0",
+                            background: "#fff",
+                            cursor: "pointer",
+                            display: "grid",
+                            gap: 6,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 10,
+                            }}
+                          >
+                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                              {r.name}
+                            </div>
+                            <span
+                              style={{
+                                fontSize: 12,
+                                background: "#e0e7ff",
+                                color: "#1d4ed8",
+                                padding: "4px 10px",
+                                borderRadius: 999,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {r.type_name || "Resource"}
+                            </span>
+                          </div>
+                          <div style={{ color: "#475569", fontSize: 12 }}>
+                            {sessions.length} session{sessions.length === 1 ? "" : "s"}
+                          </div>
+                          {r.metadata && Object.keys(r.metadata).length > 0 && (
+                            <div style={{ color: "#64748b", fontSize: 12 }}>
+                              {Object.entries(r.metadata)
+                                .slice(0, 3)
+                                .map(([k, v]) => `${k}: ${v}`)
+                                .join(" | ")}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <header
+              style={{
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h1 style={{ margin: 0, color: "#0f172a" }}>
+                Request a resource
+              </h1>
+              <p style={{ margin: 0, color: "#475569" }}>
+                Browse resources and send a request to your admin.
+              </p>
+            </header>
+
+            <div
+              className="glass"
+              style={{
+                padding: 16,
+                borderRadius: 18,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  value={requestQuery}
+                  onChange={(e) => setRequestQuery(e.target.value)}
+                  placeholder="Search resources..."
+                  style={{
+                    flex: 1,
+                    minWidth: 240,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
+                    color: "#0f172a",
+                  }}
+                />
+                <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={onlyAvailable}
+                    onChange={(e) => setOnlyAvailable(e.target.checked)}
+                  />
+                  Only available
+                </label>
+                <button
+                  onClick={() => loadResources({ allowEmptyQuery: true })}
+                  disabled={resourceLoading}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: resourceLoading ? "#94a3b8" : "#2563eb",
+                    color: "#fff",
+                    fontWeight: 700,
+                    cursor: resourceLoading ? "default" : "pointer",
+                    boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
+                  }}
+                >
+                  {resourceLoading ? "Loading..." : "Load resources"}
+                </button>
+              </div>
+
+              {resourceError && (
+                <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 14 }}>
+                  {resourceError}
+                </div>
+              )}
+
+              {resources.length === 0 && !resourceLoading && (
+                <div style={{ marginTop: 16, color: "#475569" }}>
+                  Load resources to get started.
+                </div>
+              )}
+
+              {resources.length > 0 &&
+                filteredRequestResources.length === 0 &&
+                !resourceLoading && (
+                  <div style={{ marginTop: 16, color: "#475569" }}>
+                    No resources match your filters.
+                  </div>
+                )}
+
+              {filteredRequestResources.length > 0 && (
                 <div
                   style={{
                     marginTop: 16,
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
                     gap: 12,
                   }}
                 >
-                  {filteredResources.slice(0, 20).map((r) => {
-                    const sessions = resourceSessions[r.id] || [];
-                    const isOpen = openResourceId === r.id;
+                  {filteredRequestResources.slice(0, 20).map((r) => {
+                    const available = isResourceAvailable(r);
                     return (
                       <div
                         key={r.id}
                         className="glass"
                         style={{
-                          borderRadius: 14,
-                          padding: 12,
+                          borderRadius: 16,
+                          padding: 14,
                           border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          display: "grid",
+                          gap: 8,
                         }}
                       >
-                        <button
-                          onClick={() => setOpenResourceId(isOpen ? null : r.id)}
+                        <div
                           style={{
                             display: "flex",
                             justifyContent: "space-between",
-                            gap: 8,
-                            width: "100%",
-                            background: "transparent",
-                            border: "none",
-                            padding: 0,
-                            cursor: "pointer",
+                            alignItems: "center",
+                            gap: 12,
                           }}
                         >
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {r.name}
+                          <div>
+                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                              {r.name}
+                            </div>
+                            <div style={{ color: "#475569", fontSize: 12 }}>
+                              {r.type_name ? `Type: ${r.type_name}` : "Resource"}
+                            </div>
                           </div>
                           <span
                             style={{
                               fontSize: 12,
-                              background: "#e0e7ff",
-                              color: "#1d4ed8",
-                              padding: "4px 8px",
+                              background: available ? "#dcfce7" : "#e2e8f0",
+                              color: available ? "#166534" : "#475569",
+                              padding: "4px 10px",
                               borderRadius: 999,
+                              fontWeight: 700,
                             }}
                           >
-                            {r.type_name || "Resource"}
+                            {available ? "Available" : "Check availability"}
                           </span>
-                        </button>
+                        </div>
 
                         {r.metadata && Object.keys(r.metadata).length > 0 && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#475569",
-                              lineHeight: 1.5,
-                              marginTop: 6,
-                            }}
-                          >
+                          <div style={{ color: "#64748b", fontSize: 12 }}>
                             {Object.entries(r.metadata)
+                              .slice(0, 4)
                               .map(([k, v]) => `${k}: ${v}`)
-                              .join(" • ")}
+                              .join(" | ")}
                           </div>
                         )}
 
-                        {isOpen && (
-                          <div
+                        <div>
+                          <button
+                            onClick={() => {
+                              setRequestResourceId(r.id);
+                              setRequestSent("");
+                            }}
                             style={{
-                              marginTop: 10,
-                              fontSize: 12,
-                              color: "#0f172a",
+                              padding: "8px 12px",
+                              borderRadius: 10,
+                              border: "none",
+                              background: "#0f172a",
+                              color: "#fff",
+                              fontWeight: 700,
+                              cursor: "pointer",
                             }}
                           >
-                            <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                              המפגשים שלך בקורס/חדר הזה (לפי השיבוצים שלך)
-                            </div>
-                            {sessions.length === 0 && (
-                              <div style={{ color: "#475569" }}>
-                                אין שיבוצים שלך עם המשאב הזה.
-                              </div>
-                            )}
-                            {sessions.length > 0 && (
-                              <div style={{ display: "grid", gap: 8 }}>
-                                {sessions.slice(0, 6).map((s) => (
-                                  <div
-                                    key={`${s.bookingId}-${s.start}`}
-                                    style={{
-                                      padding: "8px 10px",
-                                      borderRadius: 10,
-                                      background: "#f8fafc",
-                                      border: "1px solid #e2e8f0",
-                                    }}
-                                  >
-                                    <div style={{ fontWeight: 700 }}>
-                                      {formatDate(s.date)}
-                                    </div>
-                                    <div style={{ color: "#475569" }}>
-                                      {formatTime(s.start)} - {formatTime(s.end)}
-                                    </div>
-                                    {s.role && (
-                                      <div
-                                        style={{ color: "#1d4ed8", fontWeight: 600 }}
-                                      >
-                                        Role: {s.role}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                                {sessions.length > 6 && (
-                                  <div style={{ color: "#475569" }}>
-                                    +{sessions.length - 6} מפגשים נוספים...
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                            Request this resource
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {selectedRequestResource && (
+                <div
+                  className="glass"
+                  style={{
+                    marginTop: 18,
+                    padding: 16,
+                    borderRadius: 16,
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                    Request details
+                  </div>
+                  <div style={{ color: "#475569", fontSize: 12, marginTop: 4 }}>
+                    {selectedRequestResource.name}{" "}
+                    {selectedRequestResource.type_name
+                      ? `(${selectedRequestResource.type_name})`
+                      : ""}
+                  </div>
+                  <textarea
+                    value={requestNote}
+                    onChange={(e) => setRequestNote(e.target.value)}
+                    placeholder="Reason for the request..."
+                    style={{
+                      width: "100%",
+                      minHeight: 90,
+                      marginTop: 10,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid #e2e8f0",
+                      background: "#fff",
+                      color: "#0f172a",
+                    }}
+                  />
+                  <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                    <button
+                      onClick={submitResourceRequest}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 12,
+                        border: "none",
+                        background: "#2563eb",
+                        color: "#fff",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Send request
+                    </button>
+                    <button
+                      onClick={() => setRequestResourceId(null)}
+                      style={{
+                        padding: "10px 14px",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        background: "#fff",
+                        color: "#0f172a",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  {requestSent && (
+                    <div style={{ marginTop: 10, color: "#166534" }}>
+                      {requestSent}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -717,7 +1106,7 @@ function BookingCard({ booking }) {
             <div style={{ color: "#0f172a", fontWeight: 600 }}>{r.name}</div>
             <div style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>
               {r.type_name ? `Type: ${r.type_name}` : ""}
-              {r.role ? ` • Role: ${r.role}` : ""}
+              {r.role ? ` - Role: ${r.role}` : ""}
             </div>
             {r.metadata && Object.keys(r.metadata).length > 0 && (
               <div
@@ -730,7 +1119,7 @@ function BookingCard({ booking }) {
               >
                 {Object.entries(r.metadata)
                   .map(([k, v]) => `${k}: ${v}`)
-                  .join(" • ")}
+                  .join(" | ")}
               </div>
             )}
           </div>
@@ -768,7 +1157,7 @@ function MonthGrid({ monthLabel, onPrev, onNext, days }) {
               cursor: "pointer",
             }}
           >
-            ‹
+            &lt;
           </button>
           <button
             onClick={onNext}
@@ -781,13 +1170,13 @@ function MonthGrid({ monthLabel, onPrev, onNext, days }) {
               cursor: "pointer",
             }}
           >
-            ›
+            &gt;
           </button>
           <div style={{ fontWeight: 700, color: "#0f172a" }}>{monthLabel}</div>
         </div>
         <div className="badge">
           <span role="img" aria-label="calendar">
-            📅
+            CAL
           </span>
           Month view
         </div>
