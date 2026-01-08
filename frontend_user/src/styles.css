@@ -1,0 +1,109 @@
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: radial-gradient(circle at 20% 15%, #e0edff 0, transparent 32%),
+    radial-gradient(circle at 80% 10%, #d9f1ff 0, transparent 30%),
+    linear-gradient(180deg, #eef2f7 0%, #dfe6f5 35%, #eef2f7 100%);
+  color: #0f172a;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
+
+.glass {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.timetable {
+  display: grid;
+  grid-template-columns: 120px repeat(7, 1fr);
+  gap: 12px 12px;
+}
+
+.timetable-header {
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.timetable-slot {
+  min-height: 110px;
+  position: relative;
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+}
+
+.timetable-event {
+  position: relative;
+  padding: 12px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 60%, #0f5ad4 100%);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+}
+
+.calendar-day {
+  min-height: 140px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 10px;
+  position: relative;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.calendar-day .date {
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: #1d4ed8;
+}
