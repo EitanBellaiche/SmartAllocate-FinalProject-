@@ -20,6 +20,7 @@ export default function MainLayout() {
           <NavItem to="/resources">Resources</NavItem>
           <NavItem to="/availability">Calendar</NavItem>
           <NavItem to="/bookings">Bookings</NavItem>
+          <NavItem to="/requests">Requests</NavItem>
 
           {/* ⭐ הוספת דף החוקים */}
           <NavItem to="/rules">Rules</NavItem>

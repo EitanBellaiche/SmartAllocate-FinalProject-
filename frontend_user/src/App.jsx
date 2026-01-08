@@ -1,5 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { getBookingsByUser, getAllResources } from "./api";
+import {
+  getBookingsByUser,
+  getAllResources,
+  createResourceRequest,
+  getBookingsByResource,
+} from "./api";
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
@@ -70,7 +75,17 @@ export default function App() {
   const [requestNote, setRequestNote] = useState("");
   const [requestResourceId, setRequestResourceId] = useState(null);
   const [requestSent, setRequestSent] = useState("");
+  const [requestError, setRequestError] = useState("");
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [requestView, setRequestView] = useState("list"); // list | form
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [availabilityResource, setAvailabilityResource] = useState(null);
+  const [availabilityBookings, setAvailabilityBookings] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [availabilityMonthDate, setAvailabilityMonthDate] = useState(
+    () => new Date()
+  );
 
   async function loadBookings() {
     if (!studentId.trim()) {
@@ -120,11 +135,22 @@ export default function App() {
     () => buildMonthGrid(monthDate, filteredBookings),
     [monthDate, filteredBookings]
   );
+  const availabilityDays = useMemo(
+    () => buildMonthGrid(availabilityMonthDate, availabilityBookings),
+    [availabilityMonthDate, availabilityBookings]
+  );
 
   const monthLabel = monthDate.toLocaleDateString("en-GB", {
     month: "long",
     year: "numeric",
   });
+  const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
+    "en-GB",
+    {
+      month: "long",
+      year: "numeric",
+    }
+  );
 
   function isResourceAvailable(resource) {
     const meta = resource?.metadata || {};
@@ -180,10 +206,52 @@ export default function App() {
     }
   }
 
-  function submitResourceRequest() {
+  async function openAvailability(resource) {
+    if (!resource) return;
+    setAvailabilityResource(resource);
+    setAvailabilityMonthDate(new Date());
+    setAvailabilityError("");
+    setAvailabilityLoading(true);
+    try {
+      const data = await getBookingsByResource(resource.id);
+      setAvailabilityBookings(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setAvailabilityError(err?.message || "Failed to load availability.");
+      setAvailabilityBookings([]);
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  }
+
+  async function submitResourceRequest() {
     if (!selectedRequestResource) return;
-    setRequestSent(`Request sent for ${selectedRequestResource.name}.`);
-    setRequestNote("");
+    const note = requestNote.trim();
+    const requester = studentId.trim();
+    if (!requester) {
+      setRequestError("Please enter your student ID first.");
+      return;
+    }
+    if (!note) {
+      setRequestError("Please add a short reason for the request.");
+      return;
+    }
+    setRequestError("");
+    setRequestSubmitting(true);
+    try {
+      await createResourceRequest({
+        resource_id: selectedRequestResource.id,
+        student_id: requester,
+        note,
+      });
+      setRequestSent(`Request sent for ${selectedRequestResource.name}.`);
+      setRequestNote("");
+      setRequestResourceId(null);
+      setRequestView("list");
+    } catch (err) {
+      setRequestError(err?.message || "Failed to send request.");
+    } finally {
+      setRequestSubmitting(false);
+    }
   }
 
   // map resource id -> sessions for this student
@@ -768,196 +836,154 @@ export default function App() {
               </p>
             </header>
 
-            <div
-              className="glass"
-              style={{
-                padding: 16,
-                borderRadius: 18,
-              }}
-            >
+            {requestSent && (
               <div
+                className="glass"
                 style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  alignItems: "center",
+                  padding: 12,
+                  borderRadius: 12,
+                  color: "#166534",
+                  marginBottom: 12,
                 }}
               >
-                <input
-                  value={requestQuery}
-                  onChange={(e) => setRequestQuery(e.target.value)}
-                  placeholder="Search resources..."
-                  style={{
-                    flex: 1,
-                    minWidth: 240,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                  }}
-                />
-                <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={onlyAvailable}
-                    onChange={(e) => setOnlyAvailable(e.target.checked)}
-                  />
-                  Only available
-                </label>
-                <button
-                  onClick={() => loadResources({ allowEmptyQuery: true })}
-                  disabled={resourceLoading}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: resourceLoading ? "#94a3b8" : "#2563eb",
-                    color: "#fff",
-                    fontWeight: 700,
-                    cursor: resourceLoading ? "default" : "pointer",
-                    boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
-                  }}
-                >
-                  {resourceLoading ? "Loading..." : "Load resources"}
-                </button>
+                {requestSent}
               </div>
+            )}
 
-              {resourceError && (
-                <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 14 }}>
-                  {resourceError}
-                </div>
-              )}
-
-              {resources.length === 0 && !resourceLoading && (
-                <div style={{ marginTop: 16, color: "#475569" }}>
-                  Load resources to get started.
-                </div>
-              )}
-
-              {resources.length > 0 &&
-                filteredRequestResources.length === 0 &&
-                !resourceLoading && (
-                  <div style={{ marginTop: 16, color: "#475569" }}>
-                    No resources match your filters.
+            {requestView === "form" ? (
+              <div
+                className="glass"
+                style={{
+                  padding: 18,
+                  borderRadius: 18,
+                  border: "1px solid #e2e8f0",
+                  background: "#fff",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                      Request details
+                    </div>
+                    <div style={{ color: "#64748b", fontSize: 12 }}>
+                      Fill in the request and send it to your admin.
+                    </div>
                   </div>
-                )}
+                  <button
+                    onClick={() => {
+                      setRequestView("list");
+                      setRequestResourceId(null);
+                      setRequestError("");
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #e2e8f0",
+                      background: "#fff",
+                      color: "#0f172a",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Back to resources
+                  </button>
+                </div>
 
-              {filteredRequestResources.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 16,
-                    display: "grid",
-                    gap: 12,
-                  }}
-                >
-                  {filteredRequestResources.slice(0, 20).map((r) => {
-                    const available = isResourceAvailable(r);
-                    return (
-                      <div
-                        key={r.id}
-                        className="glass"
+                {selectedRequestResource ? (
+                  <>
+                    <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
+                      {selectedRequestResource.name}{" "}
+                      {selectedRequestResource.type_name
+                        ? `(${selectedRequestResource.type_name})`
+                        : ""}
+                    </div>
+                    {requestError && (
+                      <div style={{ marginTop: 10, color: "#b91c1c" }}>
+                        {requestError}
+                      </div>
+                    )}
+                    <textarea
+                      value={requestNote}
+                      onChange={(e) => setRequestNote(e.target.value)}
+                      placeholder="Reason for the request..."
+                      disabled={requestSubmitting}
+                      style={{
+                        width: "100%",
+                        minHeight: 110,
+                        marginTop: 10,
+                        padding: "10px 12px",
+                        borderRadius: 12,
+                        border: "1px solid #e2e8f0",
+                        background: "#fff",
+                        color: "#0f172a",
+                      }}
+                    />
+                    <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+                      <button
+                        onClick={submitResourceRequest}
+                        disabled={requestSubmitting}
                         style={{
-                          borderRadius: 16,
-                          padding: 14,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          display: "grid",
-                          gap: 8,
+                          padding: "10px 14px",
+                          borderRadius: 12,
+                          border: "none",
+                          background: requestSubmitting ? "#94a3b8" : "#2563eb",
+                          color: "#fff",
+                          fontWeight: 700,
+                          cursor: requestSubmitting ? "default" : "pointer",
                         }}
                       >
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: 12,
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                              {r.name}
-                            </div>
-                            <div style={{ color: "#475569", fontSize: 12 }}>
-                              {r.type_name ? `Type: ${r.type_name}` : "Resource"}
-                            </div>
-                          </div>
-                          <span
-                            style={{
-                              fontSize: 12,
-                              background: available ? "#dcfce7" : "#e2e8f0",
-                              color: available ? "#166534" : "#475569",
-                              padding: "4px 10px",
-                              borderRadius: 999,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {available ? "Available" : "Check availability"}
-                          </span>
-                        </div>
-
-                        {r.metadata && Object.keys(r.metadata).length > 0 && (
-                          <div style={{ color: "#64748b", fontSize: 12 }}>
-                            {Object.entries(r.metadata)
-                              .slice(0, 4)
-                              .map(([k, v]) => `${k}: ${v}`)
-                              .join(" | ")}
-                          </div>
-                        )}
-
-                        <div>
-                          <button
-                            onClick={() => {
-                              setRequestResourceId(r.id);
-                              setRequestSent("");
-                            }}
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: 10,
-                              border: "none",
-                              background: "#0f172a",
-                              color: "#fff",
-                              fontWeight: 700,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Request this resource
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {selectedRequestResource && (
+                        {requestSubmitting ? "Sending..." : "Send request"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRequestResourceId(null);
+                          setRequestView("list");
+                          setRequestError("");
+                        }}
+                        disabled={requestSubmitting}
+                        style={{
+                          padding: "10px 14px",
+                          borderRadius: 12,
+                          border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          color: "#0f172a",
+                          fontWeight: 700,
+                          cursor: requestSubmitting ? "default" : "pointer",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ marginTop: 12, color: "#475569" }}>
+                    Pick a resource to continue.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className="glass"
+                style={{
+                  padding: 16,
+                  borderRadius: 18,
+                }}
+              >
                 <div
-                  className="glass"
                   style={{
-                    marginTop: 18,
-                    padding: 16,
-                    borderRadius: 16,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    alignItems: "center",
                   }}
                 >
-                  <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                    Request details
-                  </div>
-                  <div style={{ color: "#475569", fontSize: 12, marginTop: 4 }}>
-                    {selectedRequestResource.name}{" "}
-                    {selectedRequestResource.type_name
-                      ? `(${selectedRequestResource.type_name})`
-                      : ""}
-                  </div>
-                  <textarea
-                    value={requestNote}
-                    onChange={(e) => setRequestNote(e.target.value)}
-                    placeholder="Reason for the request..."
+                  <input
+                    value={requestQuery}
+                    onChange={(e) => setRequestQuery(e.target.value)}
+                    placeholder="Search resources..."
                     style={{
-                      width: "100%",
-                      minHeight: 90,
-                      marginTop: 10,
+                      flex: 1,
+                      minWidth: 240,
                       padding: "10px 12px",
                       borderRadius: 12,
                       border: "1px solid #e2e8f0",
@@ -965,45 +991,266 @@ export default function App() {
                       color: "#0f172a",
                     }}
                   />
-                  <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
-                    <button
-                      onClick={submitResourceRequest}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 12,
-                        border: "none",
-                        background: "#2563eb",
-                        color: "#fff",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Send request
-                    </button>
-                    <button
-                      onClick={() => setRequestResourceId(null)}
-                      style={{
-                        padding: "10px 14px",
-                        borderRadius: 12,
-                        border: "1px solid #e2e8f0",
-                        background: "#fff",
-                        color: "#0f172a",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Cancel
-                    </button>
+                  <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={onlyAvailable}
+                      onChange={(e) => setOnlyAvailable(e.target.checked)}
+                    />
+                    Only available
+                  </label>
+                  <button
+                    onClick={() => loadResources({ allowEmptyQuery: true })}
+                    disabled={resourceLoading}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: 12,
+                      border: "none",
+                      background: resourceLoading ? "#94a3b8" : "#2563eb",
+                      color: "#fff",
+                      fontWeight: 700,
+                      cursor: resourceLoading ? "default" : "pointer",
+                      boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
+                    }}
+                  >
+                    {resourceLoading ? "Loading..." : "Load resources"}
+                  </button>
+                </div>
+
+                {resourceError && (
+                  <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 14 }}>
+                    {resourceError}
                   </div>
-                  {requestSent && (
-                    <div style={{ marginTop: 10, color: "#166534" }}>
-                      {requestSent}
+                )}
+
+                {resources.length === 0 && !resourceLoading && (
+                  <div style={{ marginTop: 16, color: "#475569" }}>
+                    Load resources to get started.
+                  </div>
+                )}
+
+                {resources.length > 0 &&
+                  filteredRequestResources.length === 0 &&
+                  !resourceLoading && (
+                    <div style={{ marginTop: 16, color: "#475569" }}>
+                      No resources match your filters.
                     </div>
                   )}
+
+                {filteredRequestResources.length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      display: "grid",
+                      gap: 12,
+                    }}
+                  >
+                    {filteredRequestResources.slice(0, 20).map((r) => {
+                      const available = isResourceAvailable(r);
+                      return (
+                        <div
+                          key={r.id}
+                          className="glass"
+                          style={{
+                            borderRadius: 16,
+                            padding: 14,
+                            border: "1px solid #e2e8f0",
+                            background: "#fff",
+                            display: "grid",
+                            gap: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 12,
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                                {r.name}
+                              </div>
+                              <div style={{ color: "#475569", fontSize: 12 }}>
+                                {r.type_name ? `Type: ${r.type_name}` : "Resource"}
+                              </div>
+                            </div>
+                          <button
+                            type="button"
+                            onClick={() => openAvailability(r)}
+                            style={{
+                              fontSize: 12,
+                              background: available ? "#dcfce7" : "#e2e8f0",
+                              color: available ? "#166534" : "#475569",
+                              padding: "4px 10px",
+                              borderRadius: 999,
+                              fontWeight: 700,
+                              border: "none",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {available ? "Available" : "Check availability"}
+                          </button>
+                          </div>
+
+                          {r.metadata && Object.keys(r.metadata).length > 0 && (
+                            <div style={{ color: "#64748b", fontSize: 12 }}>
+                              {Object.entries(r.metadata)
+                                .slice(0, 4)
+                                .map(([k, v]) => `${k}: ${v}`)
+                                .join(" | ")}
+                            </div>
+                          )}
+
+                          <div>
+                            <button
+                              onClick={() => {
+                                setRequestResourceId(r.id);
+                                setRequestSent("");
+                                setRequestError("");
+                                setRequestNote("");
+                                setRequestView("form");
+                              }}
+                              style={{
+                                padding: "8px 12px",
+                                borderRadius: 10,
+                                border: "none",
+                                background: "#0f172a",
+                                color: "#fff",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Request this resource
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {availabilityResource && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.35)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+              zIndex: 50,
+            }}
+            onClick={() => setAvailabilityResource(null)}
+          >
+            <div
+              className="glass"
+              style={{
+                width: "min(980px, 96vw)",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                padding: 20,
+                borderRadius: 18,
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>
+                    Availability calendar
+                  </div>
+                  <div style={{ color: "#475569", fontSize: 12 }}>
+                    {availabilityResource.name}{" "}
+                    {availabilityResource.type_name
+                      ? `(${availabilityResource.type_name})`
+                      : ""}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAvailabilityResource(null)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+
+              {availabilityError && (
+                <div style={{ marginBottom: 10, color: "#b91c1c" }}>
+                  {availabilityError}
                 </div>
               )}
+
+              {availabilityLoading ? (
+                <div style={{ color: "#475569" }}>Loading availability...</div>
+              ) : (
+                <>
+                  <MonthGrid
+                    monthLabel={availabilityMonthLabel}
+                    onPrev={() =>
+                      setAvailabilityMonthDate(
+                        (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
+                      )
+                    }
+                    onNext={() =>
+                      setAvailabilityMonthDate(
+                        (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1)
+                      )
+                    }
+                    days={availabilityDays}
+                    maxItems={null}
+                    renderBooking={(b) => (
+                      <div
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "linear-gradient(135deg,#0f172a,#1e293b)",
+                          color: "#fff",
+                          fontSize: 12,
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                          {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                        </div>
+                        <div style={{ opacity: 0.9 }}>
+                          Reserved by: {b.user_id}
+                        </div>
+                      </div>
+                    )}
+                  />
+                  {availabilityBookings.length === 0 && (
+                    <div style={{ marginTop: 12, color: "#475569" }}>
+                      No bookings yet for this resource.
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
@@ -1129,7 +1376,14 @@ function BookingCard({ booking }) {
   );
 }
 
-function MonthGrid({ monthLabel, onPrev, onNext, days }) {
+function MonthGrid({
+  monthLabel,
+  onPrev,
+  onNext,
+  days,
+  renderBooking,
+  maxItems = 3,
+}) {
   const weeks = [];
   for (let i = 0; i < days.length; i += 7) {
     weeks.push(days.slice(i, i + 7));
@@ -1207,32 +1461,41 @@ function MonthGrid({ monthLabel, onPrev, onNext, days }) {
             >
               <div className="date">{day.date.getDate()}</div>
               <div style={{ display: "grid", gap: 6 }}>
-                {day.bookings.slice(0, 3).map((b) => (
-                  <div
-                    key={b.id}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 10,
-                      background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
-                      color: "#fff",
-                      fontSize: 12,
-                      boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                      {(b.resources || [])
-                        .map((r) => r.name)
-                        .filter(Boolean)
-                        .join(" / ")}
-                    </div>
-                    <div style={{ opacity: 0.9 }}>
-                      {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                    </div>
+                {(typeof maxItems === "number"
+                  ? day.bookings.slice(0, maxItems)
+                  : day.bookings
+                ).map((b) => (
+                  <div key={b.id}>
+                    {renderBooking ? (
+                      renderBooking(b)
+                    ) : (
+                      <div
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                          color: "#fff",
+                          fontSize: 12,
+                          boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                          {(b.resources || [])
+                            .map((r) => r.name)
+                            .filter(Boolean)
+                            .join(" / ")}
+                        </div>
+                        <div style={{ opacity: 0.9 }}>
+                          {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
-                {day.bookings.length > 3 && (
+                {typeof maxItems === "number" &&
+                  day.bookings.length > maxItems && (
                   <div style={{ fontSize: 11, color: "#475569" }}>
-                    +{day.bookings.length - 3} more
+                    +{day.bookings.length - maxItems} more
                   </div>
                 )}
               </div>
