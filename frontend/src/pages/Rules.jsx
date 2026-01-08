@@ -123,7 +123,7 @@ export default function Rules() {
     sort_order: 0,
 
     // Step A: rule type -> maps to actionKind
-    ruleType: "soft", // soft|hard|recommend|alert
+    ruleType: "soft", // soft|hard|alert
     actionKind: "score", // score|forbid|alert|require_approval
     scoreDelta: 30,
 
@@ -249,7 +249,7 @@ export default function Rules() {
     } else if (form.ruleType === "alert") {
       actionKind = "alert";
     } else {
-      // soft/recommend => score (same JSON, delta changes)
+      // soft => score (same JSON, delta changes)
       actionKind = "score";
     }
 
@@ -901,18 +901,6 @@ export default function Rules() {
                   <div>
                     <div className="font-medium">Hard rule (Block)</div>
                     <div className="text-xs text-gray-500">Forbids matching resources</div>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-2 border rounded p-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    checked={form.ruleType === "recommend"}
-                    onChange={() => setForm((p) => ({ ...p, ruleType: "recommend" }))}
-                  />
-                  <div>
-                    <div className="font-medium">Recommendation / Score</div>
-                    <div className="text-xs text-gray-500">Same as soft, usually lower delta</div>
                   </div>
                 </label>
 
