@@ -9,6 +9,7 @@ import availabilityRoutes from "./routes/availability.js";
 import rulesRoutes from "./routes/rules.js";  
 import resourceRequestsRoutes from "./routes/resourceRequests.js";
 import announcementsRoutes from "./routes/announcements.js";
+import usersRoutes from "./routes/users.js";
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use("/api/availability", availabilityRoutes);
 app.use("/api/rules", rulesRoutes);           
 app.use("/api/resource-requests", resourceRequestsRoutes);
 app.use("/api/announcements", announcementsRoutes);
+app.use("/api/users", usersRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

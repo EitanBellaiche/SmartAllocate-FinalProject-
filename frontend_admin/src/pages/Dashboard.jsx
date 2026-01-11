@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPut } from "../api/api";
+import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -7,6 +7,21 @@ export default function Dashboard() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [userQuery, setUserQuery] = useState("");
+  const [userOptions, setUserOptions] = useState([]);
+  const [userLoading, setUserLoading] = useState(false);
+  const [userError, setUserError] = useState("");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userId, setUserId] = useState("");
+  const [userBookings, setUserBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [assignDate, setAssignDate] = useState("");
+  const [assignStartTime, setAssignStartTime] = useState("");
+  const [assignEndTime, setAssignEndTime] = useState("");
+  const [assignResources, setAssignResources] = useState([]);
+  const [assignRoles, setAssignRoles] = useState({});
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const [assignMessage, setAssignMessage] = useState("");
 
   const [editModal, setEditModal] = useState({
     open: false,
@@ -67,6 +82,60 @@ export default function Dashboard() {
     loadStats();
   }, []);
 
+  useEffect(() => {
+    const trimmed = userQuery.trim();
+    if (trimmed.length < 2) {
+      setUserOptions([]);
+      setUserError("");
+      return;
+    }
+    let active = true;
+    setUserLoading(true);
+    setUserError("");
+    apiGet(`/users?role=user&q=${encodeURIComponent(trimmed)}`)
+      .then((data) => {
+        if (!active) return;
+        setUserOptions(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setUserError(err?.message || "Failed to load users");
+      })
+      .finally(() => {
+        if (!active) return;
+        setUserLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userQuery]);
+
+  useEffect(() => {
+    const id = String(userId || "").trim();
+    if (!id) {
+      setUserBookings([]);
+      return;
+    }
+    let active = true;
+    setBookingsLoading(true);
+    apiGet(`/bookings?user_id=${encodeURIComponent(id)}&include_details=1`)
+      .then((data) => {
+        if (!active) return;
+        setUserBookings(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!active) return;
+        setUserBookings([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setBookingsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
   const filteredResources = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return resources;
@@ -99,6 +168,84 @@ export default function Dashboard() {
       metadata: resource.metadata || {},
     });
     setEditModal({ open: true, item: resource });
+  }
+
+  function selectUser(user) {
+    setSelectedUser(user);
+    setUserId(String(user?.national_id || "").trim());
+    setUserQuery(user?.full_name || user?.national_id || "");
+    setUserOptions([]);
+  }
+
+  function toggleAssignResource(id) {
+    if (assignResources.includes(id)) {
+      setAssignResources(assignResources.filter((r) => r !== id));
+      const updated = { ...assignRoles };
+      delete updated[id];
+      setAssignRoles(updated);
+    } else {
+      setAssignResources([...assignResources, id]);
+    }
+  }
+
+  function updateAssignRole(id, value) {
+    setAssignRoles((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
+  }
+
+  async function removeBooking(bookingId) {
+    if (!bookingId) return;
+    try {
+      await apiDelete(`/bookings/${bookingId}`);
+      const id = String(userId || "").trim();
+      if (id) {
+        const data = await apiGet(
+          `/bookings?user_id=${encodeURIComponent(id)}&include_details=1`
+        );
+        setUserBookings(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      setAssignMessage(err?.message || "Failed to delete booking.");
+    }
+  }
+
+  async function submitAssignment() {
+    if (!assignDate || !assignStartTime || !assignEndTime || assignResources.length === 0 || !userId) {
+      setAssignMessage("❗ Please select date, time, user and at least one resource.");
+      return;
+    }
+    setAssignSubmitting(true);
+    setAssignMessage("");
+    try {
+      await apiPost("/bookings", {
+        resources: assignResources,
+        roles: assignRoles,
+        date: assignDate,
+        start_time: assignStartTime,
+        end_time: assignEndTime,
+        user_id: String(userId).trim(),
+      });
+      const data = await apiGet(
+        `/bookings?user_id=${encodeURIComponent(userId)}&include_details=1`
+      );
+      setUserBookings(Array.isArray(data) ? data : []);
+      setAssignResources([]);
+      setAssignRoles({});
+      setAssignDate("");
+      setAssignStartTime("");
+      setAssignEndTime("");
+      if (!selectedUser) {
+        setUserId("");
+        setUserQuery("");
+      }
+      setAssignMessage("✔ Assignment created successfully!");
+    } catch (err) {
+      setAssignMessage(`❌ ${err?.message || "Failed to create assignment."}`);
+    } finally {
+      setAssignSubmitting(false);
+    }
   }
 
   function handleEditTypeChange(typeId) {
@@ -207,6 +354,164 @@ export default function Dashboard() {
         <StatCard title="Bookings Today" value={stats.bookingsToday} />
         <StatCard title="Pending Approvals" value={stats.pending} />
         <StatCard title="Total Bookings" value={stats.totalBookings} />
+      </div>
+
+      <div className="mt-10">
+        <h2 className="text-xl font-bold mb-1">Assign Resources to Users</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          Search a user, review current assignments, and create new ones.
+        </p>
+        {assignMessage && (
+          <div className="mb-4 p-2 bg-gray-800 text-white rounded">
+            {assignMessage}
+          </div>
+        )}
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">
+            Find User (name, email, or national ID)
+          </label>
+          <input
+            type="text"
+            className="w-full p-3 border rounded-lg"
+            value={userQuery}
+            onChange={(e) => {
+              setUserQuery(e.target.value);
+              setSelectedUser(null);
+              setUserId("");
+            }}
+            placeholder="Search by name, email, or national ID"
+          />
+          {userLoading && <div className="text-sm text-gray-500 mt-2">Loading users...</div>}
+          {userError && <div className="text-sm text-red-600 mt-2">{userError}</div>}
+          {userOptions.length > 0 && (
+            <div className="border rounded mt-2 max-h-48 overflow-auto bg-white">
+              {userOptions.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                  onClick={() => selectUser(u)}
+                >
+                  {u.full_name || "User"} · {u.national_id} · {u.email}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 text-sm text-gray-600">
+            Selected: {userId ? userId : "None"}
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-2">Current Assignments</h3>
+          {bookingsLoading ? (
+            <div className="text-sm text-gray-500">Loading assignments...</div>
+          ) : userBookings.length === 0 ? (
+            <div className="text-sm text-gray-500">No assignments for this user.</div>
+          ) : (
+            <div className="space-y-3">
+              {userBookings.map((b) => (
+                <div key={b.id} className="border rounded p-3 flex items-start justify-between">
+                  <div>
+                    <div className="font-semibold">
+                      {b.date} · {b.start_time} - {b.end_time}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {(b.resources || [])
+                        .map((r) => r?.name || "Resource")
+                        .join(" / ")}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeBooking(b.id)}
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2">Create Assignment</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block font-semibold mb-1">Date</label>
+              <input
+                type="date"
+                className="border px-3 py-2 rounded w-full"
+                value={assignDate}
+                onChange={(e) => setAssignDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">Start Time</label>
+              <input
+                type="time"
+                className="border px-3 py-2 rounded w-full"
+                value={assignStartTime}
+                onChange={(e) => setAssignStartTime(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">End Time</label>
+              <input
+                type="time"
+                className="border px-3 py-2 rounded w-full"
+                value={assignEndTime}
+                onChange={(e) => setAssignEndTime(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <label className="block font-semibold mb-2">Choose Resources</label>
+            <div className="max-h-64 overflow-y-auto border rounded p-3 bg-white">
+              {resources.map((r) => {
+                const type = types.find((t) => t.id === r.type_id);
+                const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
+                return (
+                  <div key={r.id} className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={assignResources.includes(r.id)}
+                        onChange={() => toggleAssignResource(r.id)}
+                      />
+                      <span>{r.name}</span>
+                    </div>
+
+                    {assignResources.includes(r.id) && typeRoles.length > 0 && (
+                      <select
+                        className="border rounded px-2 py-1"
+                        value={assignRoles[r.id] || ""}
+                        onChange={(e) => updateAssignRole(r.id, e.target.value)}
+                      >
+                        <option value="">Role (optional)</option>
+                        {typeRoles.map((role) => (
+                          <option key={role} value={role}>
+                            {role}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={submitAssignment}
+            disabled={assignSubmitting}
+            className="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700 disabled:bg-gray-500"
+          >
+            {assignSubmitting ? "Creating assignment..." : "Create Assignment"}
+          </button>
+        </div>
       </div>
 
       <div className="mt-10">

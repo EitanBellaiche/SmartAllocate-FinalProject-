@@ -153,6 +153,12 @@ select {
   gap: 14px;
 }
 
+.login-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #3f3f46;
+}
+
 .login-divider {
   height: 1px;
   background: linear-gradient(90deg, transparent, #d9d3c8, transparent);
@@ -197,6 +203,15 @@ select {
   color: #6b7280;
   cursor: default;
   box-shadow: none;
+}
+
+.login-error {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.9rem;
 }
 
 .login-error {

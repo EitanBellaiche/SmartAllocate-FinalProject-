@@ -4,6 +4,16 @@ import pool from "../db.js";
 const router = express.Router();
 let tableReady = false;
 
+function getOrgId(req) {
+  const value =
+    req.query?.org_id ||
+    req.query?.organization_id ||
+    req.body?.org_id ||
+    req.body?.organization_id;
+  const trimmed = String(value || "").trim();
+  return trimmed || null;
+}
+
 async function ensureTable() {
   if (tableReady) return;
   await pool.query(`
@@ -14,12 +24,14 @@ async function ensureTable() {
       course_name TEXT,
       sender_name TEXT,
       target_user_id TEXT,
+      organization_id TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS course_name TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sender_name TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_user_id TEXT`);
+  await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS organization_id TEXT`);
   tableReady = true;
 }
 
@@ -36,17 +48,25 @@ router.use(async (req, res, next) => {
 router.get("/", async (req, res) => {
   try {
     const { user_id } = req.query;
+    const orgId = getOrgId(req);
     const params = [];
-    let where = "";
+    const conditions = [];
 
     if (user_id) {
       params.push(String(user_id));
-      where = "WHERE target_user_id IS NULL OR target_user_id = $1";
+      conditions.push(`(target_user_id IS NULL OR target_user_id = $1)`);
     }
+
+    if (orgId) {
+      params.push(orgId);
+      conditions.push(`organization_id = $${params.length}`);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
     const { rows } = await pool.query(
       `
-      SELECT id, title, message, course_name, sender_name, target_user_id, created_at
+      SELECT id, title, message, course_name, sender_name, target_user_id, organization_id, created_at
       FROM announcements
       ${where}
       ORDER BY created_at DESC, id DESC
@@ -68,6 +88,7 @@ router.post("/", async (req, res) => {
   const senderName = String(req.body?.sender_name || "Lecturer").trim();
   const targetUserIdRaw = String(req.body?.target_user_id || "").trim();
   const targetUserId = targetUserIdRaw || null;
+  const orgId = getOrgId(req);
 
   if (!title) {
     return res.status(400).json({ error: "Title is required" });
@@ -79,11 +100,11 @@ router.post("/", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `
-      INSERT INTO announcements (title, message, course_name, sender_name, target_user_id)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
       `,
-      [title, message, courseName || null, senderName || null, targetUserId]
+      [title, message, courseName || null, senderName || null, targetUserId, orgId]
     );
 
     res.status(201).json(rows[0]);

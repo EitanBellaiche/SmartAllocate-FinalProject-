@@ -9,6 +9,7 @@ import {
   createAnnouncement,
   cancelBooking,
   rescheduleBooking,
+  loginUser,
 } from "./api";
 
 function parseDateValue(dateStr) {
@@ -128,8 +129,22 @@ function filterBookingsToCourses(bookings) {
     .filter(Boolean);
 }
 
+const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || "http://localhost:5174";
+const SESSION_KEY = "smartallocate.session";
+
+function normalizeRole(value) {
+  const roleValue = String(value || "").trim().toLowerCase();
+  if (["admin", "manager", "administrator"].includes(roleValue)) return "admin";
+  if (["lecturer", "teacher", "instructor", "staff"].includes(roleValue)) {
+    return "lecturer";
+  }
+  if (["user", "member", "employee"].includes(roleValue)) return "student";
+  return "student";
+}
+
 export default function App() {
   const [studentId, setStudentId] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("student");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -203,24 +218,67 @@ export default function App() {
   const [rescheduleEnd, setRescheduleEnd] = useState("10:00");
   const [rescheduleLocation, setRescheduleLocation] = useState("classroom");
 
-  async function loadBookings() {
-    if (!studentId.trim()) {
-      setError("Please enter a student ID.");
+  useEffect(() => {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    try {
+      const stored = JSON.parse(raw);
+      const storedId = String(stored?.id || "").trim();
+      if (!storedId) return;
+      const normalizedRole = normalizeRole(stored?.role);
+      if (normalizedRole === "admin") {
+        const query = storedId
+          ? `?national_id=${encodeURIComponent(storedId)}`
+          : "";
+        window.location.assign(`${ADMIN_URL}${query}`);
+        return;
+      }
+      setStudentId(storedId);
+      setRole(normalizedRole);
+      setHasStudent(true);
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  }, []);
+
+  async function handleLogin() {
+    const id = studentId.trim();
+    if (!id) {
+      setError("Please enter a national ID.");
       return;
     }
     setError("");
     setLoading(true);
     try {
-      const data = await getBookingsByUser(studentId.trim());
-      if (Array.isArray(data) && data.length > 0) {
-        setBookings(data);
-      } else {
-        const fallback = await getBookingsByUser("");
-        setBookings(Array.isArray(fallback) ? fallback : []);
+      const user = await loginUser(id, password);
+      const normalizedRole = normalizeRole(user?.role);
+      localStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          id,
+          role: normalizedRole,
+          organization_id: user?.organization_id || null,
+          full_name: user?.full_name || "",
+        })
+      );
+      if (normalizedRole === "admin") {
+        const params = new URLSearchParams();
+        params.set("national_id", id);
+        if (user?.organization_id) {
+          params.set("organization_id", String(user.organization_id));
+        }
+        if (user?.full_name) {
+          params.set("full_name", String(user.full_name));
+        }
+        params.set("role", "admin");
+        const query = `?${params.toString()}`;
+        window.location.assign(`${ADMIN_URL}${query}`);
+        return;
       }
+      setRole(normalizedRole);
       setHasStudent(true);
     } catch (err) {
-      setError(err?.message || "Failed to load bookings.");
+      setError(err?.message || "Failed to sign in.");
     } finally {
       setLoading(false);
     }
@@ -952,17 +1010,26 @@ export default function App() {
           <div className="login-divider" />
 
           <div className="login-form">
-            <label className="login-label">Student ID</label>
+            <label className="login-label">National ID</label>
             <input
               className="login-input"
-              type="password"
+              type="text"
+              inputMode="numeric"
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
               placeholder="e.g. 123456789"
             />
+            <label className="login-label">Password</label>
+            <input
+              className="login-input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
+            />
             <button
               className="login-button"
-              onClick={loadBookings}
+              onClick={handleLogin}
               disabled={loading}
             >
               {loading ? "Loading..." : "Sign in"}
@@ -1004,41 +1071,23 @@ export default function App() {
           >
             Role
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              onClick={() => setRole("student")}
-              style={{
-                flex: 1,
-                padding: "6px 8px",
-                borderRadius: 8,
-                border: "1px solid #1e293b",
-                background: role === "student" ? "#2563eb" : "transparent",
-                color: role === "student" ? "#fff" : "#cbd5e1",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Student
-            </button>
-            <button
-              onClick={() => setRole("lecturer")}
-              style={{
-                flex: 1,
-                padding: "6px 8px",
-                borderRadius: 8,
-                border: "1px solid #1e293b",
-                background: role === "lecturer" ? "#2563eb" : "transparent",
-                color: role === "lecturer" ? "#fff" : "#cbd5e1",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Lecturer
-            </button>
+          <div
+            style={{
+              padding: "6px 8px",
+              borderRadius: 8,
+              border: "1px solid #1e293b",
+              background: "#0b1120",
+              color: "#e2e8f0",
+              fontWeight: 700,
+              textTransform: "capitalize",
+              textAlign: "center",
+            }}
+          >
+            {role}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-          Student ID: {studentId}
+          National ID: {studentId}
         </div>
         <button
           onClick={() => setSection("schedule")}
@@ -2433,7 +2482,7 @@ export default function App() {
                           targetUserId: e.target.value,
                         }))
                       }
-                      placeholder="Student ID (optional)"
+                      placeholder="National ID (optional)"
                       style={{
                         flex: 1,
                         minWidth: 160,
@@ -3320,4 +3369,3 @@ function MonthGrid({
     </div>
   );
 }
-

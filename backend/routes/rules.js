@@ -2,14 +2,50 @@ import express from "express";
 import db from "../db.js";
 
 const router = express.Router();
+let tableReady = false;
+
+function getOrgId(req) {
+  const value =
+    req.query?.org_id ||
+    req.query?.organization_id ||
+    req.body?.org_id ||
+    req.body?.organization_id;
+  const trimmed = String(value || "").trim();
+  return trimmed || null;
+}
+
+async function ensureTable() {
+  if (tableReady) return;
+  await db.query(`ALTER TABLE rules ADD COLUMN IF NOT EXISTS organization_id TEXT`);
+  tableReady = true;
+}
+
+router.use(async (req, res, next) => {
+  try {
+    await ensureTable();
+    next();
+  } catch (err) {
+    console.error("Failed to init rules table:", err);
+    res.status(500).json({ error: "Rules service unavailable" });
+  }
+});
 
 // GET all rules
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
+    const orgId = getOrgId(req);
+    const params = [];
+    let where = "";
+    if (orgId) {
+      params.push(orgId);
+      where = "WHERE organization_id = $1";
+    }
     const { rows } = await db.query(
       `SELECT id, name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, created_at
        FROM rules
-       ORDER BY is_active DESC, sort_order ASC, id ASC`
+       ${where}
+       ORDER BY is_active DESC, sort_order ASC, id ASC`,
+      params
     );
     res.json(rows);
   } catch (err) {
@@ -42,11 +78,23 @@ router.post("/", async (req, res) => {
     if (typeof condition !== "object" || condition === null) return res.status(400).json({ error: "condition must be json" });
     if (typeof action !== "object" || action === null) return res.status(400).json({ error: "action must be json" });
 
+    const orgId = getOrgId(req);
     const { rows } = await db.query(
-      `INSERT INTO rules (name, description, target_type, is_hard, is_active, weight, sort_order, condition, action)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb)
+      `INSERT INTO rules (name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, organization_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10)
        RETURNING id, name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, created_at`,
-      [name, description, target_type, is_hard, is_active, Number(weight), Number(sort_order), condition, action]
+      [
+        name,
+        description,
+        target_type,
+        is_hard,
+        is_active,
+        Number(weight),
+        Number(sort_order),
+        condition,
+        action,
+        orgId,
+      ]
     );
 
     res.status(201).json(rows[0]);
@@ -83,13 +131,31 @@ router.put("/:id", async (req, res) => {
     if (typeof condition !== "object" || condition === null) return res.status(400).json({ error: "condition must be json" });
     if (typeof action !== "object" || action === null) return res.status(400).json({ error: "action must be json" });
 
+    const orgId = getOrgId(req);
+    const params = [
+      name,
+      description,
+      target_type,
+      is_hard,
+      is_active,
+      Number(weight),
+      Number(sort_order),
+      condition,
+      action,
+      id,
+    ];
+    let where = "WHERE id=$10";
+    if (orgId) {
+      params.push(orgId);
+      where = "WHERE id=$10 AND organization_id=$11";
+    }
     const { rows } = await db.query(
       `UPDATE rules
        SET name=$1, description=$2, target_type=$3, is_hard=$4, is_active=$5, weight=$6, sort_order=$7,
            condition=$8::jsonb, action=$9::jsonb
-       WHERE id=$10
+       ${where}
        RETURNING id, name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, created_at`,
-      [name, description, target_type, is_hard, is_active, Number(weight), Number(sort_order), condition, action, id]
+      params
     );
 
     if (!rows.length) return res.status(404).json({ error: "not found" });
@@ -108,9 +174,16 @@ router.patch("/:id/active", async (req, res) => {
     if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
     if (typeof is_active !== "boolean") return res.status(400).json({ error: "is_active must be boolean" });
 
+    const orgId = getOrgId(req);
+    const params = [is_active, id];
+    let where = "WHERE id=$2";
+    if (orgId) {
+      params.push(orgId);
+      where = "WHERE id=$2 AND organization_id=$3";
+    }
     const { rows } = await db.query(
-      `UPDATE rules SET is_active=$1 WHERE id=$2 RETURNING id, is_active`,
-      [is_active, id]
+      `UPDATE rules SET is_active=$1 ${where} RETURNING id, is_active`,
+      params
     );
 
     if (!rows.length) return res.status(404).json({ error: "not found" });
@@ -127,7 +200,14 @@ router.delete("/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: "invalid id" });
 
-    const { rowCount } = await db.query(`DELETE FROM rules WHERE id=$1`, [id]);
+    const orgId = getOrgId(req);
+    const params = [id];
+    let where = "WHERE id=$1";
+    if (orgId) {
+      params.push(orgId);
+      where = "WHERE id=$1 AND organization_id=$2";
+    }
+    const { rowCount } = await db.query(`DELETE FROM rules ${where}`, params);
     if (!rowCount) return res.status(404).json({ error: "not found" });
 
     res.status(204).send();

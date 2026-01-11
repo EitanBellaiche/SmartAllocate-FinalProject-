@@ -56,11 +56,6 @@ export default function Booking() {
       setMessage("❗ Please select date, time, user and at least one resource.");
       return;
     }
-    const parsedUserId = Number(userId);
-    if (!Number.isFinite(parsedUserId)) {
-      setMessage("❗ User ID must be a number.");
-      return;
-    }
 
     setSubmitting(true);
     setMessage("");
@@ -72,7 +67,7 @@ export default function Booking() {
         date,
         start_time: startTime,
         end_time: endTime,
-        user_id: parsedUserId
+        user_id: String(userId).trim()
       });
 
       setMessage("✔ Booking created successfully!");
@@ -137,9 +132,9 @@ export default function Booking() {
 
       {/* USER */}
       <div className="mb-4">
-        <label className="block font-semibold mb-1">User ID</label>
+        <label className="block font-semibold mb-1">National ID</label>
         <input
-          type="number"
+          type="text"
           className="border px-3 py-2 rounded w-full"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
