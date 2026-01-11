@@ -1,7 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../api/api";
 
 const STATUS_OPTIONS = ["all", "pending", "approved", "rejected", "handled"];
+
+function parseDateOnly(value) {
+  if (!value) return null;
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const [y, m, d] = text.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return parsed;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+}
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -16,12 +28,90 @@ function formatDateTime(value) {
   });
 }
 
+function formatDate(value) {
+  if (!value) return "-";
+  const d = parseDateOnly(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatTimeRange(start, end) {
+  if (!start || !end) return "-";
+  return `${String(start).slice(0, 5)} - ${String(end).slice(0, 5)}`;
+}
+
 export default function ResourceRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedResourceKey, setSelectedResourceKey] = useState(null);
+
+  const filteredRequests = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return requests;
+    return requests.filter((req) => {
+      const haystack = [
+        req.resource_name,
+        req.resource_type,
+        req.student_id,
+        req.note,
+        req.status,
+        req.request_date,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [requests, searchQuery]);
+
+  const groupedRequests = useMemo(() => {
+    const groups = new Map();
+    filteredRequests.forEach((req) => {
+      const key = String(req.resource_id ?? req.resource_name ?? req.id);
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          resource_id: req.resource_id,
+          resource_name: req.resource_name,
+          resource_type: req.resource_type,
+          requests: [],
+        });
+      }
+      groups.get(key).requests.push(req);
+    });
+    return Array.from(groups.values()).sort((a, b) => {
+      const aName = a.resource_name || `Resource #${a.resource_id || ""}`;
+      const bName = b.resource_name || `Resource #${b.resource_id || ""}`;
+      return aName.localeCompare(bName);
+    });
+  }, [filteredRequests]);
+
+  useEffect(() => {
+    if (
+      selectedResourceKey &&
+      !groupedRequests.some((g) => g.key === selectedResourceKey)
+    ) {
+      setSelectedResourceKey(null);
+    }
+  }, [groupedRequests, selectedResourceKey]);
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      setSelectedResourceKey(null);
+    }
+  }, [searchQuery]);
+
+  const selectedGroup = groupedRequests.find(
+    (group) => group.key === selectedResourceKey
+  );
 
   async function loadRequests() {
     setLoading(true);
@@ -70,7 +160,13 @@ export default function ResourceRequests() {
             Review and respond to student resource requests.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by resource, student, note..."
+            className="border border-gray-200 rounded-md px-3 py-2 text-sm"
+          />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -100,47 +196,80 @@ export default function ResourceRequests() {
         </div>
       )}
 
-      <div className="bg-white shadow rounded-lg overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold">Resource</th>
-              <th className="px-4 py-3 text-left font-semibold">Type</th>
-              <th className="px-4 py-3 text-left font-semibold">Student</th>
-              <th className="px-4 py-3 text-left font-semibold">Note</th>
-              <th className="px-4 py-3 text-left font-semibold">Status</th>
-              <th className="px-4 py-3 text-left font-semibold">Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={6}>
-                  Loading requests...
-                </td>
-              </tr>
-            ) : requests.length === 0 ? (
-              <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={6}>
-                  No requests found.
-                </td>
-              </tr>
-            ) : (
-              requests.map((req) => (
-                <tr key={req.id} className="border-t">
-                  <td className="px-4 py-3 font-medium text-gray-900">
-                    {req.resource_name || `#${req.resource_id}`}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {req.resource_type || "-"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {req.student_id}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        {loading ? (
+          <div className="px-6 py-6 text-sm text-gray-500">
+            Loading requests...
+          </div>
+        ) : groupedRequests.length === 0 ? (
+          <div className="px-6 py-6 text-sm text-gray-500">
+            No requests found.
+          </div>
+        ) : !selectedGroup ? (
+          <div className="p-4 space-y-3">
+            {groupedRequests.map((group) => {
+              const pendingCount = group.requests.filter(
+                (req) => (req.status || "pending") === "pending"
+              ).length;
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => setSelectedResourceKey(group.key)}
+                  className="w-full text-left px-4 py-4 flex items-center gap-3 rounded-xl border border-gray-200 shadow-sm bg-white"
+                >
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {group.resource_name || `Resource #${group.resource_id}`}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {group.resource_type || "Resource"}
+                    </div>
+                  </div>
+                  {pendingCount > 0 && (
+                    <span className="ml-auto inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-semibold w-6 h-6">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-4">
+            <button
+              type="button"
+              onClick={() => setSelectedResourceKey(null)}
+              className="text-blue-600 font-semibold text-sm mb-4"
+            >
+              Back to resources
+            </button>
+            <div className="text-base font-semibold text-gray-900 mb-3">
+              {selectedGroup.resource_name ||
+                `Resource #${selectedGroup.resource_id}`}
+            </div>
+            <div className="grid gap-3">
+              {selectedGroup.requests.map((req) => (
+                <div
+                  key={req.id}
+                  className="border border-gray-200 rounded-lg p-4 flex flex-wrap gap-4 items-center"
+                >
+                  <div className="min-w-[180px]">
+                    <div className="text-sm font-semibold text-gray-900">
+                      {req.student_id}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {formatDate(req.request_date)} ·{" "}
+                      {formatTimeRange(req.start_time, req.end_time)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {formatDateTime(req.created_at)}
+                    </div>
+                  </div>
+                  <div className="flex-1 text-sm text-gray-600">
                     {req.note}
-                  </td>
-                  <td className="px-4 py-3">
+                  </div>
+                  <div>
                     <select
                       value={req.status || "pending"}
                       onChange={(e) => updateStatus(req.id, e.target.value)}
@@ -155,15 +284,12 @@ export default function ResourceRequests() {
                         )
                       )}
                     </select>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {formatDateTime(req.created_at)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

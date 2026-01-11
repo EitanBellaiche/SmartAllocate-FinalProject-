@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Source+Sans+3:wght@400;600;700&display=swap");
+
 :root {
   color-scheme: light;
 }
@@ -8,7 +10,7 @@
 
 body {
   margin: 0;
-  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Source Sans 3", "Segoe UI", sans-serif;
   background: radial-gradient(circle at 20% 15%, #e0edff 0, transparent 32%),
     radial-gradient(circle at 80% 10%, #d9f1ff 0, transparent 30%),
     linear-gradient(180deg, #eef2f7 0%, #dfe6f5 35%, #eef2f7 100%);
@@ -106,4 +108,103 @@ select {
   font-weight: 700;
   background: #e0e7ff;
   color: #1d4ed8;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: radial-gradient(circle at top, #fbf7f0 0%, #f4efe7 45%, #eee8de 100%);
+}
+
+.login-card {
+  width: min(520px, 92vw);
+  padding: 44px 40px;
+  border-radius: 18px;
+  border: 1px solid #e1dad0;
+  background: #fffdfa;
+  box-shadow: 0 18px 44px rgba(30, 41, 59, 0.12);
+  display: grid;
+  gap: 24px;
+}
+
+.login-greeting {
+  text-align: center;
+}
+
+.login-greeting-title {
+  font-family: "Libre Baskerville", "Source Sans 3", serif;
+  font-size: 2.2rem;
+  color: #1f2937;
+  letter-spacing: 0.04em;
+}
+
+.login-greeting-sub {
+  margin-top: 8px;
+  color: #6b7280;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #d9d3c8, transparent);
+}
+
+.login-input {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #ded7cc;
+  background: #ffffff;
+  font-size: 1rem;
+  color: #1f2937;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: #c7bba8;
+  box-shadow: 0 0 0 3px rgba(199, 187, 168, 0.25);
+}
+
+.login-button {
+  padding: 12px;
+  border-radius: 10px;
+  border: none;
+  background: #1f2937;
+  color: #f9fafb;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 16px 28px rgba(31, 41, 55, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(31, 41, 55, 0.25);
+}
+
+.login-button:disabled {
+  background: #d6d3ce;
+  color: #6b7280;
+  cursor: default;
+  box-shadow: none;
+}
+
+.login-error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}
+
+.login-label {
+  font-size: 0.95rem;
+  color: #6b7280;
 }
