@@ -11,6 +11,7 @@ import {
   rescheduleBooking,
   loginUser,
 } from "./api";
+import { getOrgLabels, getSessionOrgId } from "./orgConfig";
 
 function parseDateValue(dateStr) {
   if (!dateStr) return null;
@@ -98,6 +99,14 @@ function isClassroomResource(resource) {
   return String(resource?.type_name || "").toLowerCase() === "classroom";
 }
 
+function formatTypeLabel(typeName, labels, fallback = "Resource") {
+  const normalized = String(typeName || "").trim().toLowerCase();
+  if (normalized === "course" || normalized === "courses") {
+    return labels.course;
+  }
+  return typeName || fallback;
+}
+
 function getBookingResources(booking) {
   return booking?.all_resources || booking?.resources || [];
 }
@@ -135,10 +144,24 @@ const SESSION_KEY = "smartallocate.session";
 function normalizeRole(value) {
   const roleValue = String(value || "").trim().toLowerCase();
   if (["admin", "manager", "administrator"].includes(roleValue)) return "admin";
-  if (["responsible", "lecturer", "teacher", "instructor", "staff"].includes(roleValue)) {
+  if (
+    [
+      "responsible",
+      "lecturer",
+      "teacher",
+      "instructor",
+      "staff",
+      "shift_manager",
+      "shift-manager",
+      "supervisor",
+      "lead",
+    ].includes(roleValue)
+  ) {
     return "lecturer";
   }
-  if (["user", "member", "employee"].includes(roleValue)) return "student";
+  if (["user", "member", "employee", "worker", "staff_member"].includes(roleValue)) {
+    return "student";
+  }
   return "student";
 }
 
@@ -217,6 +240,24 @@ export default function App() {
   const [rescheduleStart, setRescheduleStart] = useState("09:00");
   const [rescheduleEnd, setRescheduleEnd] = useState("10:00");
   const [rescheduleLocation, setRescheduleLocation] = useState("classroom");
+  const labels = useMemo(
+    () => getOrgLabels(getSessionOrgId(SESSION_KEY)),
+    [role, hasStudent]
+  );
+  const labelsLower = useMemo(
+    () => ({
+      student: String(labels.student || "").toLowerCase(),
+      students: String(labels.students || "").toLowerCase(),
+      lecturer: String(labels.lecturer || "").toLowerCase(),
+      lecturers: String(labels.lecturers || "").toLowerCase(),
+      course: String(labels.course || "").toLowerCase(),
+      courses: String(labels.courses || "").toLowerCase(),
+      class: String(labels.class || "").toLowerCase(),
+      userId: String(labels.userId || "").toLowerCase(),
+      request: String(labels.request || "").toLowerCase(),
+    }),
+    [labels]
+  );
 
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
@@ -235,7 +276,7 @@ export default function App() {
   async function handleLogin() {
     const id = studentId.trim();
     if (!id) {
-      setError("Please enter a national ID.");
+      setError(`Please enter your ${labels.userId}.`);
       return;
     }
     setError("");
@@ -503,7 +544,7 @@ export default function App() {
     const requester = studentId.trim();
     if (!availabilityResource) return;
     if (!requester) {
-      setBookingError("Please enter your student ID first.");
+      setBookingError(`Please enter your ${labels.userId} first.`);
       return;
     }
     const requestDate = dateOverride || bookingDraft.date;
@@ -576,7 +617,7 @@ export default function App() {
     const note = requestNote.trim();
     const requester = studentId.trim();
     if (!requester) {
-      setRequestError("Please enter your student ID first.");
+      setRequestError(`Please enter your ${labels.userId} first.`);
       return;
     }
     if (!note) {
@@ -697,7 +738,7 @@ export default function App() {
     const course = announcementForm.course.trim();
     const targetUserId = announcementForm.targetUserId.trim();
     const senderName =
-      announcementForm.senderName.trim() || studentId.trim() || "Lecturer";
+      announcementForm.senderName.trim() || studentId.trim() || labels.lecturer;
 
     if (!title) {
       setAnnouncementError("Please add a title.");
@@ -784,24 +825,27 @@ export default function App() {
           end_time: rescheduleEnd,
           location: rescheduleLocation,
           reason: cancelReason.trim(),
-          sender_name: cancelSenderName.trim() || studentId.trim() || "Lecturer",
+          sender_name: cancelSenderName.trim() || studentId.trim() || labels.lecturer,
           target_user_id: studentId.trim(),
         });
-        setCancelSuccess("Class rescheduled.");
+        setCancelSuccess(`${labels.class} rescheduled.`);
       } else {
         await cancelBooking(booking.id, {
           reason: cancelReason.trim(),
-          sender_name: cancelSenderName.trim() || studentId.trim() || "Lecturer",
+          sender_name: cancelSenderName.trim() || studentId.trim() || labels.lecturer,
           target_user_id: studentId.trim(),
         });
-        setCancelSuccess("Class cancelled.");
+        setCancelSuccess(`${labels.class} cancelled.`);
       }
       const data = await getBookingsByUser(studentId.trim());
       setBookings(Array.isArray(data) ? data : []);
       setCancelDialog({ open: false, booking: null });
     } catch (err) {
       setCancelError(
-        err?.message || (rescheduleMode ? "Failed to reschedule class." : "Failed to cancel class.")
+        err?.message ||
+          (rescheduleMode
+            ? `Failed to reschedule ${labelsLower.class}.`
+            : `Failed to cancel ${labelsLower.class}.`)
       );
     } finally {
       setCancelSubmitting(false);
@@ -1013,14 +1057,14 @@ export default function App() {
           <div className="login-divider" />
 
           <div className="login-form">
-            <label className="login-label">National ID</label>
+            <label className="login-label">{labels.userId}</label>
             <input
               className="login-input"
               type="text"
               inputMode="numeric"
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
-              placeholder="e.g. 123456789"
+              placeholder={`Enter your ${labelsLower.userId}`}
             />
             <label className="login-label">Password</label>
             <input
@@ -1086,11 +1130,11 @@ export default function App() {
               textAlign: "center",
             }}
           >
-            {role === "lecturer" ? "Responsible" : "User"}
+            {role === "lecturer" ? labels.responsible : labels.student}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-          National ID: {studentId}
+          {labels.userId}: {studentId}
         </div>
         <button
           onClick={() => setSection("schedule")}
@@ -1118,7 +1162,7 @@ export default function App() {
             cursor: "pointer",
           }}
         >
-          {role === "student" ? "My Courses" : "Find Resource"}
+          {role === "student" ? `My ${labels.courses}` : "Find Resource"}
         </button>
         {role === "lecturer" && (
           <button
@@ -1206,7 +1250,7 @@ export default function App() {
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>My Schedule</h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                Month or list view of your courses.
+                Month or list view of your {labelsLower.courses}.
               </p>
             </header>
 
@@ -1222,7 +1266,7 @@ export default function App() {
               }}
             >
               <div style={{ flex: 1, minWidth: 200 }}>
-                <h3 style={{ margin: 0, color: "#0f172a" }}>My Courses</h3>
+                <h3 style={{ margin: 0, color: "#0f172a" }}>My {labels.courses}</h3>
                 <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
                   Search by resource or tag. Switch between month grid and list.
                 </p>
@@ -1285,7 +1329,7 @@ export default function App() {
                   textAlign: "center",
                 }}
               >
-                No courses yet. Enter an ID and click "Load bookings".
+                No {labelsLower.courses} yet. Enter an ID and click "Load bookings".
               </div>
             ) : (
               <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
@@ -1354,7 +1398,7 @@ export default function App() {
                                 cursor: past ? "not-allowed" : "pointer",
                               }}
                             >
-                              Cancel class
+                              Cancel {labelsLower.class}
                             </button>
                           )}
                         </div>
@@ -1393,16 +1437,16 @@ export default function App() {
                     marginBottom: 16,
                   }}
                 >
-                  <h1 style={{ margin: 0, color: "#0f172a" }}>My Courses</h1>
+                  <h1 style={{ margin: 0, color: "#0f172a" }}>My {labels.courses}</h1>
                   <p style={{ margin: 0, color: "#475569" }}>
-                    Your enrolled courses and session details.
+                    Your {labelsLower.courses} and session details.
                   </p>
                 </header>
 
                 <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
                   {studentCourses.length === 0 ? (
                     <div style={{ color: "#475569" }}>
-                      No courses available yet.
+                      No {labelsLower.courses} available yet.
                     </div>
                   ) : (
                     <div style={{ display: "grid", gap: 12 }}>
@@ -1447,7 +1491,7 @@ export default function App() {
                                   fontWeight: 700,
                                 }}
                               >
-                                {course.type_name || "Course"}
+                                {formatTypeLabel(course.type_name, labels)}
                               </span>
                             </div>
                             {course.metadata &&
@@ -1625,7 +1669,7 @@ export default function App() {
                           fontWeight: 700,
                         }}
                       >
-                        {selectedResource.type_name || "Resource"}
+                        {formatTypeLabel(selectedResource.type_name, labels, "Resource")}
                       </span>
                     </div>
 
@@ -1749,7 +1793,7 @@ export default function App() {
                                 fontWeight: 700,
                               }}
                             >
-                              {r.type_name || "Resource"}
+                              {formatTypeLabel(r.type_name, labels, "Resource")}
                             </span>
                           </div>
                           <div style={{ color: "#475569", fontSize: 12 }}>
@@ -1848,7 +1892,7 @@ export default function App() {
                     <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
                       {selectedRequestResource.name}{" "}
                       {selectedRequestResource.type_name
-                        ? `(${selectedRequestResource.type_name})`
+                        ? `(${formatTypeLabel(selectedRequestResource.type_name, labels, "Resource")})`
                         : ""}
                     </div>
                     {requestError && (
@@ -2027,7 +2071,9 @@ export default function App() {
                                 {r.name}
                               </div>
                               <div style={{ color: "#475569", fontSize: 12 }}>
-                                {r.type_name ? `Type: ${r.type_name}` : "Resource"}
+                                {r.type_name
+                                  ? `Type: ${formatTypeLabel(r.type_name, labels, "Resource")}`
+                                  : "Resource"}
                               </div>
                             </div>
                           <button
@@ -2101,7 +2147,7 @@ export default function App() {
               </h1>
               <p style={{ margin: 0, color: "#475569" }}>
                 {role === "student"
-                  ? "Updates from lecturers about cancelled classes."
+                  ? `Updates from ${labelsLower.lecturers} about cancelled ${labelsLower.class}.`
                   : "Track the status of allocation requests."}
               </p>
             </header>
@@ -2148,7 +2194,7 @@ export default function App() {
                     cursor: "pointer",
                   }}
                 >
-                  Lecturer Messages
+                  {labels.lecturer} Messages
                 </button>
               )}
             </div>
@@ -2483,7 +2529,7 @@ export default function App() {
                           course: e.target.value,
                         }))
                       }
-                      placeholder="Course name (optional)"
+                      placeholder={`${labels.course} name (optional)`}
                       style={{
                         flex: 1,
                         minWidth: 160,
@@ -2500,7 +2546,7 @@ export default function App() {
                           targetUserId: e.target.value,
                         }))
                       }
-                      placeholder="National ID (optional)"
+                      placeholder={`${labels.userId} (optional)`}
                       style={{
                         flex: 1,
                         minWidth: 160,
@@ -2613,7 +2659,7 @@ export default function App() {
                         </div>
                         <div style={{ fontSize: 12, color: "#64748b" }}>
                           {a.course_name ? `${a.course_name} • ` : ""}
-                          {a.sender_name || "Lecturer"} •{" "}
+                          {a.sender_name || labels.lecturer} •{" "}
                           {formatDate(a.created_at)}
                         </div>
                         {isSelected && (
@@ -2855,7 +2901,7 @@ export default function App() {
                   <div style={{ color: "#475569", fontSize: 12 }}>
                     {availabilityResource.name}{" "}
                     {availabilityResource.type_name
-                      ? `(${availabilityResource.type_name})`
+                      ? `(${formatTypeLabel(availabilityResource.type_name, labels, "Resource")})`
                       : ""}
                   </div>
                 </div>
@@ -3231,7 +3277,7 @@ function BookingCard({ booking, role, onCancel }) {
           >
             <div style={{ color: "#0f172a", fontWeight: 600 }}>{r.name}</div>
             <div style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>
-              {r.type_name ? `Type: ${r.type_name}` : ""}
+              {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels, "Resource")}` : ""}
               {r.role ? ` - Role: ${r.role}` : ""}
             </div>
               {r.metadata && Object.keys(r.metadata).length > 0 && (

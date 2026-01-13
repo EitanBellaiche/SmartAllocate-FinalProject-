@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { apiGet, apiPost } from "../api/api";
+import { getOrgLabels } from "../orgConfig";
 
 export default function Booking() {
+  const labels = getOrgLabels();
+  const labelsLower = {
+    userId: String(labels.userId || "").toLowerCase(),
+  };
+  const userIdPlural = `${labels.userId}s`;
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
@@ -341,7 +347,7 @@ export default function Booking() {
               setResponsibleQuery(e.target.value);
               setResponsibleUser(null);
             }}
-            placeholder="Search by name, email, or national ID"
+            placeholder={`Search by name, email, or ${labelsLower.userId}`}
           />
           {responsibleLoading && (
             <div className="text-sm text-gray-500 mt-2">Loading users...</div>
@@ -361,7 +367,7 @@ export default function Booking() {
                     setResponsibleQuery(u.full_name || u.email || u.national_id || "");
                   }}
                 >
-                  {u.full_name || "User"} · {u.national_id || "No ID"} · {u.email}
+                  {u.full_name || "User"} · {u.national_id || `No ${labels.userId}`} · {u.email}
                 </button>
               ))}
             </div>
@@ -375,7 +381,7 @@ export default function Booking() {
       {assignUsers && (
         <div className="mb-4">
           <label className="block font-semibold mb-1">
-            Student IDs (comma or space separated)
+            {userIdPlural} (comma or space separated)
           </label>
           <textarea
             rows={3}

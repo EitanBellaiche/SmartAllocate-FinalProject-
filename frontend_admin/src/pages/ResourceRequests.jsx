@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../api/api";
+import { getOrgLabels } from "../orgConfig";
 
 const STATUS_OPTIONS = ["all", "pending", "approved", "rejected", "handled"];
 
@@ -45,6 +46,11 @@ function formatTimeRange(start, end) {
 }
 
 export default function ResourceRequests() {
+  const labels = getOrgLabels();
+  const labelsLower = {
+    student: String(labels.student || "").toLowerCase(),
+    students: String(labels.students || "").toLowerCase(),
+  };
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -157,14 +163,14 @@ export default function ResourceRequests() {
             Resource Requests
           </h1>
           <p className="text-sm text-gray-500">
-            Review and respond to student resource requests.
+            Review and respond to {labelsLower.student} resource requests.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by resource, student, note..."
+            placeholder={`Search by resource, ${labelsLower.student}, note...`}
             className="border border-gray-200 rounded-md px-3 py-2 text-sm"
           />
           <select
