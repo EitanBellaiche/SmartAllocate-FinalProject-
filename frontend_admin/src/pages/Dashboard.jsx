@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
+import { apiGet, apiPut } from "../api/api";
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -15,13 +15,6 @@ export default function Dashboard() {
   const [userId, setUserId] = useState("");
   const [userBookings, setUserBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
-  const [assignDate, setAssignDate] = useState("");
-  const [assignStartTime, setAssignStartTime] = useState("");
-  const [assignEndTime, setAssignEndTime] = useState("");
-  const [assignResources, setAssignResources] = useState([]);
-  const [assignRoles, setAssignRoles] = useState({});
-  const [assignSubmitting, setAssignSubmitting] = useState(false);
-  const [assignMessage, setAssignMessage] = useState("");
 
   const [editModal, setEditModal] = useState({
     open: false,
@@ -177,77 +170,6 @@ export default function Dashboard() {
     setUserOptions([]);
   }
 
-  function toggleAssignResource(id) {
-    if (assignResources.includes(id)) {
-      setAssignResources(assignResources.filter((r) => r !== id));
-      const updated = { ...assignRoles };
-      delete updated[id];
-      setAssignRoles(updated);
-    } else {
-      setAssignResources([...assignResources, id]);
-    }
-  }
-
-  function updateAssignRole(id, value) {
-    setAssignRoles((prev) => ({
-      ...prev,
-      [id]: value,
-    }));
-  }
-
-  async function removeBooking(bookingId) {
-    if (!bookingId) return;
-    try {
-      await apiDelete(`/bookings/${bookingId}`);
-      const id = String(userId || "").trim();
-      if (id) {
-        const data = await apiGet(
-          `/bookings?user_id=${encodeURIComponent(id)}&include_details=1`
-        );
-        setUserBookings(Array.isArray(data) ? data : []);
-      }
-    } catch (err) {
-      setAssignMessage(err?.message || "Failed to delete booking.");
-    }
-  }
-
-  async function submitAssignment() {
-    if (!assignDate || !assignStartTime || !assignEndTime || assignResources.length === 0 || !userId) {
-      setAssignMessage("❗ Please select date, time, user and at least one resource.");
-      return;
-    }
-    setAssignSubmitting(true);
-    setAssignMessage("");
-    try {
-      await apiPost("/bookings", {
-        resources: assignResources,
-        roles: assignRoles,
-        date: assignDate,
-        start_time: assignStartTime,
-        end_time: assignEndTime,
-        user_id: String(userId).trim(),
-      });
-      const data = await apiGet(
-        `/bookings?user_id=${encodeURIComponent(userId)}&include_details=1`
-      );
-      setUserBookings(Array.isArray(data) ? data : []);
-      setAssignResources([]);
-      setAssignRoles({});
-      setAssignDate("");
-      setAssignStartTime("");
-      setAssignEndTime("");
-      if (!selectedUser) {
-        setUserId("");
-        setUserQuery("");
-      }
-      setAssignMessage("✔ Assignment created successfully!");
-    } catch (err) {
-      setAssignMessage(`❌ ${err?.message || "Failed to create assignment."}`);
-    } finally {
-      setAssignSubmitting(false);
-    }
-  }
-
   function handleEditTypeChange(typeId) {
     const type = types.find((t) => t.id === Number(typeId));
     setSelectedType(type || null);
@@ -357,15 +279,10 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-10">
-        <h2 className="text-xl font-bold mb-1">Assign Resources to Users</h2>
+        <h2 className="text-xl font-bold mb-1">User Bookings</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Search a user, review current assignments, and create new ones.
+          Search a user to review their bookings.
         </p>
-        {assignMessage && (
-          <div className="mb-4 p-2 bg-gray-800 text-white rounded">
-            {assignMessage}
-          </div>
-        )}
         <div className="mb-4">
           <label className="block font-semibold mb-1">
             Find User (name, email, or national ID)
@@ -403,15 +320,15 @@ export default function Dashboard() {
         </div>
 
         <div className="mb-6">
-          <h3 className="text-lg font-semibold mb-2">Current Assignments</h3>
+          <h3 className="text-lg font-semibold mb-2">Current Bookings</h3>
           {bookingsLoading ? (
-            <div className="text-sm text-gray-500">Loading assignments...</div>
+            <div className="text-sm text-gray-500">Loading bookings...</div>
           ) : userBookings.length === 0 ? (
-            <div className="text-sm text-gray-500">No assignments for this user.</div>
+            <div className="text-sm text-gray-500">No bookings for this user.</div>
           ) : (
             <div className="space-y-3">
               {userBookings.map((b) => (
-                <div key={b.id} className="border rounded p-3 flex items-start justify-between">
+                <div key={b.id} className="border rounded p-3">
                   <div>
                     <div className="font-semibold">
                       {b.date} · {b.start_time} - {b.end_time}
@@ -422,95 +339,10 @@ export default function Dashboard() {
                         .join(" / ")}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeBooking(b.id)}
-                    className="text-sm text-red-600 hover:underline"
-                  >
-                    Remove
-                  </button>
                 </div>
               ))}
             </div>
           )}
-        </div>
-
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold mb-2">Create Assignment</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block font-semibold mb-1">Date</label>
-              <input
-                type="date"
-                className="border px-3 py-2 rounded w-full"
-                value={assignDate}
-                onChange={(e) => setAssignDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Start Time</label>
-              <input
-                type="time"
-                className="border px-3 py-2 rounded w-full"
-                value={assignStartTime}
-                onChange={(e) => setAssignStartTime(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">End Time</label>
-              <input
-                type="time"
-                className="border px-3 py-2 rounded w-full"
-                value={assignEndTime}
-                onChange={(e) => setAssignEndTime(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <label className="block font-semibold mb-2">Choose Resources</label>
-            <div className="max-h-64 overflow-y-auto border rounded p-3 bg-white">
-              {resources.map((r) => {
-                const type = types.find((t) => t.id === r.type_id);
-                const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
-                return (
-                  <div key={r.id} className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={assignResources.includes(r.id)}
-                        onChange={() => toggleAssignResource(r.id)}
-                      />
-                      <span>{r.name}</span>
-                    </div>
-
-                    {assignResources.includes(r.id) && typeRoles.length > 0 && (
-                      <select
-                        className="border rounded px-2 py-1"
-                        value={assignRoles[r.id] || ""}
-                        onChange={(e) => updateAssignRole(r.id, e.target.value)}
-                      >
-                        <option value="">Role (optional)</option>
-                        {typeRoles.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <button
-            onClick={submitAssignment}
-            disabled={assignSubmitting}
-            className="w-full bg-blue-600 text-white p-3 rounded hover:bg-blue-700 disabled:bg-gray-500"
-          >
-            {assignSubmitting ? "Creating assignment..." : "Create Assignment"}
-          </button>
         </div>
       </div>
 
