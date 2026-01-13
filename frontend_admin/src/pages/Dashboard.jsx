@@ -92,7 +92,7 @@ export default function Dashboard() {
     let active = true;
     setUserLoading(true);
     setUserError("");
-    apiGet(`/users?role=user&q=${encodeURIComponent(trimmed)}`)
+    apiGet(`/users?q=${encodeURIComponent(trimmed)}`)
       .then((data) => {
         if (!active) return;
         setUserOptions(Array.isArray(data) ? data : []);
