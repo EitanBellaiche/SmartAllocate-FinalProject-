@@ -25,6 +25,10 @@ export function setAdminSession(session) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
+export function clearAdminSession() {
+  localStorage.removeItem(SESSION_KEY);
+}
+
 function withOrgQuery(path) {
   const session = getAdminSession();
   const orgId = String(session?.organization_id || "").trim();

@@ -1,4 +1,5 @@
 import { Outlet, NavLink } from "react-router-dom";
+import { clearAdminSession } from "../api/api";
 
 export default function MainLayout() {
   return (
@@ -26,8 +27,20 @@ export default function MainLayout() {
           <NavItem to="/rules">Rules</NavItem>
         </nav>
 
-        <div className="px-4 py-3 text-xs text-gray-400 border-t">
+        <div className="px-4 py-3 border-t">
+          <button
+            type="button"
+            onClick={() => {
+              clearAdminSession();
+              window.location.assign(window.location.pathname);
+            }}
+            className="w-full text-left text-sm font-medium text-gray-600 hover:text-blue-600"
+          >
+            Sign out
+          </button>
+          <div className="mt-2 text-xs text-gray-400">
           © {new Date().getFullYear()} SmartAllocate
+          </div>
         </div>
       </aside>
 

@@ -284,6 +284,18 @@ export default function App() {
     }
   }
 
+  function handleLogout() {
+    localStorage.removeItem(SESSION_KEY);
+    setHasStudent(false);
+    setStudentId("");
+    setPassword("");
+    setRole("student");
+    setSection("schedule");
+    setBookings([]);
+    setUserRequests([]);
+    setAnnouncements([]);
+  }
+
   const activeBookings = useMemo(() => {
     return bookings.filter((b) => !b.cancelled_at);
   }, [bookings]);
@@ -1169,6 +1181,21 @@ export default function App() {
               {unreadNotificationCount}
             </span>
           )}
+        </button>
+        <button
+          onClick={handleLogout}
+          style={{
+            marginTop: 8,
+            textAlign: "left",
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #1e293b",
+            background: "#0b1120",
+            color: "#e2e8f0",
+            cursor: "pointer",
+          }}
+        >
+          Sign out
         </button>
         <div style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>
           Powered by SmartAllocate
