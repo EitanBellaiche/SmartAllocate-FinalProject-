@@ -401,7 +401,15 @@ router.post("/:id/reschedule", async (req, res) => {
    CREATE BOOKING WITH RESOURCES
 --------------------------------*/
 router.post("/", async (req, res) => {
-  const { resources, roles, date, start_time, end_time, user_id } = req.body;
+  const {
+    resources,
+    roles,
+    date,
+    start_time,
+    end_time,
+    user_id,
+    recurrence,
+  } = req.body;
   const orgId = getOrgId(req);
 
   if (!resources || resources.length === 0) {
@@ -411,42 +419,71 @@ router.post("/", async (req, res) => {
   const client = await pool.connect();
 
   try {
+    const parseDate = (value) => {
+      if (!value || typeof value !== "string") return null;
+      const parts = value.split("-");
+      if (parts.length !== 3) return null;
+      const [y, m, d] = parts.map((p) => Number(p));
+      if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) {
+        return null;
+      }
+      return new Date(y, m - 1, d);
+    };
+    const formatDate = (dateObj) => {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const d = String(dateObj.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    };
+
+    let bookingDates = [];
+    if (recurrence) {
+      const startDateValue = String(recurrence?.start_date || "").trim();
+      const endDateValue = String(recurrence?.end_date || "").trim();
+      const days = Array.isArray(recurrence?.days_of_week)
+        ? recurrence.days_of_week
+        : [];
+      const daysOfWeek = days
+        .map((d) => Number(d))
+        .filter((d) => Number.isFinite(d) && d >= 0 && d <= 6);
+
+      if (!startDateValue || !endDateValue || daysOfWeek.length === 0) {
+        return res.status(400).json({
+          error: "Recurrence requires start_date, end_date, and days_of_week",
+        });
+      }
+      const startDate = parseDate(startDateValue);
+      const endDate = parseDate(endDateValue);
+      if (!startDate || !endDate || startDate > endDate) {
+        return res.status(400).json({ error: "Invalid recurrence date range" });
+      }
+
+      const uniqueDays = Array.from(new Set(daysOfWeek));
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        if (uniqueDays.includes(d.getDay())) {
+          bookingDates.push(formatDate(d));
+        }
+        if (bookingDates.length > 200) {
+          return res.status(400).json({
+            error: "Recurrence creates too many bookings",
+          });
+        }
+      }
+
+      if (bookingDates.length === 0) {
+        return res.status(400).json({
+          error: "No dates match the selected recurrence",
+        });
+      }
+    } else {
+      const dateValue = String(date || "").trim();
+      if (!dateValue) {
+        return res.status(400).json({ error: "Date is required" });
+      }
+      bookingDates = [dateValue];
+    }
+
     await client.query("BEGIN");
-
-    /* 1. Check availability for all selected resources */
-    const conflictParams = [resources, date, start_time, end_time];
-    let conflictOrg = "";
-    if (orgId) {
-      conflictParams.push(orgId);
-      conflictOrg = `AND r.organization_id = $${conflictParams.length}`;
-    }
-    const conflictCheck = await client.query(
-      `
-      SELECT br.resource_id, b.*
-      FROM booking_resources br
-      JOIN bookings b ON b.id = br.booking_id
-      JOIN resources r ON r.id = br.resource_id
-      LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
-      WHERE br.resource_id = ANY($1)
-      AND b.date = $2
-      AND bc.booking_id IS NULL
-      ${conflictOrg}
-      AND (
-        ($3 >= b.start_time AND $3 < b.end_time) OR
-        ($4 > b.start_time AND $4 <= b.end_time) OR
-        ($3 <= b.start_time AND $4 >= b.end_time)
-      )
-    `,
-      conflictParams
-    );
-
-    if (conflictCheck.rows.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({
-        error: "Resources conflict",
-        conflicts: conflictCheck.rows
-      });
-    }
 
     /* 2. Load resources + rules for evaluation */
     const resourceParams = [resources];
@@ -481,59 +518,104 @@ router.post("/", async (req, res) => {
       ruleParams
     );
 
-    const ruleEval = evaluateRules({
-      rules: ruleRows,
-      booking: {
-        date,
-        start_time,
-        end_time,
-        user_id,
-      },
-      resources: resourceRows,
-      roles,
-    });
-
-    if (ruleEval.hardViolations.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(422).json({
-        error: "Rule violations",
-        violations: ruleEval.hardViolations,
-        alerts: ruleEval.alerts,
-      });
-    }
-
-    /* 3. Create booking */
-    const bookingResult = await client.query(
-      `
-      INSERT INTO bookings (user_id, date, start_time, end_time)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
-    `,
-      [user_id, date, start_time, end_time]
-    );
-
-    const booking = bookingResult.rows[0];
-
-    /* 3. Insert into booking_resources */
-    for (let r of resources) {
-      await client.query(
+    const createdBookings = [];
+    let lastRuleEval = null;
+    for (const bookingDate of bookingDates) {
+      /* 1. Check availability for all selected resources */
+      const conflictParams = [resources, bookingDate, start_time, end_time];
+      let conflictOrg = "";
+      if (orgId) {
+        conflictParams.push(orgId);
+        conflictOrg = `AND r.organization_id = $${conflictParams.length}`;
+      }
+      const conflictCheck = await client.query(
         `
-        INSERT INTO booking_resources (booking_id, resource_id, role)
-        VALUES ($1, $2, $3)
+        SELECT br.resource_id, b.*
+        FROM booking_resources br
+        JOIN bookings b ON b.id = br.booking_id
+        JOIN resources r ON r.id = br.resource_id
+        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+        WHERE br.resource_id = ANY($1)
+        AND b.date = $2
+        AND bc.booking_id IS NULL
+        ${conflictOrg}
+        AND (
+          ($3 >= b.start_time AND $3 < b.end_time) OR
+          ($4 > b.start_time AND $4 <= b.end_time) OR
+          ($3 <= b.start_time AND $4 >= b.end_time)
+        )
       `,
-        [booking.id, r, roles?.[r] || null]
+        conflictParams
       );
+
+      if (conflictCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "Resources conflict",
+          date: bookingDate,
+          conflicts: conflictCheck.rows
+        });
+      }
+
+      const ruleEval = evaluateRules({
+        rules: ruleRows,
+        booking: {
+          date: bookingDate,
+          start_time,
+          end_time,
+          user_id,
+        },
+        resources: resourceRows,
+        roles,
+      });
+      lastRuleEval = ruleEval;
+
+      if (ruleEval.hardViolations.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(422).json({
+          error: "Rule violations",
+          date: bookingDate,
+          violations: ruleEval.hardViolations,
+          alerts: ruleEval.alerts,
+        });
+      }
+
+      /* 3. Create booking */
+      const bookingResult = await client.query(
+        `
+        INSERT INTO bookings (user_id, date, start_time, end_time)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `,
+        [user_id, bookingDate, start_time, end_time]
+      );
+
+      const booking = bookingResult.rows[0];
+
+      /* 4. Insert into booking_resources */
+      for (let r of resources) {
+        await client.query(
+          `
+          INSERT INTO booking_resources (booking_id, resource_id, role)
+          VALUES ($1, $2, $3)
+        `,
+          [booking.id, r, roles?.[r] || null]
+        );
+      }
+
+      createdBookings.push(booking);
     }
 
     await client.query("COMMIT");
 
     res.json({
       message: "Booking created",
-      booking,
+      bookings: createdBookings,
+      count: createdBookings.length,
       rule_summary: {
-        score: ruleEval.score,
-        soft_matches: ruleEval.softMatches,
-        alerts: ruleEval.alerts,
+        score: lastRuleEval?.score ?? null,
+        soft_matches: lastRuleEval?.softMatches || [],
+        alerts: lastRuleEval?.alerts || [],
       },
     });
 

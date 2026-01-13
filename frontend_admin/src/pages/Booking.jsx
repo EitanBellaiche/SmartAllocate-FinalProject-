@@ -11,9 +11,23 @@ export default function Booking() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [userId, setUserId] = useState("");
+  const [recurring, setRecurring] = useState(false);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
+  const [weekdays, setWeekdays] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+
+  const weekdayOptions = [
+    { label: "Sun", value: 0 },
+    { label: "Mon", value: 1 },
+    { label: "Tue", value: 2 },
+    { label: "Wed", value: 3 },
+    { label: "Thu", value: 4 },
+    { label: "Fri", value: 5 },
+    { label: "Sat", value: 6 },
+  ];
 
   useEffect(() => {
     loadResources();
@@ -51,9 +65,31 @@ export default function Booking() {
     }));
   }
 
+  function toggleWeekday(dayValue) {
+    setWeekdays((prev) => {
+      if (prev.includes(dayValue)) {
+        return prev.filter((d) => d !== dayValue);
+      }
+      return [...prev, dayValue];
+    });
+  }
+
   async function submitBooking() {
-    if (!date || !startTime || !endTime || selectedResources.length === 0 || !userId) {
-      setMessage("❗ Please select date, time, user and at least one resource.");
+    if (!startTime || !endTime || selectedResources.length === 0 || !userId) {
+      setMessage("❗ Please select time, user and at least one resource.");
+      return;
+    }
+    if (startTime >= endTime) {
+      setMessage("❗ End time must be after start time.");
+      return;
+    }
+    if (recurring) {
+      if (!rangeStart || !rangeEnd || weekdays.length === 0) {
+        setMessage("❗ Please select a date range and at least 1 weekday.");
+        return;
+      }
+    } else if (!date) {
+      setMessage("❗ Please select a date.");
       return;
     }
 
@@ -61,14 +97,25 @@ export default function Booking() {
     setMessage("");
 
     try {
-      await apiPost("/bookings", {
+      const payload = {
         resources: selectedResources,
         roles,
-        date,
         start_time: startTime,
         end_time: endTime,
         user_id: String(userId).trim()
-      });
+      };
+
+      if (recurring) {
+        payload.recurrence = {
+          start_date: rangeStart,
+          end_date: rangeEnd,
+          days_of_week: weekdays,
+        };
+      } else {
+        payload.date = date;
+      }
+
+      await apiPost("/bookings", payload);
 
       setMessage("✔ Booking created successfully!");
 
@@ -78,6 +125,10 @@ export default function Booking() {
       setStartTime("");
       setEndTime("");
       setUserId("");
+      setRecurring(false);
+      setRangeStart("");
+      setRangeEnd("");
+      setWeekdays([]);
 
     } catch (err) {
       setMessage(`❌ ${err?.message || "Failed to create booking."}`);
@@ -97,16 +148,73 @@ export default function Booking() {
         </div>
       )}
 
+      <div className="mb-4 flex items-center gap-2">
+        <input
+          id="recurring-toggle"
+          type="checkbox"
+          checked={recurring}
+          onChange={(e) => setRecurring(e.target.checked)}
+        />
+        <label htmlFor="recurring-toggle" className="font-semibold">
+          Recurring schedule
+        </label>
+      </div>
+
       {/* DATE */}
       <div className="mb-4">
-        <label className="block font-semibold mb-1">Date</label>
-        <input
-          type="date"
-          className="border px-3 py-2 rounded w-full"
-          value={date}
-          onChange={e => setDate(e.target.value)}
-        />
+        {!recurring ? (
+          <>
+            <label className="block font-semibold mb-1">Date</label>
+            <input
+              type="date"
+              className="border px-3 py-2 rounded w-full"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
+          </>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block font-semibold mb-1">Start Date</label>
+              <input
+                type="date"
+                className="border px-3 py-2 rounded w-full"
+                value={rangeStart}
+                max={rangeEnd || undefined}
+                onChange={(e) => setRangeStart(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block font-semibold mb-1">End Date</label>
+              <input
+                type="date"
+                className="border px-3 py-2 rounded w-full"
+                value={rangeEnd}
+                min={rangeStart || undefined}
+                onChange={(e) => setRangeEnd(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
       </div>
+
+      {recurring && (
+        <div className="mb-4">
+          <div className="font-semibold mb-2">Weekdays</div>
+          <div className="flex flex-wrap gap-3">
+            {weekdayOptions.map((day) => (
+              <label key={day.value} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={weekdays.includes(day.value)}
+                  onChange={() => toggleWeekday(day.value)}
+                />
+                <span>{day.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* TIME */}
       <div className="grid grid-cols-2 gap-4 mb-4">
