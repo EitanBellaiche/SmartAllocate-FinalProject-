@@ -135,7 +135,7 @@ const SESSION_KEY = "smartallocate.session";
 function normalizeRole(value) {
   const roleValue = String(value || "").trim().toLowerCase();
   if (["admin", "manager", "administrator"].includes(roleValue)) return "admin";
-  if (["lecturer", "teacher", "instructor", "staff"].includes(roleValue)) {
+  if (["responsible", "lecturer", "teacher", "instructor", "staff"].includes(roleValue)) {
     return "lecturer";
   }
   if (["user", "member", "employee"].includes(roleValue)) return "student";
@@ -1095,7 +1095,7 @@ export default function App() {
               textAlign: "center",
             }}
           >
-            {role}
+            {role === "lecturer" ? "Responsible" : "User"}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "#cbd5e1" }}>
