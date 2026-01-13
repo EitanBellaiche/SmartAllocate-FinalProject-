@@ -10,7 +10,13 @@ export default function Booking() {
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [userId, setUserId] = useState("");
+  const [assignUsers, setAssignUsers] = useState(false);
+  const [responsibleQuery, setResponsibleQuery] = useState("");
+  const [responsibleOptions, setResponsibleOptions] = useState([]);
+  const [responsibleLoading, setResponsibleLoading] = useState(false);
+  const [responsibleError, setResponsibleError] = useState("");
+  const [responsibleUser, setResponsibleUser] = useState(null);
+  const [studentIdsInput, setStudentIdsInput] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
@@ -32,6 +38,32 @@ export default function Booking() {
   useEffect(() => {
     loadResources();
   }, []);
+
+  useEffect(() => {
+    if (!assignUsers) return;
+    let active = true;
+    const timeout = setTimeout(async () => {
+      setResponsibleLoading(true);
+      setResponsibleError("");
+      try {
+        const q = responsibleQuery.trim();
+        const query = q ? `&q=${encodeURIComponent(q)}` : "";
+        const data = await apiGet(`/users?role=responsible${query}`);
+        if (!active) return;
+        setResponsibleOptions(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!active) return;
+        setResponsibleError(err?.message || "Failed to load responsible users.");
+      } finally {
+        if (active) setResponsibleLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [assignUsers, responsibleQuery]);
 
   async function loadResources() {
     try {
@@ -74,13 +106,25 @@ export default function Booking() {
     });
   }
 
+  function parseStudentIds(raw) {
+    const items = raw
+      .split(/[\s,]+/)
+      .map((val) => val.trim())
+      .filter(Boolean);
+    return Array.from(new Set(items));
+  }
+
   async function submitBooking() {
-    if (!startTime || !endTime || selectedResources.length === 0 || !userId) {
-      setMessage("❗ Please select time, user and at least one resource.");
+    if (!startTime || !endTime || selectedResources.length === 0) {
+      setMessage("❗ Please select time and at least one resource.");
       return;
     }
     if (startTime >= endTime) {
       setMessage("❗ End time must be after start time.");
+      return;
+    }
+    if (assignUsers && !responsibleUser) {
+      setMessage("❗ Please choose a responsible user.");
       return;
     }
     if (recurring) {
@@ -97,25 +141,52 @@ export default function Booking() {
     setMessage("");
 
     try {
-      const payload = {
+      const basePayload = {
         resources: selectedResources,
         roles,
         start_time: startTime,
         end_time: endTime,
-        user_id: String(userId).trim()
       };
 
       if (recurring) {
-        payload.recurrence = {
+        basePayload.recurrence = {
           start_date: rangeStart,
           end_date: rangeEnd,
           days_of_week: weekdays,
         };
       } else {
-        payload.date = date;
+        basePayload.date = date;
       }
 
-      await apiPost("/bookings", payload);
+      const studentIds = assignUsers ? parseStudentIds(studentIdsInput) : [];
+      const responsibleId = String(responsibleUser?.national_id || "").trim();
+      const targetIds = assignUsers
+        ? (studentIds.length > 0 ? studentIds : responsibleId ? [responsibleId] : [])
+        : [null];
+
+      if (assignUsers && !responsibleId) {
+        setMessage("❗ Responsible user must have a national ID.");
+        return;
+      }
+
+      if (targetIds.length === 0) {
+        await apiPost("/bookings", basePayload);
+      } else {
+        const results = await Promise.allSettled(
+          targetIds.map((id) =>
+            apiPost("/bookings", {
+              ...basePayload,
+              user_id: id ? String(id).trim() : undefined,
+            })
+          )
+        );
+        const failures = results.filter((r) => r.status === "rejected");
+        if (failures.length > 0) {
+          throw new Error(
+            `Created ${results.length - failures.length} bookings; ${failures.length} failed.`
+          );
+        }
+      }
 
       setMessage("✔ Booking created successfully!");
 
@@ -124,7 +195,11 @@ export default function Booking() {
       setDate("");
       setStartTime("");
       setEndTime("");
-      setUserId("");
+      setAssignUsers(false);
+      setResponsibleQuery("");
+      setResponsibleOptions([]);
+      setResponsibleUser(null);
+      setStudentIdsInput("");
       setRecurring(false);
       setRangeStart("");
       setRangeEnd("");
@@ -238,16 +313,79 @@ export default function Booking() {
         </div>
       </div>
 
-      {/* USER */}
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">National ID</label>
+      {/* USERS */}
+      <div className="mb-4 flex items-center gap-2">
         <input
-          type="text"
-          className="border px-3 py-2 rounded w-full"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
+          id="assign-users-toggle"
+          type="checkbox"
+          checked={assignUsers}
+          onChange={(e) => {
+            setAssignUsers(e.target.checked);
+            setResponsibleUser(null);
+            setStudentIdsInput("");
+          }}
         />
+        <label htmlFor="assign-users-toggle" className="font-semibold">
+          Assign to users
+        </label>
       </div>
+
+      {assignUsers && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">Responsible user</label>
+          <input
+            type="text"
+            className="border px-3 py-2 rounded w-full"
+            value={responsibleQuery}
+            onChange={(e) => {
+              setResponsibleQuery(e.target.value);
+              setResponsibleUser(null);
+            }}
+            placeholder="Search by name, email, or national ID"
+          />
+          {responsibleLoading && (
+            <div className="text-sm text-gray-500 mt-2">Loading users...</div>
+          )}
+          {responsibleError && (
+            <div className="text-sm text-red-600 mt-2">{responsibleError}</div>
+          )}
+          {responsibleOptions.length > 0 && (
+            <div className="border rounded mt-2 max-h-48 overflow-auto bg-white">
+              {responsibleOptions.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  className="w-full text-left px-3 py-2 hover:bg-gray-100"
+                  onClick={() => {
+                    setResponsibleUser(u);
+                    setResponsibleQuery(u.full_name || u.email || u.national_id || "");
+                  }}
+                >
+                  {u.full_name || "User"} · {u.national_id || "No ID"} · {u.email}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 text-sm text-gray-600">
+            Selected: {responsibleUser?.national_id || "None"}
+          </div>
+        </div>
+      )}
+
+      {assignUsers && (
+        <div className="mb-4">
+          <label className="block font-semibold mb-1">
+            Student IDs (comma or space separated)
+          </label>
+          <textarea
+            rows={3}
+            className="border px-3 py-2 rounded w-full"
+            value={studentIdsInput}
+            onChange={(e) => setStudentIdsInput(e.target.value)}
+            placeholder="e.g. 12345, 67890"
+          />
+        </div>
+      )}
 
       {/* RESOURCES */}
       <div className="mb-6">
