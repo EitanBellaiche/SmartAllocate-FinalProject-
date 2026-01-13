@@ -135,7 +135,7 @@ const SESSION_KEY = "smartallocate.session";
 function normalizeRole(value) {
   const roleValue = String(value || "").trim().toLowerCase();
   if (["admin", "manager", "administrator"].includes(roleValue)) return "admin";
-  if (["lecturer", "teacher", "instructor", "staff"].includes(roleValue)) {
+  if (["responsible", "lecturer", "teacher", "instructor", "staff"].includes(roleValue)) {
     return "lecturer";
   }
   if (["user", "member", "employee"].includes(roleValue)) return "student";
@@ -1071,37 +1071,19 @@ export default function App() {
           >
             Role
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              onClick={() => setRole("student")}
-              style={{
-                flex: 1,
-                padding: "6px 8px",
-                borderRadius: 8,
-                border: "1px solid #1e293b",
-                background: role === "student" ? "#2563eb" : "transparent",
-                color: role === "student" ? "#fff" : "#cbd5e1",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Student
-            </button>
-            <button
-              onClick={() => setRole("lecturer")}
-              style={{
-                flex: 1,
-                padding: "6px 8px",
-                borderRadius: 8,
-                border: "1px solid #1e293b",
-                background: role === "lecturer" ? "#2563eb" : "transparent",
-                color: role === "lecturer" ? "#fff" : "#cbd5e1",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Lecturer
-            </button>
+          <div
+            style={{
+              padding: "6px 8px",
+              borderRadius: 8,
+              border: "1px solid #1e293b",
+              background: "#0b1120",
+              color: "#e2e8f0",
+              fontWeight: 700,
+              textTransform: "capitalize",
+              textAlign: "center",
+            }}
+          >
+            {role === "lecturer" ? "Responsible" : "User"}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "#cbd5e1" }}>
