@@ -10,6 +10,17 @@ import ResourceTypes from "./ResourceTypes";
 import Availability from "./Availability";
 import Rules from "./Rules";  
 import ResourceRequests from "./ResourceRequests";
+
+const DEFAULT_USER_URL = "http://localhost:5173";
+const RAW_USER_URL = import.meta.env.VITE_USER_URL;
+function getUserUrl() {
+  if (!RAW_USER_URL) return DEFAULT_USER_URL;
+  try {
+    return new URL(RAW_USER_URL).toString();
+  } catch {
+    return DEFAULT_USER_URL;
+  }
+}
 export default function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -29,7 +40,8 @@ export default function App() {
       return;
     }
     if (!nationalId || role !== "admin" || !orgId) {
-      setError("Please sign in from the main login page.");
+      setError("Redirecting to the main login page...");
+      window.location.assign(getUserUrl());
       return;
     }
 

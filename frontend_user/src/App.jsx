@@ -225,17 +225,8 @@ export default function App() {
       const stored = JSON.parse(raw);
       const storedId = String(stored?.id || "").trim();
       if (!storedId) return;
-      const normalizedRole = normalizeRole(stored?.role);
-      if (normalizedRole === "admin") {
-        const query = storedId
-          ? `?national_id=${encodeURIComponent(storedId)}`
-          : "";
-        window.location.assign(`${ADMIN_URL}${query}`);
-        return;
-      }
       setStudentId(storedId);
-      setRole(normalizedRole);
-      setHasStudent(true);
+      setRole(normalizeRole(stored?.role));
     } catch {
       localStorage.removeItem(SESSION_KEY);
     }
