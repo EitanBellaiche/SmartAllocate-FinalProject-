@@ -205,7 +205,10 @@ router.post("/:id/cancel", async (req, res) => {
     }
 
     const courseNames = bookingRows
-      .filter((r) => String(r.type_name || "").toLowerCase() === "courses")
+      .filter((r) => {
+        const type = String(r.type_name || "").toLowerCase();
+        return type === "courses" || type === "course";
+      })
       .map((r) => r.resource_name)
       .filter(Boolean);
     const fallbackNames = bookingRows
@@ -214,30 +217,75 @@ router.post("/:id/cancel", async (req, res) => {
     const courseLabel = courseNames.length > 0 ? courseNames.join(" / ") : fallbackNames.join(" / ");
     const booking = bookingRows[0];
 
-    await client.query(
-      `
-      INSERT INTO booking_cancellations (booking_id, cancelled_reason, cancelled_by)
-      VALUES ($1, $2, $3)
-      `,
-      [id, reason || null, senderName || null]
-    );
+    const courseResourceIds = bookingRows
+      .filter((r) => {
+        const type = String(r.type_name || "").toLowerCase();
+        return type === "courses" || type === "course";
+      })
+      .map((r) => r.resource_id);
+
+    let targetBookings = [{ id: booking.id, user_id: booking.user_id }];
+    if (courseResourceIds.length > 0) {
+      const targetParams = [
+        courseResourceIds,
+        booking.date,
+        booking.start_time,
+        booking.end_time,
+      ];
+      let targetOrg = "";
+      if (orgId) {
+        targetParams.push(orgId);
+        targetOrg = `AND r.organization_id = $${targetParams.length}`;
+      }
+      const { rows: targetRows } = await client.query(
+        `
+        SELECT DISTINCT b.id, b.user_id
+        FROM bookings b
+        JOIN booking_resources br ON br.booking_id = b.id
+        JOIN resources r ON r.id = br.resource_id
+        WHERE br.resource_id = ANY($1)
+        AND b.date = $2
+        AND b.start_time = $3
+        AND b.end_time = $4
+        ${targetOrg}
+        `,
+        targetParams
+      );
+      if (targetRows.length > 0) {
+        targetBookings = targetRows;
+      }
+    }
+
+    for (const target of targetBookings) {
+      await client.query(
+        `
+        INSERT INTO booking_cancellations (booking_id, cancelled_reason, cancelled_by)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (booking_id) DO NOTHING
+        `,
+        [target.id, reason || null, senderName || null]
+      );
+    }
 
     const baseMessage = `Class cancelled: ${courseLabel} on ${booking.date} ${booking.start_time} - ${booking.end_time}.`;
     const message = reason ? `${baseMessage} Reason: ${reason}.` : baseMessage;
-    await client.query(
-      `
-      INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      `,
-      [
-        "Class cancelled",
-        message,
-        courseLabel || null,
-        senderName || null,
-        targetUserId || (booking.user_id ? String(booking.user_id) : null),
-        orgId,
-      ]
+    const recipientSet = new Set(
+      targetBookings
+        .map((target) => String(target.user_id || ""))
+        .filter(Boolean)
     );
+    if (recipientSet.size === 0 && targetUserId) {
+      recipientSet.add(targetUserId);
+    }
+    for (const recipient of recipientSet) {
+      await client.query(
+        `
+        INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        ["Class cancelled", message, courseLabel || null, senderName || null, recipient, orgId]
+      );
+    }
 
     await client.query("COMMIT");
     res.json({ success: true });
@@ -334,31 +382,80 @@ router.post("/:id/reschedule", async (req, res) => {
       return res.status(409).json({ error: "Resources conflict" });
     }
 
+    const courseResourceIds = bookingRows
+      .filter((r) => {
+        const type = String(r.type_name || "").toLowerCase();
+        return type === "courses" || type === "course";
+      })
+      .map((r) => r.resource_id);
+
+    let targetBookings = [{ id: booking.id, user_id: booking.user_id }];
+    if (courseResourceIds.length > 0) {
+      const targetParams = [
+        courseResourceIds,
+        booking.date,
+        booking.start_time,
+        booking.end_time,
+      ];
+      let targetOrg = "";
+      if (orgId) {
+        targetParams.push(orgId);
+        targetOrg = `AND r.organization_id = $${targetParams.length}`;
+      }
+      const { rows: targetRows } = await client.query(
+        `
+        SELECT DISTINCT b.id, b.user_id
+        FROM bookings b
+        JOIN booking_resources br ON br.booking_id = b.id
+        JOIN resources r ON r.id = br.resource_id
+        WHERE br.resource_id = ANY($1)
+        AND b.date = $2
+        AND b.start_time = $3
+        AND b.end_time = $4
+        ${targetOrg}
+        `,
+        targetParams
+      );
+      if (targetRows.length > 0) {
+        targetBookings = targetRows;
+      }
+    }
+
+    const targetIds = targetBookings.map((target) => target.id);
+    await client.query(
+      `DELETE FROM booking_cancellations WHERE booking_id = ANY($1)`,
+      [targetIds]
+    );
     await client.query(
       `
       UPDATE bookings
       SET date = $1, start_time = $2, end_time = $3
-      WHERE id = $4
+      WHERE id = ANY($4)
       `,
-      [date, startTime, endTime, id]
+      [date, startTime, endTime, targetIds]
     );
 
     if (location === "zoom") {
-      await client.query(
-        `
-        INSERT INTO booking_locations (booking_id, location)
-        VALUES ($1, $2)
-        ON CONFLICT (booking_id) DO UPDATE
-        SET location = EXCLUDED.location, updated_at = NOW()
-        `,
-        [id, "zoom"]
-      );
+      for (const bookingId of targetIds) {
+        await client.query(
+          `
+          INSERT INTO booking_locations (booking_id, location)
+          VALUES ($1, $2)
+          ON CONFLICT (booking_id) DO UPDATE
+          SET location = EXCLUDED.location, updated_at = NOW()
+          `,
+          [bookingId, "zoom"]
+        );
+      }
     } else {
-      await client.query(`DELETE FROM booking_locations WHERE booking_id = $1`, [id]);
+      await client.query(`DELETE FROM booking_locations WHERE booking_id = ANY($1)`, [targetIds]);
     }
 
     const courseNames = bookingRows
-      .filter((r) => String(r.type_name || "").toLowerCase() === "courses")
+      .filter((r) => {
+        const type = String(r.type_name || "").toLowerCase();
+        return type === "courses" || type === "course";
+      })
       .map((r) => r.resource_name)
       .filter(Boolean);
     const fallbackNames = bookingRows
@@ -371,20 +468,23 @@ router.post("/:id/reschedule", async (req, res) => {
       ? `${baseMessage} Reason: ${reason}. Location: ${locationLabel}.`
       : `${baseMessage} Location: ${locationLabel}.`;
 
-    await client.query(
-      `
-      INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      `,
-      [
-        "Class rescheduled",
-        message,
-        courseLabel || null,
-        senderName || null,
-        targetUserId || (booking.user_id ? String(booking.user_id) : null),
-        orgId,
-      ]
+    const recipientSet = new Set(
+      targetBookings
+        .map((target) => String(target.user_id || ""))
+        .filter(Boolean)
     );
+    if (recipientSet.size === 0 && targetUserId) {
+      recipientSet.add(targetUserId);
+    }
+    for (const recipient of recipientSet) {
+      await client.query(
+        `
+        INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        `,
+        ["Class rescheduled", message, courseLabel || null, senderName || null, recipient, orgId]
+      );
+    }
 
     await client.query("COMMIT");
     res.json({ success: true });
@@ -485,6 +585,11 @@ router.post("/", async (req, res) => {
 
     await client.query("BEGIN");
 
+    const roleMap = roles && typeof roles === "object" ? roles : {};
+    const responsibleResources = resources.filter((rid) => {
+      const roleValue = String(roleMap?.[rid] || "").toLowerCase();
+      return roleValue === "responsible";
+    });
     /* 2. Load resources + rules for evaluation */
     const resourceParams = [resources];
     let resourceWhere = "WHERE r.id = ANY($1)";
@@ -521,40 +626,43 @@ router.post("/", async (req, res) => {
     const createdBookings = [];
     let lastRuleEval = null;
     for (const bookingDate of bookingDates) {
-      /* 1. Check availability for all selected resources */
-      const conflictParams = [resources, bookingDate, start_time, end_time];
-      let conflictOrg = "";
-      if (orgId) {
-        conflictParams.push(orgId);
-        conflictOrg = `AND r.organization_id = $${conflictParams.length}`;
-      }
-      const conflictCheck = await client.query(
-        `
-        SELECT br.resource_id, b.*
-        FROM booking_resources br
-        JOIN bookings b ON b.id = br.booking_id
-        JOIN resources r ON r.id = br.resource_id
-        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
-        WHERE br.resource_id = ANY($1)
-        AND b.date = $2
-        AND bc.booking_id IS NULL
-        ${conflictOrg}
-        AND (
-          ($3 >= b.start_time AND $3 < b.end_time) OR
-          ($4 > b.start_time AND $4 <= b.end_time) OR
-          ($3 <= b.start_time AND $4 >= b.end_time)
-        )
-      `,
-        conflictParams
-      );
+      /* 1. Check availability for responsible roles only */
+      if (responsibleResources.length > 0) {
+        const conflictParams = [responsibleResources, bookingDate, start_time, end_time];
+        let conflictOrg = "";
+        if (orgId) {
+          conflictParams.push(orgId);
+          conflictOrg = `AND r.organization_id = $${conflictParams.length}`;
+        }
+        const conflictCheck = await client.query(
+          `
+          SELECT br.resource_id, br.role, b.*
+          FROM booking_resources br
+          JOIN bookings b ON b.id = br.booking_id
+          JOIN resources r ON r.id = br.resource_id
+          LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+          WHERE br.resource_id = ANY($1)
+          AND LOWER(COALESCE(br.role, '')) = 'responsible'
+          AND b.date = $2
+          AND bc.booking_id IS NULL
+          ${conflictOrg}
+          AND (
+            ($3 >= b.start_time AND $3 < b.end_time) OR
+            ($4 > b.start_time AND $4 <= b.end_time) OR
+            ($3 <= b.start_time AND $4 >= b.end_time)
+          )
+        `,
+          conflictParams
+        );
 
-      if (conflictCheck.rows.length > 0) {
-        await client.query("ROLLBACK");
-        return res.status(409).json({
-          error: "Resources conflict",
-          date: bookingDate,
-          conflicts: conflictCheck.rows
-        });
+        if (conflictCheck.rows.length > 0) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({
+            error: "Resources conflict",
+            date: bookingDate,
+            conflicts: conflictCheck.rows
+          });
+        }
       }
 
       const ruleEval = evaluateRules({
@@ -644,39 +752,47 @@ router.put("/:id", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    const conflictParams = [resources, date, start_time, end_time, id];
-    let conflictOrg = "";
-    if (orgId) {
-      conflictParams.push(orgId);
-      conflictOrg = `AND r.organization_id = $${conflictParams.length}`;
-    }
-    const conflictCheck = await client.query(
-      `
-      SELECT br.resource_id, b.*
-      FROM booking_resources br
-      JOIN bookings b ON b.id = br.booking_id
-      JOIN resources r ON r.id = br.resource_id
-      LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
-      WHERE br.resource_id = ANY($1)
-      AND b.date = $2
-      AND b.id <> $5
-      AND bc.booking_id IS NULL
-      ${conflictOrg}
-      AND (
-        ($3 >= b.start_time AND $3 < b.end_time) OR
-        ($4 > b.start_time AND $4 <= b.end_time) OR
-        ($3 <= b.start_time AND $4 >= b.end_time)
-      )
-    `,
-      conflictParams
-    );
+    const roleMap = roles && typeof roles === "object" ? roles : {};
+    const responsibleResources = resources.filter((rid) => {
+      const roleValue = String(roleMap?.[rid] || "").toLowerCase();
+      return roleValue === "responsible";
+    });
+    if (responsibleResources.length > 0) {
+      const conflictParams = [responsibleResources, date, start_time, end_time, id];
+      let conflictOrg = "";
+      if (orgId) {
+        conflictParams.push(orgId);
+        conflictOrg = `AND r.organization_id = $${conflictParams.length}`;
+      }
+      const conflictCheck = await client.query(
+        `
+        SELECT br.resource_id, br.role, b.*
+        FROM booking_resources br
+        JOIN bookings b ON b.id = br.booking_id
+        JOIN resources r ON r.id = br.resource_id
+        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+        WHERE br.resource_id = ANY($1)
+        AND LOWER(COALESCE(br.role, '')) = 'responsible'
+        AND b.date = $2
+        AND b.id <> $5
+        AND bc.booking_id IS NULL
+        ${conflictOrg}
+        AND (
+          ($3 >= b.start_time AND $3 < b.end_time) OR
+          ($4 > b.start_time AND $4 <= b.end_time) OR
+          ($3 <= b.start_time AND $4 >= b.end_time)
+        )
+      `,
+        conflictParams
+      );
 
-    if (conflictCheck.rows.length > 0) {
-      await client.query("ROLLBACK");
-      return res.status(409).json({
-        error: "Resources conflict",
-        conflicts: conflictCheck.rows
-      });
+      if (conflictCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "Resources conflict",
+          conflicts: conflictCheck.rows
+        });
+      }
     }
 
     const resourceParams = [resources];
