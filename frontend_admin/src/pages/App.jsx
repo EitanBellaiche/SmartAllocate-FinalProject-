@@ -12,7 +12,7 @@ import Rules from "./Rules";
 import ResourceRequests from "./ResourceRequests";
 import AutoScheduler from "./AutoScheduler";
 
-const DEFAULT_USER_URL = "http://localhost:5173";
+const DEFAULT_USER_URL = "http://localhost:4173";
 const RAW_USER_URL = import.meta.env.VITE_USER_URL;
 function getUserUrl() {
   if (!RAW_USER_URL) return DEFAULT_USER_URL;

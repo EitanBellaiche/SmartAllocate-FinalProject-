@@ -1,6 +1,17 @@
 import { Outlet, NavLink } from "react-router-dom";
 import { clearAdminSession } from "../api/api";
 
+const DEFAULT_USER_URL = "http://localhost:4173";
+const RAW_USER_URL = import.meta.env.VITE_USER_URL;
+function getUserUrl() {
+  if (!RAW_USER_URL) return DEFAULT_USER_URL;
+  try {
+    return new URL(RAW_USER_URL).toString();
+  } catch {
+    return DEFAULT_USER_URL;
+  }
+}
+
 export default function MainLayout() {
   return (
     <div className="flex min-h-screen bg-gray-100 text-gray-900">
@@ -33,7 +44,7 @@ export default function MainLayout() {
             type="button"
             onClick={() => {
               clearAdminSession();
-              window.location.assign(window.location.pathname);
+              window.location.assign(getUserUrl());
             }}
             className="w-full text-left text-sm font-medium text-gray-600 hover:text-blue-600"
           >
