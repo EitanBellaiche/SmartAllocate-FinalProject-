@@ -124,6 +124,37 @@ async function hasResourceConflict(client, resourceIds, date, startTime, endTime
   return rows.length > 0;
 }
 
+async function hasExactBooking(client, userId, resourceIds, date, startTime, endTime, orgId) {
+  if (!userId || resourceIds.length === 0) return false;
+  const params = [userId, date, startTime, endTime, resourceIds, resourceIds.length];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT b.id
+    FROM bookings b
+    JOIN booking_resources br ON br.booking_id = b.id
+    JOIN resources r ON r.id = br.resource_id
+    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+    WHERE b.user_id = $1
+    AND b.date = $2
+    AND b.start_time = $3
+    AND b.end_time = $4
+    AND bc.booking_id IS NULL
+    ${orgWhere}
+    GROUP BY b.id
+    HAVING COUNT(DISTINCT br.resource_id) = $6
+       AND COUNT(DISTINCT CASE WHEN br.resource_id = ANY($5) THEN br.resource_id END) = $6
+    LIMIT 1
+    `,
+    params
+  );
+  return rows.length > 0;
+}
+
 async function weekAlreadyScheduled(client, resourceIds, weekStart, weekEnd, orgId) {
   if (!resourceIds.length) return false;
   const params = [resourceIds, formatDate(weekStart), formatDate(weekEnd), resourceIds.length];
@@ -193,6 +224,9 @@ router.post("/", async (req, res) => {
       const studentIds = Array.isArray(group?.student_ids)
         ? group.student_ids.map((id) => String(id).trim()).filter(Boolean)
         : [];
+      const uniqueStudentIds = Array.from(new Set(studentIds)).filter(
+        (id) => id && id !== responsibleId
+      );
       const weeklyHours = Number(group?.weekly_hours || 0);
       const durationMinutes = Math.round((Number.isFinite(weeklyHours) && weeklyHours > 0
         ? weeklyHours
@@ -302,8 +336,15 @@ router.post("/", async (req, res) => {
               );
               if (hasResponsibleConflict) continue;
 
-              const hasStudentConflict = studentIds.length
-                ? await hasUserConflict(client, studentIds, dayKey, startTime, endTime, orgId)
+              const hasStudentConflict = uniqueStudentIds.length
+                ? await hasUserConflict(
+                    client,
+                    uniqueStudentIds,
+                    dayKey,
+                    startTime,
+                    endTime,
+                    orgId
+                  )
                 : false;
               if (hasStudentConflict) continue;
 
@@ -332,6 +373,20 @@ router.post("/", async (req, res) => {
                 continue;
               }
 
+              const alreadyExists = await hasExactBooking(
+                client,
+                responsibleId,
+                resourceIds,
+                dayKey,
+                startTime,
+                endTime,
+                orgId
+              );
+              if (alreadyExists) {
+                scheduledThisWeek = true;
+                break;
+              }
+
               const bookingResult = await client.query(
                 `
                 INSERT INTO bookings (user_id, date, start_time, end_time)
@@ -352,7 +407,19 @@ router.post("/", async (req, res) => {
                 );
               }
 
-              for (const studentId of studentIds) {
+              for (const studentId of uniqueStudentIds) {
+                const studentExists = await hasExactBooking(
+                  client,
+                  studentId,
+                  resourceIds,
+                  dayKey,
+                  startTime,
+                  endTime,
+                  orgId
+                );
+                if (studentExists) {
+                  continue;
+                }
                 const studentBookingResult = await client.query(
                   `
                   INSERT INTO bookings (user_id, date, start_time, end_time)
