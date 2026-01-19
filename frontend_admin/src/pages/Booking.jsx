@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiGet, apiPost } from "../api/api";
+import { apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgLabels } from "../orgConfig";
 
 export default function Booking() {
@@ -120,6 +120,28 @@ export default function Booking() {
     return Array.from(new Set(items));
   }
 
+  async function updateResourceAssignments(responsibleId, studentIds) {
+    const targetResources = resources.filter((r) => selectedResources.includes(r.id));
+    if (targetResources.length === 0) return;
+
+    await Promise.all(
+      targetResources.map(async (resource) => {
+        const meta =
+          resource.metadata && typeof resource.metadata === "object"
+            ? { ...resource.metadata }
+            : {};
+        meta.responsible_user_id = responsibleId || meta.responsible_user_id || "";
+        meta.student_ids = studentIds;
+        meta.students = studentIds.length;
+        await apiPut(`/resources/${resource.id}`, {
+          name: resource.name,
+          type_id: resource.type_id,
+          metadata: meta,
+        });
+      })
+    );
+  }
+
   async function submitBooking() {
     if (!startTime || !endTime || selectedResources.length === 0) {
       setMessage("❗ Please select time and at least one resource.");
@@ -173,6 +195,10 @@ export default function Booking() {
       if (assignUsers && !responsibleId) {
         setMessage("❗ Responsible user must have a national ID.");
         return;
+      }
+
+      if (assignUsers && responsibleId) {
+        await updateResourceAssignments(responsibleId, studentIds);
       }
 
       if (targetIds.length === 0) {

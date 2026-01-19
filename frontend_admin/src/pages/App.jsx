@@ -10,6 +10,7 @@ import ResourceTypes from "./ResourceTypes";
 import Availability from "./Availability";
 import Rules from "./Rules";  
 import ResourceRequests from "./ResourceRequests";
+import AutoScheduler from "./AutoScheduler";
 
 const DEFAULT_USER_URL = "http://localhost:5173";
 const RAW_USER_URL = import.meta.env.VITE_USER_URL;
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="availability" element={<Availability />} />
           <Route path="rules" element={<Rules />} />  { }
           <Route path="requests" element={<ResourceRequests />} />
+          <Route path="auto-scheduler" element={<AutoScheduler />} />
         </Route>
       </Routes>
     </BrowserRouter>

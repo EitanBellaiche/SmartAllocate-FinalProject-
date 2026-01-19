@@ -184,3 +184,41 @@ export async function createAnnouncement(payload) {
   }
   return data;
 }
+
+export async function getUserAvailability(userId) {
+  const qs = new URLSearchParams();
+  if (userId) qs.set("user_id", userId);
+  const path = qs.toString()
+    ? `${API_BASE}/user-availability?${qs.toString()}`
+    : `${API_BASE}/user-availability`;
+  const res = await fetch(withOrgQuery(path));
+  const data = await safeJson(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to load availability");
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createUserAvailability(payload) {
+  const res = await fetch(`${API_BASE}/user-availability`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(withOrgBody(payload)),
+  });
+  const data = await safeJson(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to create availability");
+  }
+  return data;
+}
+
+export async function deleteUserAvailability(id) {
+  const res = await fetch(`${API_BASE}/user-availability/${id}`, {
+    method: "DELETE",
+  });
+  const data = await safeJson(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to delete availability");
+  }
+  return data;
+}

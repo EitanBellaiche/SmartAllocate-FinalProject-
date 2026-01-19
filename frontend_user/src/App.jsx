@@ -10,6 +10,9 @@ import {
   cancelBooking,
   rescheduleBooking,
   loginUser,
+  getUserAvailability,
+  createUserAvailability,
+  deleteUserAvailability,
 } from "./api";
 import { getOrgLabels, getSessionOrgId } from "./orgConfig";
 
@@ -240,6 +243,16 @@ export default function App() {
   const [rescheduleStart, setRescheduleStart] = useState("09:00");
   const [rescheduleEnd, setRescheduleEnd] = useState("10:00");
   const [rescheduleLocation, setRescheduleLocation] = useState("classroom");
+  const [userAvailability, setUserAvailability] = useState([]);
+  const [availabilityForm, setAvailabilityForm] = useState({
+    day_of_week: "1",
+    start_time: "09:00",
+    end_time: "12:00",
+    start_date: "",
+    end_date: "",
+  });
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+  const [availabilityMessage, setAvailabilityMessage] = useState("");
   const labels = useMemo(
     () => getOrgLabels(getSessionOrgId(SESSION_KEY)),
     [role, hasStudent]
@@ -693,7 +706,7 @@ export default function App() {
   }, [bookings]);
 
   // Sidebar selection
-  const [section, setSection] = useState("schedule"); // schedule | search | requests | notifications
+  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
 
   async function loadUserRequests() {
     const userId = studentId.trim();
@@ -980,7 +993,7 @@ export default function App() {
   }, [role]);
 
   useEffect(() => {
-    if (role === "student" && section === "requests") {
+    if (role === "student" && (section === "requests" || section === "availability")) {
       setSection("schedule");
     }
   }, [role, section]);
@@ -1042,6 +1055,24 @@ export default function App() {
       clearInterval(timer);
     };
   }, [section, studentId, role]);
+
+  useEffect(() => {
+    if (!hasStudent || role !== "lecturer") return;
+    const id = studentId.trim();
+    if (!id) return;
+    let active = true;
+    (async () => {
+      try {
+        const data = await getUserAvailability(id);
+        if (active) setUserAvailability(data);
+      } catch {
+        if (active) setUserAvailability([]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [hasStudent, role, studentId]);
 
   if (!hasStudent) {
     return (
@@ -1217,6 +1248,22 @@ export default function App() {
             </span>
           )}
         </button>
+        {role === "lecturer" && (
+          <button
+            onClick={() => setSection("availability")}
+            style={{
+              textAlign: "left",
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "none",
+              background: section === "availability" ? "#1d4ed8" : "transparent",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            My Availability
+          </button>
+        )}
         <button
           onClick={handleLogout}
           style={{
@@ -2132,6 +2179,252 @@ export default function App() {
                 )}
               </div>
             )}
+          </>
+        ) : section === "availability" ? (
+          <>
+            <header
+              style={{
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h1 style={{ margin: 0, color: "#0f172a" }}>My Availability</h1>
+              <p style={{ margin: 0, color: "#475569" }}>
+                Share the hours you can teach so the admin can schedule your courses.
+              </p>
+            </header>
+
+            {availabilityMessage && (
+              <div
+                className="glass"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 12,
+                  color: "#1d4ed8",
+                }}
+              >
+                {availabilityMessage}
+              </div>
+            )}
+
+            <div
+              className="glass"
+              style={{
+                padding: 16,
+                borderRadius: 16,
+                display: "grid",
+                gap: 12,
+                maxWidth: 520,
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>Add availability</div>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Day of week
+                <select
+                  value={availabilityForm.day_of_week}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      day_of_week: e.target.value,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
+                  }}
+                >
+                  <option value="0">Sunday</option>
+                  <option value="1">Monday</option>
+                  <option value="2">Tuesday</option>
+                  <option value="3">Wednesday</option>
+                  <option value="4">Thursday</option>
+                  <option value="5">Friday</option>
+                  <option value="6">Saturday</option>
+                </select>
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Start time
+                <input
+                  type="time"
+                  value={availabilityForm.start_time}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      start_time: e.target.value,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                End time
+                <input
+                  type="time"
+                  value={availabilityForm.end_time}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      end_time: e.target.value,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Start date (optional)
+                <input
+                  type="date"
+                  value={availabilityForm.start_date}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      start_date: e.target.value,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                End date (optional)
+                <input
+                  type="date"
+                  value={availabilityForm.end_date}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      end_date: e.target.value,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={availabilitySaving}
+                onClick={async () => {
+                  const userId = studentId.trim();
+                  if (!userId) return;
+                  setAvailabilitySaving(true);
+                  setAvailabilityMessage("");
+                  try {
+                    const payload = {
+                      user_id: userId,
+                      day_of_week: Number(availabilityForm.day_of_week),
+                      start_time: availabilityForm.start_time,
+                      end_time: availabilityForm.end_time,
+                      start_date: availabilityForm.start_date || null,
+                      end_date: availabilityForm.end_date || null,
+                    };
+                    const created = await createUserAvailability(payload);
+                    setUserAvailability((prev) => [...prev, created]);
+                    setAvailabilityMessage("Availability saved.");
+                  } catch (err) {
+                    setAvailabilityMessage(err?.message || "Failed to save availability.");
+                  } finally {
+                    setAvailabilitySaving(false);
+                  }
+                }}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#1d4ed8",
+                  color: "#fff",
+                  fontWeight: 700,
+                }}
+              >
+                {availabilitySaving ? "Saving..." : "Save availability"}
+              </button>
+            </div>
+
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ marginBottom: 8, color: "#0f172a" }}>
+                Saved availability
+              </h3>
+              {userAvailability.length === 0 ? (
+                <div className="glass" style={{ padding: 12, borderRadius: 12 }}>
+                  No availability saved yet.
+                </div>
+              ) : (
+                <div className="grid-auto">
+                  {userAvailability.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className="glass"
+                      style={{ padding: 12, borderRadius: 12 }}
+                    >
+                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        Day {slot.day_of_week}
+                      </div>
+                      <div style={{ color: "#475569", fontSize: 13 }}>
+                        {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                      </div>
+                      {(slot.start_date || slot.end_date) && (
+                        <div style={{ color: "#94a3b8", fontSize: 12 }}>
+                          {slot.start_date || "Any"} → {slot.end_date || "Any"}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setAvailabilityMessage("");
+                          try {
+                            await deleteUserAvailability(slot.id);
+                            setUserAvailability((prev) =>
+                              prev.filter((item) => item.id !== slot.id)
+                            );
+                          } catch (err) {
+                            setAvailabilityMessage(
+                              err?.message || "Failed to delete availability."
+                            );
+                          }
+                        }}
+                        style={{
+                          marginTop: 8,
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          color: "#0f172a",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
