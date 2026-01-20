@@ -3,6 +3,7 @@ import { apiGet, apiPost } from "../api/api";
 
 const DEFAULT_SEMESTER_MONTHS = 3;
 const DEFAULT_WEEKLY_HOURS = 3;
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -35,6 +36,7 @@ export default function AutoScheduler() {
   const [availability, setAvailability] = useState([]);
   const [responsibleUsers, setResponsibleUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
   const [resourceQuery, setResourceQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -50,6 +52,8 @@ export default function AutoScheduler() {
   });
   const [groups, setGroups] = useState([]);
   const [lastRun, setLastRun] = useState({ scheduled: [], skipped: [] });
+  const [allocations, setAllocations] = useState([]);
+  const [allocationsLoading, setAllocationsLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -166,7 +170,26 @@ export default function AutoScheduler() {
     setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
   }
 
+  async function loadAllocations() {
+    setAllocationsLoading(true);
+    try {
+      const qs = new URLSearchParams({
+        start_date: rangeStart,
+        end_date: rangeEnd,
+      });
+      const data = await apiGet(`/auto-schedule/allocations?${qs.toString()}`);
+      setAllocations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setMessage(err?.message || "Failed to load allocations.");
+      setAllocations([]);
+    } finally {
+      setAllocationsLoading(false);
+    }
+  }
+
   async function runAutoSchedule() {
+    if (running) return;
+    setRunning(true);
     setMessage("");
     try {
       const data = await apiPost("/auto-schedule", {
@@ -183,8 +206,30 @@ export default function AutoScheduler() {
       setMessage(
         `Auto schedule completed. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
       );
+      await loadAllocations();
     } catch (err) {
       setMessage(err?.message || "Auto schedule failed.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function removeAllocation(allocation) {
+    if (!allocation) return;
+    setMessage("");
+    try {
+      await apiPost("/auto-schedule/allocations/delete", {
+        start_date: rangeStart,
+        end_date: rangeEnd,
+        start_time: allocation.start_time,
+        end_time: allocation.end_time,
+        resource_ids: allocation.resource_ids,
+        responsible_user_id: allocation.responsible_user_id,
+      });
+      setMessage("Allocation removed.");
+      await loadAllocations();
+    } catch (err) {
+      setMessage(err?.message || "Failed to remove allocation.");
     }
   }
 
@@ -229,9 +274,9 @@ export default function AutoScheduler() {
             type="button"
             onClick={runAutoSchedule}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            disabled={groups.length === 0}
+            disabled={groups.length === 0 || running}
           >
-            Run auto schedule
+            {running ? "Running..." : "Run auto schedule"}
           </button>
         </div>
       </div>
@@ -440,20 +485,62 @@ export default function AutoScheduler() {
         )}
       </div>
 
+      <div className="mt-6 bg-white rounded-lg shadow-sm p-4 border">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-lg font-semibold">Allocations in range</h2>
+          <button
+            type="button"
+            onClick={loadAllocations}
+            className="border border-blue-200 text-blue-700 px-3 py-2 rounded hover:bg-blue-50"
+            disabled={allocationsLoading}
+          >
+            {allocationsLoading ? "Loading..." : "Refresh list"}
+          </button>
+        </div>
+        {allocationsLoading ? (
+          <div className="text-sm text-gray-500">Loading allocations...</div>
+        ) : allocations.length === 0 ? (
+          <div className="text-sm text-gray-500">No allocations found in this range.</div>
+        ) : (
+          <div className="space-y-3">
+            {allocations.map((item, idx) => {
+              const resourcesLabel = Array.isArray(item.resource_names)
+                ? item.resource_names.join(", ")
+                : Array.isArray(item.resource_ids)
+                  ? item.resource_ids.join(", ")
+                  : "Resources";
+              const dayLabel =
+                DAY_LABELS[item.day_of_week] || `Day ${item.day_of_week}`;
+              return (
+                <div key={`${item.responsible_user_id}-${idx}`} className="border rounded-lg p-3">
+                  <div className="font-semibold">{resourcesLabel}</div>
+                  <div className="text-xs text-gray-600">
+                    Responsible: {item.responsible_user_id} | {dayLabel} |{" "}
+                    {String(item.start_time).slice(0, 5)}-{String(item.end_time).slice(0, 5)} |{" "}
+                    {item.start_date} -> {item.end_date} | {item.occurrences} weeks
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-2 border px-3 py-1 rounded text-red-600 hover:bg-red-50"
+                    onClick={() => removeAllocation(item)}
+                  >
+                    Remove allocation
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {lastRun.scheduled.length > 0 && (
         <div className="mt-6 border rounded p-3 bg-gray-50">
-          <div className="text-xs font-semibold text-gray-700 mb-2">
-            Scheduled details
+          <div className="text-xs font-semibold text-gray-700 mb-1">
+            Scheduled summary
           </div>
-          <div className="text-xs text-gray-600 space-y-1">
-            {lastRun.scheduled.slice(0, 10).map((item, idx) => (
-              <div key={`${item.booking_id || idx}`}>
-                {item.date} {item.start_time}-{item.end_time}
-              </div>
-            ))}
-            {lastRun.scheduled.length > 10 && (
-              <div>+{lastRun.scheduled.length - 10} more</div>
-            )}
+          <div className="text-xs text-gray-600">
+            {lastRun.scheduled.length} sessions scheduled. See allocations in range for the full
+            recurring blocks.
           </div>
         </div>
       )}
@@ -477,3 +564,6 @@ export default function AutoScheduler() {
     </div>
   );
 }
+
+
+

@@ -782,7 +782,44 @@ router.post("/", async (req, res) => {
     const createdBookings = [];
     let lastRuleEval = null;
     for (const bookingDate of bookingDates) {
-      /* 1. Check availability for responsible roles only */
+      /* 1. Prevent overlapping bookings for the same user */
+      if (user_id) {
+        const userParams = [String(user_id), bookingDate, start_time, end_time];
+        let userOrg = "";
+        if (orgId) {
+          userParams.push(orgId);
+          userOrg = `AND r.organization_id = $${userParams.length}`;
+        }
+        const userConflict = await client.query(
+          `
+          SELECT b.id
+          FROM bookings b
+          LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+          LEFT JOIN booking_resources br ON br.booking_id = b.id
+          LEFT JOIN resources r ON r.id = br.resource_id
+          WHERE b.user_id::text = $1
+          AND b.date = $2
+          AND bc.booking_id IS NULL
+          ${userOrg}
+          AND (
+            ($3 >= b.start_time AND $3 < b.end_time) OR
+            ($4 > b.start_time AND $4 <= b.end_time) OR
+            ($3 <= b.start_time AND $4 >= b.end_time)
+          )
+          LIMIT 1
+        `,
+          userParams
+        );
+        if (userConflict.rows.length > 0) {
+          await client.query("ROLLBACK");
+          return res.status(409).json({
+            error: "User is already booked at this time",
+            date: bookingDate,
+          });
+        }
+      }
+
+      /* 2. Check availability for responsible roles only */
       if (responsibleResources.length > 0) {
         const conflictParams = [responsibleResources, bookingDate, start_time, end_time];
         let conflictOrg = "";
@@ -907,6 +944,42 @@ router.put("/:id", async (req, res) => {
 
   try {
     await client.query("BEGIN");
+
+    if (user_id) {
+      const userParams = [String(user_id), date, start_time, end_time, id];
+      let userOrg = "";
+      if (orgId) {
+        userParams.push(orgId);
+        userOrg = `AND r.organization_id = $${userParams.length}`;
+      }
+      const userConflict = await client.query(
+        `
+        SELECT b.id
+        FROM bookings b
+        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+        LEFT JOIN booking_resources br ON br.booking_id = b.id
+        LEFT JOIN resources r ON r.id = br.resource_id
+        WHERE b.user_id::text = $1
+        AND b.date = $2
+        AND b.id <> $5
+        AND bc.booking_id IS NULL
+        ${userOrg}
+        AND (
+          ($3 >= b.start_time AND $3 < b.end_time) OR
+          ($4 > b.start_time AND $4 <= b.end_time) OR
+          ($3 <= b.start_time AND $4 >= b.end_time)
+        )
+        LIMIT 1
+      `,
+        userParams
+      );
+      if (userConflict.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "User is already booked at this time",
+        });
+      }
+    }
 
     const roleMap = roles && typeof roles === "object" ? roles : {};
     const responsibleResources = resources.filter((rid) => {
