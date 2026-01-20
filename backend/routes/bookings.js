@@ -179,7 +179,9 @@ router.post("/:id/cancel", async (req, res) => {
         b.start_time,
         b.end_time,
         b.user_id,
+        r.id AS resource_id,
         r.name AS resource_name,
+        r.metadata AS resource_metadata,
         rt.name AS type_name
       FROM bookings b
       JOIN booking_resources br ON br.booking_id = b.id
@@ -217,20 +219,47 @@ router.post("/:id/cancel", async (req, res) => {
     const courseLabel = courseNames.length > 0 ? courseNames.join(" / ") : fallbackNames.join(" / ");
     const booking = bookingRows[0];
 
+    const resourceIds = bookingRows.map((r) => r.resource_id).filter(Boolean);
     const courseResourceIds = bookingRows
       .filter((r) => {
         const type = String(r.type_name || "").toLowerCase();
         return type === "courses" || type === "course";
       })
-      .map((r) => r.resource_id);
-
+      .map((r) => r.resource_id)
+      .filter(Boolean);
+    const metadataStudentIds = bookingRows
+      .filter((r) => {
+        const type = String(r.type_name || "").toLowerCase();
+        return type === "courses" || type === "course";
+      })
+      .flatMap((r) => {
+        const raw = r.resource_metadata;
+        if (!raw) return [];
+        let meta = raw;
+        if (typeof raw === "string") {
+          try {
+            meta = JSON.parse(raw);
+          } catch {
+            return [];
+          }
+        }
+        const ids = meta?.student_ids || meta?.studentIds || meta?.user_ids || meta?.userIds || [];
+        if (Array.isArray(ids)) return ids;
+        if (typeof ids === "string") {
+          return ids.split(/[\s,]+/).map((v) => v.trim()).filter(Boolean);
+        }
+        return [];
+      })
+      .map((id) => String(id).trim())
+      .filter(Boolean);
     let targetBookings = [{ id: booking.id, user_id: booking.user_id }];
-    if (courseResourceIds.length > 0) {
+    if (resourceIds.length > 0) {
       const targetParams = [
-        courseResourceIds,
+        resourceIds,
         booking.date,
         booking.start_time,
         booking.end_time,
+        resourceIds.length,
       ];
       let targetOrg = "";
       if (orgId) {
@@ -239,7 +268,7 @@ router.post("/:id/cancel", async (req, res) => {
       }
       const { rows: targetRows } = await client.query(
         `
-        SELECT DISTINCT b.id, b.user_id
+        SELECT b.id, b.user_id
         FROM bookings b
         JOIN booking_resources br ON br.booking_id = b.id
         JOIN resources r ON r.id = br.resource_id
@@ -248,11 +277,138 @@ router.post("/:id/cancel", async (req, res) => {
         AND b.start_time = $3
         AND b.end_time = $4
         ${targetOrg}
+        GROUP BY b.id, b.user_id
+        HAVING COUNT(DISTINCT br.resource_id) = $5
+           AND COUNT(DISTINCT CASE WHEN br.resource_id = ANY($1) THEN br.resource_id END) = $5
         `,
         targetParams
       );
       if (targetRows.length > 0) {
         targetBookings = targetRows;
+      } else if (orgId) {
+        const retryParams = [
+          resourceIds,
+          booking.date,
+          booking.start_time,
+          booking.end_time,
+          resourceIds.length,
+        ];
+        const { rows: retryRows } = await client.query(
+          `
+          SELECT b.id, b.user_id
+          FROM bookings b
+          JOIN booking_resources br ON br.booking_id = b.id
+          JOIN resources r ON r.id = br.resource_id
+          WHERE br.resource_id = ANY($1)
+          AND b.date = $2
+          AND b.start_time = $3
+          AND b.end_time = $4
+          GROUP BY b.id, b.user_id
+          HAVING COUNT(DISTINCT br.resource_id) = $5
+             AND COUNT(DISTINCT CASE WHEN br.resource_id = ANY($1) THEN br.resource_id END) = $5
+          `,
+          retryParams
+        );
+        if (retryRows.length > 0) {
+          targetBookings = retryRows;
+        }
+      }
+
+      if (targetBookings.length === 1 && courseResourceIds.length > 0) {
+        const fallbackParams = [
+          courseResourceIds,
+          booking.date,
+          booking.start_time,
+          booking.end_time,
+        ];
+        let fallbackOrg = "";
+        if (orgId) {
+          fallbackParams.push(orgId);
+          fallbackOrg = `AND r.organization_id = $${fallbackParams.length}`;
+        }
+        const { rows: fallbackRows } = await client.query(
+          `
+          SELECT DISTINCT b.id, b.user_id
+          FROM bookings b
+          JOIN booking_resources br ON br.booking_id = b.id
+          JOIN resources r ON r.id = br.resource_id
+          WHERE br.resource_id = ANY($1)
+          AND b.date = $2
+          AND b.start_time = $3
+          AND b.end_time = $4
+          ${fallbackOrg}
+          `,
+          fallbackParams
+        );
+        if (fallbackRows.length > 0) {
+          targetBookings = fallbackRows;
+        } else if (orgId) {
+          const retryFallbackParams = [
+            courseResourceIds,
+            booking.date,
+            booking.start_time,
+            booking.end_time,
+          ];
+          const { rows: retryFallbackRows } = await client.query(
+            `
+            SELECT DISTINCT b.id, b.user_id
+            FROM bookings b
+            JOIN booking_resources br ON br.booking_id = b.id
+            JOIN resources r ON r.id = br.resource_id
+            WHERE br.resource_id = ANY($1)
+            AND b.date = $2
+            AND b.start_time = $3
+            AND b.end_time = $4
+            `,
+            retryFallbackParams
+          );
+          if (retryFallbackRows.length > 0) {
+            targetBookings = retryFallbackRows;
+          }
+        }
+      }
+    }
+
+    const extraStudentIds = Array.from(
+      new Set(
+        metadataStudentIds
+          .filter((id) => id && id !== String(booking.user_id || "").trim())
+      )
+    );
+    if (extraStudentIds.length > 0 && courseResourceIds.length > 0) {
+      const extraParams = [
+        extraStudentIds,
+        courseResourceIds,
+        booking.date,
+        booking.start_time,
+        booking.end_time,
+      ];
+      let extraOrg = "";
+      if (orgId) {
+        extraParams.push(orgId);
+        extraOrg = `AND r.organization_id = $${extraParams.length}`;
+      }
+      const { rows: extraRows } = await client.query(
+        `
+        SELECT DISTINCT b.id, b.user_id
+        FROM bookings b
+        JOIN booking_resources br ON br.booking_id = b.id
+        JOIN resources r ON r.id = br.resource_id
+        WHERE b.user_id = ANY($1)
+        AND br.resource_id = ANY($2)
+        AND b.date = $3
+        AND b.start_time = $4
+        AND b.end_time = $5
+        ${extraOrg}
+        `,
+        extraParams
+      );
+      if (extraRows.length > 0) {
+        const combined = new Map(targetBookings.map((t) => [t.id, t]));
+        extraRows.forEach((row) => {
+          if (!combined.has(row.id)) combined.set(row.id, row);
+        });
+        targetBookings = Array.from(combined.values());
       }
     }
 
