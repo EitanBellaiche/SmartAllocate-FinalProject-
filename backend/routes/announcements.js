@@ -21,14 +21,14 @@ async function ensureTable() {
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       message TEXT NOT NULL,
-      course_name TEXT,
+      resource_name TEXT,
       sender_name TEXT,
       target_user_id TEXT,
       organization_id TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
-  await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS course_name TEXT`);
+  await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS resource_name TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sender_name TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_user_id TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS organization_id TEXT`);
@@ -66,7 +66,7 @@ router.get("/", async (req, res) => {
 
     const { rows } = await pool.query(
       `
-      SELECT id, title, message, course_name, sender_name, target_user_id, organization_id, created_at
+      SELECT id, title, message, resource_name, sender_name, target_user_id, organization_id, created_at
       FROM announcements
       ${where}
       ORDER BY created_at DESC, id DESC
@@ -84,8 +84,8 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   const title = String(req.body?.title || "").trim();
   const message = String(req.body?.message || "").trim();
-  const courseName = String(req.body?.course_name || "").trim();
-  const senderName = String(req.body?.sender_name || "Lecturer").trim();
+  const resourceName = String(req.body?.resource_name || "").trim();
+  const senderName = String(req.body?.sender_name || "Manager").trim();
   const targetUserIdRaw = String(req.body?.target_user_id || "").trim();
   const targetUserId = targetUserIdRaw || null;
   const orgId = getOrgId(req);
@@ -100,11 +100,11 @@ router.post("/", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `
-      INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
+      INSERT INTO announcements (title, message, resource_name, sender_name, target_user_id, organization_id)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
       `,
-      [title, message, courseName || null, senderName || null, targetUserId, orgId]
+      [title, message, resourceName || null, senderName || null, targetUserId, orgId]
     );
 
     res.status(201).json(rows[0]);

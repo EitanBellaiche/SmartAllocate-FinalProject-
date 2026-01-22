@@ -93,21 +93,53 @@ function buildMonthGrid(baseDate, bookings) {
   return days;
 }
 
-function isCourseResource(resource) {
-  const type = String(resource?.type_name || "").trim().toLowerCase();
-  return type === "courses" || type === "course";
-}
-
-function isClassroomResource(resource) {
-  return String(resource?.type_name || "").toLowerCase() === "classroom";
-}
-
-function formatTypeLabel(typeName, labels, fallback = "Resource") {
-  const normalized = String(typeName || "").trim().toLowerCase();
-  if (normalized === "course" || normalized === "courses") {
-    return labels.course;
+function normalizeMetadata(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
   }
-  return typeName || fallback;
+}
+
+function extractUserIds(meta) {
+  if (!meta || typeof meta !== "object") return [];
+  const candidates = [
+    meta.user_ids,
+    meta.userIds,
+    meta.users,
+  ];
+  const list = [];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (Array.isArray(value)) {
+      list.push(...value);
+    } else if (typeof value === "string") {
+      list.push(...value.split(/[\s,]+/));
+    }
+  }
+  return list.map((v) => String(v).trim()).filter(Boolean);
+}
+
+function hasAssignedUsers(resource) {
+  const meta = normalizeMetadata(resource?.metadata);
+  if (extractUserIds(meta).length > 0) return true;
+  const responsible =
+    meta.responsible_user_id ||
+    meta.responsibleUserId ||
+    meta.responsible_id ||
+    meta.responsibleId;
+  return Boolean(responsible);
+}
+
+function isPrimaryResource(resource) {
+  return hasAssignedUsers(resource);
+}
+
+function formatTypeLabel(typeName, labels, fallback) {
+  const resolvedFallback = fallback || labels?.resource || "Resource";
+  return typeName || labels?.resource || resolvedFallback;
 }
 
 function getBookingResources(booking) {
@@ -116,29 +148,38 @@ function getBookingResources(booking) {
 
 function getBookingRoomLine(booking) {
   if (String(booking?.location || "").toLowerCase() === "zoom") {
-    return "Room: Zoom";
+    return "Location: Zoom";
   }
   const resources = getBookingResources(booking);
-  const room = resources.find(isClassroomResource);
+  const room = resources.find((r) => {
+    const meta = normalizeMetadata(r?.metadata);
+    return (
+      meta.room ||
+      meta.location ||
+      meta.site ||
+      meta.space ||
+      meta.building ||
+      meta.floor
+    );
+  });
   if (!room) return "";
-  const name = room.name || "Classroom";
+  const name = room.name || "On-site";
   const meta =
     room.metadata && Object.keys(room.metadata).length > 0
       ? Object.entries(room.metadata)
           .map(([k, v]) => `${k}: ${v}`)
           .join(" | ")
       : "";
-  return meta ? `Room: ${name} (${meta})` : `Room: ${name}`;
+  return meta ? `Location: ${name} (${meta})` : `Location: ${name}`;
 }
 
-function filterBookingsToCourses(bookings) {
-  return bookings
-    .map((booking) => {
-      const courseResources = (booking.resources || []).filter(isCourseResource);
-      if (courseResources.length === 0) return null;
-      return { ...booking, resources: courseResources, all_resources: booking.resources || [] };
-    })
-    .filter(Boolean);
+function filterBookingsToPrimaryResources(bookings) {
+  return bookings.map((booking) => {
+    const allResources = booking.resources || [];
+    const primaryResources = allResources.filter(isPrimaryResource);
+    const resources = primaryResources.length > 0 ? primaryResources : allResources;
+    return { ...booking, resources, all_resources: allResources };
+  });
 }
 
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || "http://localhost:5174";
@@ -150,35 +191,31 @@ function normalizeRole(value) {
   if (
     [
       "responsible",
-      "lecturer",
-      "teacher",
-      "instructor",
+      "manager",
       "staff",
-      "shift_manager",
-      "shift-manager",
       "supervisor",
       "lead",
     ].includes(roleValue)
   ) {
-    return "lecturer";
+    return "manager";
   }
   if (["user", "member", "employee", "worker", "staff_member"].includes(roleValue)) {
-    return "student";
+    return "user";
   }
-  return "student";
+  return "user";
 }
 
 export default function App() {
-  const [studentId, setStudentId] = useState("");
+  const [currentUserId, setCurrentUserId] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("student");
+  const [role, setRole] = useState("user");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [viewMode, setViewMode] = useState("month"); // month | list
   const [monthDate, setMonthDate] = useState(new Date());
-  const [hasStudent, setHasStudent] = useState(false);
+  const [hasUser, setHasUser] = useState(false);
 
   // resource search
   const [resources, setResources] = useState([]);
@@ -225,7 +262,7 @@ export default function App() {
   const [announcementForm, setAnnouncementForm] = useState({
     title: "",
     message: "",
-    course: "",
+    resource: "",
     targetUserId: "",
     senderName: "",
   });
@@ -242,7 +279,7 @@ export default function App() {
   const [rescheduleDate, setRescheduleDate] = useState("");
   const [rescheduleStart, setRescheduleStart] = useState("09:00");
   const [rescheduleEnd, setRescheduleEnd] = useState("10:00");
-  const [rescheduleLocation, setRescheduleLocation] = useState("classroom");
+  const [rescheduleLocation, setRescheduleLocation] = useState("onsite");
   const [userAvailability, setUserAvailability] = useState([]);
   const [availabilityForm, setAvailabilityForm] = useState({
     day_of_week: "1",
@@ -255,17 +292,16 @@ export default function App() {
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const labels = useMemo(
     () => getOrgLabels(getSessionOrgId(SESSION_KEY)),
-    [role, hasStudent]
+    [role, hasUser]
   );
   const labelsLower = useMemo(
     () => ({
-      student: String(labels.student || "").toLowerCase(),
-      students: String(labels.students || "").toLowerCase(),
-      lecturer: String(labels.lecturer || "").toLowerCase(),
-      lecturers: String(labels.lecturers || "").toLowerCase(),
-      course: String(labels.course || "").toLowerCase(),
-      courses: String(labels.courses || "").toLowerCase(),
-      class: String(labels.class || "").toLowerCase(),
+      user: String(labels.user || "").toLowerCase(),
+      users: String(labels.users || "").toLowerCase(),
+      manager: String(labels.manager || "").toLowerCase(),
+      managers: String(labels.managers || "").toLowerCase(),
+      resource: String(labels.resource || "").toLowerCase(),
+      resources: String(labels.resources || "").toLowerCase(),
       userId: String(labels.userId || "").toLowerCase(),
       request: String(labels.request || "").toLowerCase(),
     }),
@@ -279,7 +315,7 @@ export default function App() {
       const stored = JSON.parse(raw);
       const storedId = String(stored?.id || "").trim();
       if (!storedId) return;
-      setStudentId(storedId);
+      setCurrentUserId(storedId);
       setRole(normalizeRole(stored?.role));
     } catch {
       localStorage.removeItem(SESSION_KEY);
@@ -287,7 +323,7 @@ export default function App() {
   }, []);
 
   async function handleLogin() {
-    const id = studentId.trim();
+    const id = currentUserId.trim();
     if (!id) {
       setError(`Please enter your ${labels.userId}.`);
       return;
@@ -321,7 +357,7 @@ export default function App() {
         return;
       }
       setRole(normalizedRole);
-      setHasStudent(true);
+      setHasUser(true);
     } catch (err) {
       setError(err?.message || "Failed to sign in.");
     } finally {
@@ -331,10 +367,10 @@ export default function App() {
 
   function handleLogout() {
     localStorage.removeItem(SESSION_KEY);
-    setHasStudent(false);
-    setStudentId("");
+    setHasUser(false);
+    setCurrentUserId("");
     setPassword("");
-    setRole("student");
+    setRole("user");
     setSection("schedule");
     setBookings([]);
     setUserRequests([]);
@@ -346,7 +382,7 @@ export default function App() {
   }, [bookings]);
 
   const scheduleBookings = useMemo(
-    () => filterBookingsToCourses(activeBookings),
+    () => filterBookingsToPrimaryResources(activeBookings),
     [activeBookings]
   );
 
@@ -416,26 +452,26 @@ export default function App() {
   const filteredResources = useMemo(() => {
     if (!resourceQuery.trim()) return [];
     return resources.filter((r) => {
-      if (role === "lecturer" && isCourseResource(r)) return false;
+      if (role === "manager" && isPrimaryResource(r)) return false;
       return resourceMatchesQuery(r, resourceQuery);
     });
   }, [resources, resourceQuery, role]);
 
   const filteredRequestResources = useMemo(() => {
     return resources.filter((r) => {
-      if (role === "lecturer" && isCourseResource(r)) return false;
+      if (role === "manager" && isPrimaryResource(r)) return false;
       if (!resourceMatchesQuery(r, requestQuery)) return false;
       if (onlyAvailable && !isResourceAvailable(r)) return false;
       return true;
     });
   }, [resources, requestQuery, onlyAvailable, role]);
 
-  const studentCourses = useMemo(() => {
-    if (role !== "student") return [];
+  const userResources = useMemo(() => {
+    if (role !== "user") return [];
     const map = new Map();
     bookings.forEach((booking) => {
       (booking.resources || []).forEach((r) => {
-        if (!isCourseResource(r)) return;
+        if (!isPrimaryResource(r)) return;
         if (!map.has(r.id)) {
           map.set(r.id, r);
         }
@@ -465,7 +501,9 @@ export default function App() {
       const data = await getAllResources();
       setResources(Array.isArray(data) ? data : []);
     } catch (err) {
-      setResourceError(err?.message || "Failed to load resources.");
+      setResourceError(
+        err?.message || `Failed to load ${labelsLower.resources}.`
+      );
     } finally {
       setResourceLoading(false);
     }
@@ -487,26 +525,26 @@ export default function App() {
   }, [requestQuery, resources.length]);
 
   useEffect(() => {
-    if (!hasStudent || !studentId.trim()) return;
+    if (!hasUser || !currentUserId.trim()) return;
     let active = true;
 
     async function refreshUserData() {
       try {
-        const tasks = [getBookingsByUser(studentId.trim())];
-        if (role === "lecturer") {
+        const tasks = [getBookingsByUser(currentUserId.trim())];
+        if (role === "manager") {
           tasks.push(getResourceRequests());
         } else {
           tasks.push(Promise.resolve([]));
         }
-        if (role === "student") {
-          tasks.push(getAnnouncements({ userId: studentId.trim() }));
+        if (role === "user") {
+          tasks.push(getAnnouncements({ userId: currentUserId.trim() }));
         }
         const [bookingsData, requestsData, announcementsData] =
           await Promise.all(tasks);
         if (!active) return;
         setBookings(Array.isArray(bookingsData) ? bookingsData : []);
         setUserRequests(Array.isArray(requestsData) ? requestsData : []);
-        if (role === "student") {
+        if (role === "user") {
           setAnnouncements(
             Array.isArray(announcementsData) ? announcementsData : []
           );
@@ -522,7 +560,7 @@ export default function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [hasStudent, studentId, role]);
+  }, [hasUser, currentUserId, role]);
 
   async function openAvailability(resource) {
     if (!resource) return;
@@ -554,7 +592,7 @@ export default function App() {
   }
 
   async function submitBookingRequest(dateOverride) {
-    const requester = studentId.trim();
+    const requester = currentUserId.trim();
     if (!availabilityResource) return;
     if (!requester) {
       setBookingError(`Please enter your ${labels.userId} first.`);
@@ -598,14 +636,14 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!availabilityResource || !studentId.trim()) return;
+    if (!availabilityResource || !currentUserId.trim()) return;
     let active = true;
 
     async function refreshStatus() {
       try {
         const [bookingsData, userBookings] = await Promise.all([
           getBookingsByResource(availabilityResource.id),
-          getBookingsByUser(studentId.trim()),
+          getBookingsByUser(currentUserId.trim()),
         ]);
         if (!active) return;
         setAvailabilityBookings(
@@ -623,12 +661,12 @@ export default function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [availabilityResource, studentId]);
+  }, [availabilityResource, currentUserId]);
 
   async function submitResourceRequest() {
     if (!selectedRequestResource) return;
     const note = requestNote.trim();
-    const requester = studentId.trim();
+    const requester = currentUserId.trim();
     if (!requester) {
       setRequestError(`Please enter your ${labels.userId} first.`);
       return;
@@ -709,13 +747,13 @@ export default function App() {
   const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
 
   async function loadUserRequests() {
-    const userId = studentId.trim();
-    if (role === "student" && !userId) return;
+    const userId = currentUserId.trim();
+    if (role === "user" && !userId) return;
     setUserRequestsError("");
     setUserRequestsLoading(true);
     try {
       const data =
-        role === "lecturer"
+        role === "manager"
           ? await getResourceRequests()
           : await getResourceRequests({ userId });
       setUserRequests(Array.isArray(data) ? data : []);
@@ -728,13 +766,13 @@ export default function App() {
   }
 
   async function loadAnnouncements() {
-    const userId = studentId.trim();
-    if (role === "student" && !userId) return;
+    const userId = currentUserId.trim();
+    if (role === "user" && !userId) return;
     setAnnouncementsError("");
     setAnnouncementsLoading(true);
     try {
       const data = await getAnnouncements({
-        userId: role === "student" ? userId : undefined,
+        userId: role === "user" ? userId : undefined,
       });
       setAnnouncements(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -748,10 +786,10 @@ export default function App() {
   async function submitAnnouncement() {
     const title = announcementForm.title.trim();
     const message = announcementForm.message.trim();
-    const course = announcementForm.course.trim();
+    const resource = announcementForm.resource.trim();
     const targetUserId = announcementForm.targetUserId.trim();
     const senderName =
-      announcementForm.senderName.trim() || studentId.trim() || labels.lecturer;
+      announcementForm.senderName.trim() || currentUserId.trim() || labels.manager;
 
     if (!title) {
       setAnnouncementError("Please add a title.");
@@ -769,7 +807,7 @@ export default function App() {
       await createAnnouncement({
         title,
         message,
-        course_name: course,
+        resource_name: resource,
         sender_name: senderName,
         target_user_id: targetUserId || null,
       });
@@ -778,7 +816,7 @@ export default function App() {
         ...prev,
         title: "",
         message: "",
-        course: "",
+        resource: "",
         targetUserId: "",
       }));
       loadAnnouncements();
@@ -790,8 +828,8 @@ export default function App() {
   }
 
   function markAnnouncementSeen(announcementId) {
-    if (role !== "student") return;
-    const userId = studentId.trim();
+    if (role !== "user") return;
+    const userId = currentUserId.trim();
     if (!userId) return;
     const key = `smartallocate_seen_announcements_${userId}`;
     const next = new Set([...seenAnnouncementIds, Number(announcementId)]);
@@ -811,7 +849,7 @@ export default function App() {
     setRescheduleDate(booking.date || "");
     setRescheduleStart(booking.start_time || "09:00");
     setRescheduleEnd(booking.end_time || "10:00");
-    setRescheduleLocation("classroom");
+                    setRescheduleLocation("onsite");
   }
 
   async function submitCancellation() {
@@ -838,27 +876,27 @@ export default function App() {
           end_time: rescheduleEnd,
           location: rescheduleLocation,
           reason: cancelReason.trim(),
-          sender_name: cancelSenderName.trim() || studentId.trim() || labels.lecturer,
-          target_user_id: studentId.trim(),
+          sender_name: cancelSenderName.trim() || currentUserId.trim() || labels.manager,
+          target_user_id: currentUserId.trim(),
         });
-        setCancelSuccess(`${labels.class} rescheduled.`);
+        setCancelSuccess(`${labels.resource} rescheduled.`);
       } else {
         await cancelBooking(booking.id, {
           reason: cancelReason.trim(),
-          sender_name: cancelSenderName.trim() || studentId.trim() || labels.lecturer,
-          target_user_id: studentId.trim(),
+          sender_name: cancelSenderName.trim() || currentUserId.trim() || labels.manager,
+          target_user_id: currentUserId.trim(),
         });
-        setCancelSuccess(`${labels.class} cancelled.`);
+        setCancelSuccess(`${labels.resource} cancelled.`);
       }
-      const data = await getBookingsByUser(studentId.trim());
+      const data = await getBookingsByUser(currentUserId.trim());
       setBookings(Array.isArray(data) ? data : []);
       setCancelDialog({ open: false, booking: null });
     } catch (err) {
       setCancelError(
         err?.message ||
           (rescheduleMode
-            ? `Failed to reschedule ${labelsLower.class}.`
-            : `Failed to cancel ${labelsLower.class}.`)
+            ? `Failed to reschedule ${labelsLower.resource}.`
+            : `Failed to cancel ${labelsLower.resource}.`)
       );
     } finally {
       setCancelSubmitting(false);
@@ -866,7 +904,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    const userId = studentId.trim();
+    const userId = currentUserId.trim();
     if (!userId) return;
     const key = `smartallocate_seen_${userId}`;
     try {
@@ -875,10 +913,10 @@ export default function App() {
     } catch {
       setSeenRequestIds([]);
     }
-  }, [studentId]);
+  }, [currentUserId]);
 
   useEffect(() => {
-    const userId = studentId.trim();
+    const userId = currentUserId.trim();
     if (!userId) return;
     const key = `smartallocate_seen_announcements_${userId}`;
     try {
@@ -887,7 +925,7 @@ export default function App() {
     } catch {
       setSeenAnnouncementIds([]);
     }
-  }, [studentId]);
+  }, [currentUserId]);
 
   const seenRequestSet = useMemo(
     () => new Set(seenRequestIds.map((id) => Number(id))),
@@ -907,7 +945,7 @@ export default function App() {
   }, [userRequests, seenRequestSet]);
 
   const unreadAnnouncementCount = useMemo(() => {
-    if (role !== "student") return 0;
+    if (role !== "user") return 0;
     return announcements.filter((a) => !seenAnnouncementSet.has(Number(a.id))).length;
   }, [announcements, role, seenAnnouncementSet]);
 
@@ -935,7 +973,7 @@ export default function App() {
     const q = announcementsQuery.trim().toLowerCase();
     if (!q) return announcements;
     return announcements.filter((a) => {
-      const haystack = [a.title, a.message, a.course_name, a.sender_name]
+      const haystack = [a.title, a.message, a.resource_name, a.sender_name]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -959,11 +997,11 @@ export default function App() {
       groups.get(key).requests.push(req);
     });
     return Array.from(groups.values()).sort((a, b) => {
-      const aName = a.resource_name || `Resource #${a.resource_id || ""}`;
-      const bName = b.resource_name || `Resource #${b.resource_id || ""}`;
+      const aName = a.resource_name || `${labels.resource} #${a.resource_id || ""}`;
+      const bName = b.resource_name || `${labels.resource} #${b.resource_id || ""}`;
       return aName.localeCompare(bName);
     });
-  }, [filteredUserRequests]);
+  }, [filteredUserRequests, labels.resource]);
 
   useEffect(() => {
     if (selectedUserRequestKey && !groupedUserRequests.some((g) => g.key === selectedUserRequestKey)) {
@@ -984,16 +1022,16 @@ export default function App() {
   }, [userRequestsQuery]);
 
   useEffect(() => {
-    if (role === "lecturer") {
+    if (role === "manager") {
       setNotificationTab("requests");
-    } else if (role === "student") {
+    } else if (role === "user") {
       setNotificationTab("announcements");
       setUserRequests([]);
     }
   }, [role]);
 
   useEffect(() => {
-    if (role === "student" && (section === "requests" || section === "availability")) {
+    if (role === "user" && (section === "requests" || section === "availability")) {
       setSection("schedule");
     }
   }, [role, section]);
@@ -1003,7 +1041,7 @@ export default function App() {
   );
 
   function markRequestsSeen(resourceId) {
-    const userId = studentId.trim();
+    const userId = currentUserId.trim();
     if (!userId) return;
     const key = `smartallocate_seen_${userId}`;
     const toMark = userRequests
@@ -1023,23 +1061,23 @@ export default function App() {
 
   useEffect(() => {
     if (section !== "notifications") return;
-    if (role === "lecturer") {
+    if (role === "manager") {
       loadUserRequests();
     }
-    if (role === "student") {
+    if (role === "user") {
       loadAnnouncements();
     }
-  }, [section, studentId, role]);
+  }, [section, currentUserId, role]);
 
   useEffect(() => {
     if (section !== "notifications") return;
-    if (role !== "student" || !studentId.trim()) return;
+    if (role !== "user" || !currentUserId.trim()) return;
     let active = true;
 
     async function refreshAnnouncements() {
       try {
         const data = await getAnnouncements({
-          userId: role === "student" ? studentId.trim() : undefined,
+          userId: role === "user" ? currentUserId.trim() : undefined,
         });
         if (!active) return;
         setAnnouncements(Array.isArray(data) ? data : []);
@@ -1054,11 +1092,11 @@ export default function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [section, studentId, role]);
+  }, [section, currentUserId, role]);
 
   useEffect(() => {
-    if (!hasStudent || role !== "lecturer") return;
-    const id = studentId.trim();
+    if (!hasUser || role !== "manager") return;
+    const id = currentUserId.trim();
     if (!id) return;
     let active = true;
     (async () => {
@@ -1072,9 +1110,9 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hasStudent, role, studentId]);
+  }, [hasUser, role, currentUserId]);
 
-  if (!hasStudent) {
+  if (!hasUser) {
     return (
       <div className="login-shell">
         <div className="login-card">
@@ -1093,8 +1131,8 @@ export default function App() {
               className="login-input"
               type="text"
               inputMode="numeric"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
+              value={currentUserId}
+              onChange={(e) => setCurrentUserId(e.target.value)}
               placeholder={`Enter your ${labelsLower.userId}`}
             />
             <label className="login-label">Password</label>
@@ -1161,11 +1199,11 @@ export default function App() {
               textAlign: "center",
             }}
           >
-            {role === "lecturer" ? labels.responsible : labels.student}
+            {role === "manager" ? labels.manager : labels.user}
           </div>
         </div>
         <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-          {labels.userId}: {studentId}
+          {labels.userId}: {currentUserId}
         </div>
         <button
           onClick={() => setSection("schedule")}
@@ -1193,9 +1231,9 @@ export default function App() {
             cursor: "pointer",
           }}
         >
-          {role === "student" ? `My ${labels.courses}` : "Find Resource"}
+          {role === "user" ? `My ${labels.resources}` : `Find ${labels.resource}`}
         </button>
-        {role === "lecturer" && (
+        {role === "manager" && (
           <button
             onClick={() => setSection("requests")}
             style={{
@@ -1208,7 +1246,7 @@ export default function App() {
               cursor: "pointer",
             }}
           >
-            Resource Requests
+            {`${labels.resource} ${labels.requests}`}
           </button>
         )}
         <button
@@ -1227,8 +1265,8 @@ export default function App() {
             gap: 8,
           }}
         >
-          <span>{role === "student" ? "Notifications" : "Request Updates"}</span>
-          {unreadNotificationCount > 0 && role === "student" && (
+          <span>{role === "user" ? "Notifications" : "Request Updates"}</span>
+          {unreadNotificationCount > 0 && role === "user" && (
             <span
               style={{
                 minWidth: 22,
@@ -1248,7 +1286,7 @@ export default function App() {
             </span>
           )}
         </button>
-        {role === "lecturer" && (
+        {role === "manager" && (
           <button
             onClick={() => setSection("availability")}
             style={{
@@ -1297,7 +1335,7 @@ export default function App() {
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>My Schedule</h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                Month or list view of your {labelsLower.courses}.
+                Month or list view of your {labelsLower.resources}.
               </p>
             </header>
 
@@ -1313,9 +1351,9 @@ export default function App() {
               }}
             >
               <div style={{ flex: 1, minWidth: 200 }}>
-                <h3 style={{ margin: 0, color: "#0f172a" }}>My {labels.courses}</h3>
+                <h3 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h3>
                 <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
-                  Search by resource or tag. Switch between month grid and list.
+                  Search by {labelsLower.resource} or tag. Switch between month grid and list.
                 </p>
               </div>
               <input
@@ -1376,7 +1414,7 @@ export default function App() {
                   textAlign: "center",
                 }}
               >
-                No {labelsLower.courses} yet. Enter an ID and click "Load bookings".
+                No {labelsLower.resources} yet. Enter an ID and click "Load bookings".
               </div>
             ) : (
               <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
@@ -1425,7 +1463,7 @@ export default function App() {
                               {roomLine}
                             </div>
                           )}
-                          {role === "lecturer" && (
+                          {role === "manager" && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1445,7 +1483,7 @@ export default function App() {
                                 cursor: past ? "not-allowed" : "pointer",
                               }}
                             >
-                              Cancel {labelsLower.class}
+                              Cancel {labelsLower.resource}
                             </button>
                           )}
                         </div>
@@ -1475,7 +1513,7 @@ export default function App() {
           </>
         ) : section === "search" ? (
           <>
-            {role === "student" ? (
+            {role === "user" ? (
               <>
                 <header
                   style={{
@@ -1484,21 +1522,21 @@ export default function App() {
                     marginBottom: 16,
                   }}
                 >
-                  <h1 style={{ margin: 0, color: "#0f172a" }}>My {labels.courses}</h1>
+                  <h1 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h1>
                   <p style={{ margin: 0, color: "#475569" }}>
-                    Your {labelsLower.courses} and session details.
+                    Your {labelsLower.resources} and session details.
                   </p>
                 </header>
 
                 <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
-                  {studentCourses.length === 0 ? (
+                  {userResources.length === 0 ? (
                     <div style={{ color: "#475569" }}>
-                      No {labelsLower.courses} available yet.
+                      No {labelsLower.resources} available yet.
                     </div>
                   ) : (
                     <div style={{ display: "grid", gap: 12 }}>
-                      {studentCourses.map((course) => {
-                        const sessions = allResourceSessions[course.id] || [];
+                      {userResources.map((resource) => {
+                        const sessions = allResourceSessions[resource.id] || [];
                         const upcomingSessions = sessions.filter(
                           (s) =>
                             new Date(`${s.date}T${s.start}`) >= new Date()
@@ -1507,7 +1545,7 @@ export default function App() {
                           upcomingSessions[0] || sessions[0] || null;
                         return (
                           <div
-                            key={course.id}
+                            key={resource.id}
                             className="glass"
                             style={{
                               padding: 16,
@@ -1526,7 +1564,7 @@ export default function App() {
                               }}
                             >
                               <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                                {course.name}
+                                {resource.name}
                               </div>
                               <span
                                 style={{
@@ -1538,11 +1576,11 @@ export default function App() {
                                   fontWeight: 700,
                                 }}
                               >
-                                {formatTypeLabel(course.type_name, labels)}
+                                {formatTypeLabel(resource.type_name, labels)}
                               </span>
                             </div>
-                            {course.metadata &&
-                              Object.keys(course.metadata).length > 0 && (
+                            {resource.metadata &&
+                              Object.keys(resource.metadata).length > 0 && (
                                 <div
                                   style={{
                                     color: "#64748b",
@@ -1550,7 +1588,7 @@ export default function App() {
                                     marginBottom: 8,
                                   }}
                                 >
-                                  {Object.entries(course.metadata)
+                                  {Object.entries(resource.metadata)
                                     .slice(0, 4)
                                     .map(([k, v]) => `${k}: ${v}`)
                                     .join(" | ")}
@@ -1583,7 +1621,9 @@ export default function App() {
                 marginBottom: 16,
               }}
             >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>Find a resource</h1>
+              <h1 style={{ margin: 0, color: "#0f172a" }}>
+                Find a {labelsLower.resource}
+              </h1>
               <p style={{ margin: 0, color: "#475569" }}>
                 Search by name or tags, then expand to see your dates & times.
               </p>
@@ -1700,7 +1740,7 @@ export default function App() {
                     >
                       <div>
                         <div style={{ fontSize: 12, color: "#64748b" }}>
-                          Resource
+                          {labels.resource}
                         </div>
                         <div style={{ fontSize: 22, fontWeight: 800, color: "#0f172a" }}>
                           {selectedResource.name}
@@ -1716,7 +1756,7 @@ export default function App() {
                           fontWeight: 700,
                         }}
                       >
-                        {formatTypeLabel(selectedResource.type_name, labels, "Resource")}
+                        {formatTypeLabel(selectedResource.type_name, labels)}
                       </span>
                     </div>
 
@@ -1745,7 +1785,7 @@ export default function App() {
                     </div>
                     {(resourceSessions[selectedResource.id] || []).length === 0 && (
                       <div style={{ color: "#475569" }}>
-                        No sessions found for this resource.
+                        No sessions found for this {labelsLower.resource}.
                       </div>
                     )}
                     {(resourceSessions[selectedResource.id] || []).length > 0 && (
@@ -1840,7 +1880,7 @@ export default function App() {
                                 fontWeight: 700,
                               }}
                             >
-                              {formatTypeLabel(r.type_name, labels, "Resource")}
+                              {formatTypeLabel(r.type_name, labels)}
                             </span>
                           </div>
                           <div style={{ color: "#475569", fontSize: 12 }}>
@@ -1874,10 +1914,10 @@ export default function App() {
               }}
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>
-                Request a resource
+                Request a {labelsLower.resource}
               </h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                Browse resources and send a request to your admin.
+                Browse {labelsLower.resources} and send a request to your admin.
               </p>
             </header>
 
@@ -1930,7 +1970,7 @@ export default function App() {
                       cursor: "pointer",
                     }}
                   >
-                    Back to resources
+                    Back to {labels.resources}
                   </button>
                 </div>
 
@@ -1939,7 +1979,7 @@ export default function App() {
                     <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
                       {selectedRequestResource.name}{" "}
                       {selectedRequestResource.type_name
-                        ? `(${formatTypeLabel(selectedRequestResource.type_name, labels, "Resource")})`
+                        ? `(${formatTypeLabel(selectedRequestResource.type_name, labels)})`
                         : ""}
                     </div>
                     {requestError && (
@@ -2002,7 +2042,7 @@ export default function App() {
                   </>
                 ) : (
                   <div style={{ marginTop: 12, color: "#475569" }}>
-                    Pick a resource to continue.
+                    Pick a {labelsLower.resource} to continue.
                   </div>
                 )}
               </div>
@@ -2025,7 +2065,7 @@ export default function App() {
                   <input
                     value={requestQuery}
                     onChange={(e) => setRequestQuery(e.target.value)}
-                    placeholder="Search resources..."
+                    placeholder={`Search ${labelsLower.resources}...`}
                     style={{
                       flex: 1,
                       minWidth: 240,
@@ -2058,7 +2098,7 @@ export default function App() {
                       boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
                     }}
                   >
-                    {resourceLoading ? "Loading..." : "Load resources"}
+                    {resourceLoading ? "Loading..." : `Load ${labelsLower.resources}`}
                   </button>
                 </div>
 
@@ -2070,7 +2110,7 @@ export default function App() {
 
                 {resources.length === 0 && !resourceLoading && (
                   <div style={{ marginTop: 16, color: "#475569" }}>
-                    Load resources to get started.
+                    Load {labelsLower.resources} to get started.
                   </div>
                 )}
 
@@ -2078,7 +2118,7 @@ export default function App() {
                   filteredRequestResources.length === 0 &&
                   !resourceLoading && (
                     <div style={{ marginTop: 16, color: "#475569" }}>
-                      No resources match your filters.
+                      No {labelsLower.resources} match your filters.
                     </div>
                   )}
 
@@ -2119,8 +2159,8 @@ export default function App() {
                               </div>
                               <div style={{ color: "#475569", fontSize: 12 }}>
                                 {r.type_name
-                                  ? `Type: ${formatTypeLabel(r.type_name, labels, "Resource")}`
-                                  : "Resource"}
+                                  ? `Type: ${formatTypeLabel(r.type_name, labels)}`
+                                  : labels.resource}
                               </div>
                             </div>
                           <button
@@ -2169,7 +2209,7 @@ export default function App() {
                                 cursor: "pointer",
                               }}
                             >
-                              Request this resource
+                              Request this {labelsLower.resource}
                             </button>
                           </div>
                         </div>
@@ -2191,7 +2231,7 @@ export default function App() {
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>My Availability</h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                Share the hours you can teach so the admin can schedule your courses.
+                Share the hours you can support so the admin can schedule your {labelsLower.resources}.
               </p>
             </header>
 
@@ -2332,7 +2372,7 @@ export default function App() {
                 type="button"
                 disabled={availabilitySaving}
                 onClick={async () => {
-                  const userId = studentId.trim();
+                  const userId = currentUserId.trim();
                   if (!userId) return;
                   setAvailabilitySaving(true);
                   setAvailabilityMessage("");
@@ -2436,11 +2476,11 @@ export default function App() {
               }}
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>
-                {role === "student" ? "Notifications" : "Request Updates"}
+                {role === "user" ? "Notifications" : "Request Updates"}
               </h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                {role === "student"
-                  ? `Updates from ${labelsLower.lecturers} about cancelled ${labelsLower.class}.`
+                {role === "user"
+                  ? `Updates from ${labelsLower.managers} about cancelled ${labelsLower.resource}.`
                   : "Track the status of allocation requests."}
               </p>
             </header>
@@ -2453,7 +2493,7 @@ export default function App() {
                 marginBottom: 12,
               }}
             >
-              {role === "lecturer" && (
+              {role === "manager" && (
                 <button
                   type="button"
                   onClick={() => setNotificationTab("requests")}
@@ -2471,7 +2511,7 @@ export default function App() {
                   Request Updates
                 </button>
               )}
-              {role === "student" && (
+              {role === "user" && (
                 <button
                   type="button"
                   onClick={() => setNotificationTab("announcements")}
@@ -2487,7 +2527,7 @@ export default function App() {
                     cursor: "pointer",
                   }}
                 >
-                  {labels.lecturer} Messages
+                  {labels.manager} Messages
                 </button>
               )}
             </div>
@@ -2498,7 +2538,7 @@ export default function App() {
                 padding: 16,
                 borderRadius: 18,
                 display:
-                  role === "lecturer" && notificationTab === "requests"
+                  role === "manager" && notificationTab === "requests"
                     ? "block"
                     : "none",
               }}
@@ -2515,7 +2555,7 @@ export default function App() {
                 <input
                   value={userRequestsQuery}
                   onChange={(e) => setUserRequestsQuery(e.target.value)}
-                  placeholder="Search by resource, date, or status..."
+                  placeholder={`Search by ${labelsLower.resource}, date, or status...`}
                   style={{
                     flex: 1,
                     minWidth: 220,
@@ -2599,10 +2639,10 @@ export default function App() {
                                 }}
                               >
                                 {group.resource_name ||
-                                  `Resource #${group.resource_id}`}
+                                  `${labels.resource} #${group.resource_id}`}
                               </div>
                               <div style={{ fontSize: 12, color: "#64748b" }}>
-                                {group.resource_type || "Resource"}
+                                {group.resource_type || labels.resource}
                               </div>
                             </div>
                             {unreadCount > 0 && (
@@ -2643,11 +2683,11 @@ export default function App() {
                           marginBottom: 12,
                         }}
                       >
-                        Back to resources
+                        Back to {labels.resources}
                       </button>
                       <div style={{ fontWeight: 700, marginBottom: 8 }}>
                         {selectedUserGroup.resource_name ||
-                          `Resource #${selectedUserGroup.resource_id}`}
+                          `${labels.resource} #${selectedUserGroup.resource_id}`}
                       </div>
                       <div style={{ display: "grid", gap: 12 }}>
                         {selectedUserGroup.requests.map((req) => {
@@ -2715,7 +2755,7 @@ export default function App() {
                 padding: 16,
                 borderRadius: 18,
                 display:
-                  role === "student" && notificationTab === "announcements"
+                  role === "user" && notificationTab === "announcements"
                     ? "block"
                     : "none",
               }}
@@ -2766,7 +2806,7 @@ export default function App() {
                 </div>
               )}
 
-              {role === "lecturer" && (
+              {role === "manager" && (
                 <div
                   className="glass"
                   style={{
@@ -2815,14 +2855,14 @@ export default function App() {
                   />
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     <input
-                      value={announcementForm.course}
+                      value={announcementForm.resource}
                       onChange={(e) =>
                         setAnnouncementForm((prev) => ({
                           ...prev,
-                          course: e.target.value,
+                          resource: e.target.value,
                         }))
                       }
-                      placeholder={`${labels.course} name (optional)`}
+                      placeholder={`${labels.resource} name (optional)`}
                       style={{
                         flex: 1,
                         minWidth: 160,
@@ -2902,7 +2942,7 @@ export default function App() {
                 <div style={{ display: "grid", gap: 12 }}>
                   {filteredAnnouncements.map((a) => {
                     const isUnread =
-                      role === "student" &&
+                      role === "user" &&
                       !seenAnnouncementSet.has(Number(a.id));
                     const isSelected = selectedAnnouncementId === a.id;
                     return (
@@ -2951,8 +2991,8 @@ export default function App() {
                           </div>
                         </div>
                         <div style={{ fontSize: 12, color: "#64748b" }}>
-                          {a.course_name ? `${a.course_name} • ` : ""}
-                          {a.sender_name || labels.lecturer} •{" "}
+                          {a.resource_name ? `${a.resource_name} • ` : ""}
+                          {a.sender_name || labels.manager} •{" "}
                           {formatDate(a.created_at)}
                         </div>
                         {isSelected && (
@@ -2997,7 +3037,7 @@ export default function App() {
               onClick={(e) => e.stopPropagation()}
             >
               <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                Cancel class
+                Cancel {labelsLower.resource}
               </div>
               {cancelDialog.booking && (
                 <div style={{ color: "#475569", fontSize: 12 }}>
@@ -3072,7 +3112,7 @@ export default function App() {
                           border: "1px solid #e2e8f0",
                         }}
                       >
-                        <option value="classroom">Classroom</option>
+                        <option value="onsite">On-site</option>
                         <option value="zoom">Zoom</option>
                       </select>
                     </label>
@@ -3194,18 +3234,18 @@ export default function App() {
                   <div style={{ color: "#475569", fontSize: 12 }}>
                     {availabilityResource.name}{" "}
                     {availabilityResource.type_name
-                      ? `(${formatTypeLabel(availabilityResource.type_name, labels, "Resource")})`
+                      ? `(${formatTypeLabel(availabilityResource.type_name, labels)})`
                       : ""}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    if (!availabilityResource || !studentId.trim()) return;
+                    if (!availabilityResource || !currentUserId.trim()) return;
                     setAvailabilityLoading(true);
                     Promise.all([
                       getBookingsByResource(availabilityResource.id),
-                      getBookingsByUser(studentId.trim()),
+                      getBookingsByUser(currentUserId.trim()),
                     ])
                       .then(([bookingsData, userBookings]) => {
                         setAvailabilityBookings(
@@ -3342,7 +3382,7 @@ export default function App() {
                   />
                   {availabilityBookings.length === 0 && (
                     <div style={{ marginTop: 12, color: "#475569" }}>
-                      No bookings yet for this resource.
+                      No bookings yet for this {labelsLower.resource}.
                     </div>
                   )}
                   <div
@@ -3355,7 +3395,7 @@ export default function App() {
                     }}
                   >
                     <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                      Request this resource
+                      Request this {labelsLower.resource}
                     </div>
                     <div style={{ marginTop: 6, color: "#475569", fontSize: 12 }}>
                       Selected date:{" "}
@@ -3536,7 +3576,7 @@ function BookingCard({ booking, role, onCancel }) {
           {roomLine}
         </div>
       )}
-      {role === "lecturer" && (
+      {role === "manager" && (
         <button
           type="button"
           onClick={() => onCancel?.(booking)}
@@ -3553,7 +3593,7 @@ function BookingCard({ booking, role, onCancel }) {
             cursor: past ? "not-allowed" : "pointer",
           }}
         >
-          Cancel class
+          Cancel {labelsLower.resource}
         </button>
       )}
 
@@ -3570,7 +3610,7 @@ function BookingCard({ booking, role, onCancel }) {
           >
             <div style={{ color: "#0f172a", fontWeight: 600 }}>{r.name}</div>
             <div style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>
-              {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels, "Resource")}` : ""}
+              {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels)}` : ""}
               {r.role ? ` - Role: ${r.role}` : ""}
             </div>
               {r.metadata && Object.keys(r.metadata).length > 0 && (

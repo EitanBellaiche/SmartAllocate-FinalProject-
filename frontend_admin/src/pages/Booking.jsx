@@ -22,7 +22,7 @@ export default function Booking() {
   const [responsibleLoading, setResponsibleLoading] = useState(false);
   const [responsibleError, setResponsibleError] = useState("");
   const [responsibleUser, setResponsibleUser] = useState(null);
-  const [studentIdsInput, setStudentIdsInput] = useState("");
+  const [userIdsInput, setUserIdsInput] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
@@ -112,7 +112,7 @@ export default function Booking() {
     });
   }
 
-  function parseStudentIds(raw) {
+  function parseUserIds(raw) {
     const items = raw
       .split(/[\s,]+/)
       .map((val) => val.trim())
@@ -120,7 +120,7 @@ export default function Booking() {
     return Array.from(new Set(items));
   }
 
-  async function updateResourceAssignments(responsibleId, studentIds) {
+  async function updateResourceAssignments(responsibleId, userIds) {
     const targetResources = resources.filter((r) => selectedResources.includes(r.id));
     if (targetResources.length === 0) return;
 
@@ -131,8 +131,8 @@ export default function Booking() {
             ? { ...resource.metadata }
             : {};
         meta.responsible_user_id = responsibleId || meta.responsible_user_id || "";
-        meta.student_ids = studentIds;
-        meta.students = studentIds.length;
+        meta.user_ids = userIds;
+        meta.users = userIds.length;
         await apiPut(`/resources/${resource.id}`, {
           name: resource.name,
           type_id: resource.type_id,
@@ -186,10 +186,10 @@ export default function Booking() {
         basePayload.date = date;
       }
 
-      const studentIds = assignUsers ? parseStudentIds(studentIdsInput) : [];
+      const userIds = assignUsers ? parseUserIds(userIdsInput) : [];
       const responsibleId = String(responsibleUser?.national_id || "").trim();
       const targetIds = assignUsers
-        ? (studentIds.length > 0 ? studentIds : responsibleId ? [responsibleId] : [])
+        ? Array.from(new Set([responsibleId, ...userIds].filter(Boolean)))
         : [null];
 
       if (assignUsers && !responsibleId) {
@@ -198,7 +198,7 @@ export default function Booking() {
       }
 
       if (assignUsers && responsibleId) {
-        await updateResourceAssignments(responsibleId, studentIds);
+        await updateResourceAssignments(responsibleId, userIds);
       }
 
       if (targetIds.length === 0) {
@@ -231,7 +231,7 @@ export default function Booking() {
       setResponsibleQuery("");
       setResponsibleOptions([]);
       setResponsibleUser(null);
-      setStudentIdsInput("");
+      setUserIdsInput("");
       setRecurring(false);
       setRangeStart("");
       setRangeEnd("");
@@ -354,7 +354,7 @@ export default function Booking() {
           onChange={(e) => {
             setAssignUsers(e.target.checked);
             setResponsibleUser(null);
-            setStudentIdsInput("");
+            setUserIdsInput("");
           }}
         />
         <label htmlFor="assign-users-toggle" className="font-semibold">
@@ -412,8 +412,8 @@ export default function Booking() {
           <textarea
             rows={3}
             className="border px-3 py-2 rounded w-full"
-            value={studentIdsInput}
-            onChange={(e) => setStudentIdsInput(e.target.value)}
+            value={userIdsInput}
+            onChange={(e) => setUserIdsInput(e.target.value)}
             placeholder="e.g. 12345, 67890"
           />
         </div>

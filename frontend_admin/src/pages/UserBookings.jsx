@@ -1,5 +1,16 @@
-import { useEffect, useState } from "react";
-import { apiGet } from "../api/api";
+import { useEffect, useMemo, useState } from "react";
+import { apiGet, getAdminSession, setAdminSession } from "../api/api";
+
+function formatDateValue(dateStr) {
+  if (!dateStr) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return String(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 export default function UserBookings() {
   const [userQuery, setUserQuery] = useState("");
@@ -9,6 +20,11 @@ export default function UserBookings() {
   const [userId, setUserId] = useState("");
   const [userBookings, setUserBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
+  const activeBookings = useMemo(
+    () => userBookings.filter((booking) => !booking?.cancelled_at),
+    [userBookings]
+  );
+  const cancelledCount = userBookings.length - activeBookings.length;
 
   useEffect(() => {
     const trimmed = userQuery.trim();
@@ -65,6 +81,12 @@ export default function UserBookings() {
   }, [userId]);
 
   function selectUser(user) {
+    const existing = getAdminSession() || {};
+    const existingOrg = String(existing?.organization_id || "").trim();
+    const nextOrg = String(user?.organization_id || "").trim();
+    if (!existingOrg && nextOrg) {
+      setAdminSession({ ...existing, organization_id: nextOrg });
+    }
     setUserId(String(user?.national_id || "").trim());
     setUserQuery(user?.full_name || user?.national_id || "");
     setUserOptions([]);
@@ -116,15 +138,19 @@ export default function UserBookings() {
         <h3 className="text-lg font-semibold mb-2">Current Bookings</h3>
         {bookingsLoading ? (
           <div className="text-sm text-gray-500">Loading bookings...</div>
-        ) : userBookings.length === 0 ? (
-          <div className="text-sm text-gray-500">No bookings for this user.</div>
+        ) : activeBookings.length === 0 ? (
+          <div className="text-sm text-gray-500">
+            {cancelledCount > 0
+              ? "No active bookings. Some bookings were cancelled."
+              : "No bookings for this user."}
+          </div>
         ) : (
           <div className="space-y-3">
-            {userBookings.map((b) => (
+            {activeBookings.map((b) => (
               <div key={b.id} className="border rounded p-3">
                 <div>
                   <div className="font-semibold">
-                    {b.date} | {b.start_time} - {b.end_time}
+                    {formatDateValue(b.date)} | {b.start_time} - {b.end_time}
                   </div>
                   <div className="text-sm text-gray-600">
                     {(b.resources || [])

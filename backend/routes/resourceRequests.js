@@ -21,7 +21,7 @@ async function ensureTable() {
     CREATE TABLE IF NOT EXISTS resource_requests (
       id SERIAL PRIMARY KEY,
       resource_id INTEGER REFERENCES resources(id) ON DELETE SET NULL,
-      student_id TEXT NOT NULL,
+      requester_id TEXT NOT NULL,
       user_id TEXT,
       note TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
@@ -38,6 +38,7 @@ async function ensureTable() {
   await pool.query(`ALTER TABLE resource_requests ADD COLUMN IF NOT EXISTS end_time TIME`);
   await pool.query(`ALTER TABLE resource_requests ADD COLUMN IF NOT EXISTS booking_id INTEGER`);
   await pool.query(`ALTER TABLE resource_requests ADD COLUMN IF NOT EXISTS user_id TEXT`);
+  await pool.query(`ALTER TABLE resource_requests ADD COLUMN IF NOT EXISTS requester_id TEXT`);
   await pool.query(`ALTER TABLE resource_requests ADD COLUMN IF NOT EXISTS organization_id TEXT`);
   tableReady = true;
 }
@@ -54,7 +55,7 @@ router.use(async (req, res, next) => {
 
 router.get("/", async (req, res) => {
   try {
-    const { status, resource_id, student_id, user_id } = req.query;
+    const { status, resource_id, user_id, requester_id } = req.query;
     const orgId = getOrgId(req);
     const params = [];
     const conditions = [];
@@ -72,12 +73,10 @@ router.get("/", async (req, res) => {
       conditions.push(`rr.resource_id = $${params.length}`);
     }
 
-    if (student_id) {
-      params.push(String(student_id));
-      conditions.push(`rr.student_id = $${params.length}`);
-    }
-
-    if (user_id) {
+    if (requester_id) {
+      params.push(String(requester_id));
+      conditions.push(`rr.requester_id = $${params.length}`);
+    } else if (user_id) {
       params.push(String(user_id));
       conditions.push(`rr.user_id = $${params.length}`);
     }
@@ -94,8 +93,7 @@ router.get("/", async (req, res) => {
       SELECT
         rr.id,
         rr.resource_id,
-        rr.student_id,
-        rr.user_id,
+        COALESCE(rr.requester_id, rr.user_id) AS user_id,
         rr.note,
         rr.status,
         rr.request_date,
@@ -123,10 +121,10 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   const resourceId = Number(req.body?.resource_id);
-  const studentIdRaw = String(req.body?.student_id || "").trim();
   const userIdRaw = String(req.body?.user_id || "").trim();
-  const userId = userIdRaw || studentIdRaw;
-  const studentId = studentIdRaw || userId;
+  const requesterIdRaw = String(req.body?.requester_id || "").trim();
+  const requesterId = requesterIdRaw || userIdRaw;
+  const userId = requesterId || userIdRaw;
   const note = String(req.body?.note || "").trim();
   const orgId = getOrgId(req);
   const requestDate = req.body?.request_date
@@ -155,14 +153,14 @@ router.post("/", async (req, res) => {
   try {
     const { rows } = await pool.query(
       `
-      INSERT INTO resource_requests (resource_id, student_id, user_id, note, request_date, start_time, end_time, organization_id)
+      INSERT INTO resource_requests (resource_id, requester_id, user_id, note, request_date, start_time, end_time, organization_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
       `,
       [
         resourceId,
-        studentId,
-        userId,
+        requesterId || null,
+        userId || null,
         note,
         requestDate || null,
         startTime || null,
@@ -218,9 +216,8 @@ router.put("/:id", async (req, res) => {
     const request = rows[0];
 
     if (status === "approved" && !request.booking_id) {
-      const { resource_id, student_id, user_id, request_date, start_time, end_time } =
-        request;
-      const bookingUserId = user_id || student_id;
+      const { resource_id, request_date, start_time, end_time } = request;
+      const bookingUserId = request.requester_id || request.user_id;
 
       if (!resource_id || !bookingUserId || !request_date || !start_time || !end_time) {
         await client.query("ROLLBACK");

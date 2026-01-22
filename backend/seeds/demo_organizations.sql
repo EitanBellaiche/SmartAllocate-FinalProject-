@@ -3,13 +3,13 @@
 
 -- Users
 INSERT INTO users (full_name, email, role, national_id, organization_id, password)
-SELECT 'Rina Cohen', 'rina.manager@demo.restaurant', 'shift_manager', '900000010', 'demo.restaurant', 'shift123'
+SELECT 'Rina Cohen', 'rina.manager@demo.restaurant', 'manager', '900000010', 'demo.restaurant', 'manager123'
 WHERE NOT EXISTS (
   SELECT 1 FROM users WHERE national_id = '900000010' AND organization_id = 'demo.restaurant'
 );
 
 INSERT INTO users (full_name, email, role, national_id, organization_id, password)
-SELECT 'Eli Peretz', 'eli.employee@demo.restaurant', 'employee', '900000011', 'demo.restaurant', 'employee123'
+SELECT 'Eli Peretz', 'eli.user@demo.restaurant', 'user', '900000011', 'demo.restaurant', 'user123'
 WHERE NOT EXISTS (
   SELECT 1 FROM users WHERE national_id = '900000011' AND organization_id = 'demo.restaurant'
 );
@@ -23,13 +23,13 @@ WHERE NOT EXISTS (
 -- Resource types
 INSERT INTO resource_types (name, description, fields, roles, organization_id)
 SELECT
-  'Course',
-  'Shift template for employee schedules',
+  'Resource',
+  'Resource template for user schedules',
   '[{"name":"team_size","label":"Team size","type":"number"}]'::jsonb,
-  '["employee","shift_manager"]'::jsonb,
+  '["user","manager"]'::jsonb,
   'demo.restaurant'
 WHERE NOT EXISTS (
-  SELECT 1 FROM resource_types WHERE name = 'Course' AND organization_id = 'demo.restaurant'
+  SELECT 1 FROM resource_types WHERE name = 'Resource' AND organization_id = 'demo.restaurant'
 );
 
 INSERT INTO resource_types (name, description, fields, roles, organization_id)
@@ -37,7 +37,7 @@ SELECT
   'Station',
   'Kitchen or service station',
   '[{"name":"zone","label":"Zone","type":"text"}]'::jsonb,
-  '["employee","shift_manager"]'::jsonb,
+  '["user","manager"]'::jsonb,
   'demo.restaurant'
 WHERE NOT EXISTS (
   SELECT 1 FROM resource_types WHERE name = 'Station' AND organization_id = 'demo.restaurant'
@@ -45,35 +45,35 @@ WHERE NOT EXISTS (
 
 INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
-  'Morning Shift',
-  (SELECT id FROM resource_types WHERE name = 'Course' AND organization_id = 'demo.restaurant' LIMIT 1),
+  'Morning Slot',
+  (SELECT id FROM resource_types WHERE name = 'Resource' AND organization_id = 'demo.restaurant' LIMIT 1),
   '{"team_size":6,"area":"front"}'::jsonb,
   true,
   'demo.restaurant'
 WHERE
   NOT EXISTS (
-    SELECT 1 FROM resources WHERE name = 'Morning Shift' AND organization_id = 'demo.restaurant'
+    SELECT 1 FROM resources WHERE name = 'Morning Slot' AND organization_id = 'demo.restaurant'
   )
   AND EXISTS (
-    SELECT 1 FROM resource_types WHERE name = 'Course' AND organization_id = 'demo.restaurant'
+    SELECT 1 FROM resource_types WHERE name = 'Resource' AND organization_id = 'demo.restaurant'
   );
 
-WITH course_type AS (
+WITH resource_type AS (
   SELECT id FROM resource_types
-  WHERE name = 'Course' AND organization_id = 'demo.restaurant'
+  WHERE name = 'Resource' AND organization_id = 'demo.restaurant'
 )
 INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
-  'Evening Shift',
-  (SELECT id FROM resource_types WHERE name = 'Course' AND organization_id = 'demo.restaurant' LIMIT 1),
+  'Evening Slot',
+  (SELECT id FROM resource_types WHERE name = 'Resource' AND organization_id = 'demo.restaurant' LIMIT 1),
   '{"team_size":5,"area":"kitchen"}'::jsonb,
   true,
   'demo.restaurant'
 WHERE NOT EXISTS (
-  SELECT 1 FROM resources WHERE name = 'Evening Shift' AND organization_id = 'demo.restaurant'
+  SELECT 1 FROM resources WHERE name = 'Evening Slot' AND organization_id = 'demo.restaurant'
 )
 AND EXISTS (
-  SELECT 1 FROM resource_types WHERE name = 'Course' AND organization_id = 'demo.restaurant'
+  SELECT 1 FROM resource_types WHERE name = 'Resource' AND organization_id = 'demo.restaurant'
 );
 
 WITH station_type AS (

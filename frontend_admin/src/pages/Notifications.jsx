@@ -68,8 +68,8 @@ function StatusPill({ status }) {
 export default function Notifications() {
   const labels = getOrgLabels();
   const labelsLower = {
-    student: String(labels.student || "").toLowerCase(),
-    students: String(labels.students || "").toLowerCase(),
+    user: String(labels.user || "").toLowerCase(),
+    users: String(labels.users || "").toLowerCase(),
   };
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -86,7 +86,7 @@ export default function Notifications() {
       const haystack = [
         req.resource_name,
         req.resource_type,
-        req.student_id,
+        req.user_id,
         req.note,
         req.status,
         req.request_date,
@@ -186,14 +186,14 @@ export default function Notifications() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
           <p className="text-sm text-gray-500">
-            Approve or reject booking requests from {labelsLower.students}.
+            Approve or reject booking requests from {labelsLower.users}.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`Search by resource, ${labelsLower.student}, note...`}
+            placeholder={`Search by resource, ${labelsLower.user}, note...`}
             className="border border-gray-200 rounded-md px-3 py-2 text-sm"
           />
           <select
@@ -287,7 +287,7 @@ export default function Notifications() {
                     >
                       <div className="min-w-[180px]">
                         <div className="text-sm font-semibold text-gray-900">
-                          {req.student_id}
+                          {req.user_id}
                         </div>
                         <div className="text-xs text-gray-500">
                           {formatDate(req.request_date)} ·{" "}

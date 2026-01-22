@@ -58,17 +58,24 @@ export default function Availability() {
       const dateStr = moment(b.date).format("YYYY-MM-DD");
       const start = moment(`${dateStr} ${b.start_time}`).toDate();
       const end = moment(`${dateStr} ${b.end_time}`).toDate();
+      const resourcesList = Array.isArray(b.resources) ? b.resources : [];
+      const filteredResources = selectedResource
+        ? resourcesList.filter((r) => String(r.id) === String(selectedResource))
+        : resourcesList;
+      if (selectedResource && filteredResources.length === 0) return;
+      const resourceNames =
+        filteredResources.length > 0
+          ? filteredResources.map((r) => r.name).join(" / ")
+          : "Resources";
 
-      (b.resources || []).forEach((r) => {
-        ev.push({
-          id: `${b.id}-${r.id}`,
-          booking_id: b.id,
-          resource_id: r.id,
-          title: `${r.name} (Booking #${b.id})`,
-          start,
-          end,
-          allDay: false,
-        });
+      ev.push({
+        id: `booking-${b.id}`,
+        booking_id: b.id,
+        resource_id: selectedResource || null,
+        title: `${resourceNames} (Booking #${b.id})`,
+        start,
+        end,
+        allDay: false,
       });
     });
 

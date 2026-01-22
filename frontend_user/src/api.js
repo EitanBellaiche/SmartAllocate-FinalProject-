@@ -142,10 +142,10 @@ export async function rescheduleBooking(bookingId, payload = {}) {
 }
 
 export async function getResourceRequests(params = {}) {
-  const { resourceId, studentId, userId } = params;
+  const { resourceId, userId } = params;
   const qs = new URLSearchParams();
   if (resourceId) qs.set("resource_id", resourceId);
-  if (userId || studentId) qs.set("user_id", userId || studentId);
+  if (userId) qs.set("user_id", userId);
   const path = qs.toString()
     ? `${API_BASE}/resource-requests?${qs.toString()}`
     : `${API_BASE}/resource-requests`;

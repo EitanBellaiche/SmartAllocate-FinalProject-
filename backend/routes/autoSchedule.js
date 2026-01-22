@@ -112,7 +112,7 @@ async function pickLockedSlot({
   startDate,
   endDate,
   responsibleId,
-  studentIds,
+  userIds,
   resourceIds,
   resourceRows,
   ruleRows,
@@ -155,20 +155,20 @@ async function pickLockedSlot({
         break;
       }
 
-      let studentConflict = null;
-      for (const studentId of studentIds) {
-        studentConflict = await findUserConflict(
+      let userConflict = null;
+      for (const userId of userIds) {
+        userConflict = await findUserConflict(
           client,
-          studentId,
+          userId,
           dayKey,
           candidate.start_time,
           candidate.end_time,
           orgId
         );
-        if (studentConflict) break;
+        if (userConflict) break;
       }
-      if (studentConflict) {
-        conflictReason = `Student conflict with booking #${studentConflict.id} at ${studentConflict.date} ${studentConflict.start_time}-${studentConflict.end_time}`;
+      if (userConflict) {
+        conflictReason = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
         break;
       }
 
@@ -412,10 +412,9 @@ router.post("/", async (req, res) => {
         ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
         : [];
       const responsibleId = String(group?.responsible_user_id || "").trim();
-      const studentIds = Array.isArray(group?.student_ids)
-        ? group.student_ids.map((id) => String(id).trim()).filter(Boolean)
-        : [];
-      const uniqueStudentIds = Array.from(new Set(studentIds)).filter(
+      const rawUserIds = Array.isArray(group?.user_ids) ? group.user_ids : [];
+      const userIds = rawUserIds.map((id) => String(id).trim()).filter(Boolean);
+      const uniqueUserIds = Array.from(new Set(userIds)).filter(
         (id) => id && id !== responsibleId
       );
       const weeklyHours = Number(group?.weekly_hours || 0);
@@ -483,7 +482,7 @@ router.post("/", async (req, res) => {
       let availabilityDays = 0;
       let attemptedSlots = 0;
       let responsibleConflicts = 0;
-      let studentConflicts = 0;
+      let userConflicts = 0;
       let resourceConflicts = 0;
       let ruleConflicts = 0;
       let lockedSlot = null;
@@ -494,7 +493,7 @@ router.post("/", async (req, res) => {
         startDate,
         endDate,
         responsibleId,
-        studentIds: uniqueStudentIds,
+        userIds: uniqueUserIds,
         resourceIds,
         resourceRows,
         ruleRows,
@@ -580,23 +579,23 @@ router.post("/", async (req, res) => {
                 continue;
               }
 
-              let studentConflict = null;
-              if (uniqueStudentIds.length > 0) {
-                for (const studentId of uniqueStudentIds) {
-                  studentConflict = await findUserConflict(
+              let userConflict = null;
+              if (uniqueUserIds.length > 0) {
+                for (const userId of uniqueUserIds) {
+                  userConflict = await findUserConflict(
                     client,
-                    studentId,
+                    userId,
                     dayKey,
                     startTime,
                     endTime,
                     orgId
                   );
-                  if (studentConflict) break;
+                  if (userConflict) break;
                 }
               }
-              if (studentConflict) {
-                weekFailure = `Student conflict with booking #${studentConflict.id} at ${studentConflict.date} ${studentConflict.start_time}-${studentConflict.end_time}`;
-                studentConflicts += 1;
+              if (userConflict) {
+                weekFailure = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
+                userConflicts += 1;
                 continue;
               }
 
@@ -667,35 +666,35 @@ router.post("/", async (req, res) => {
                 );
               }
 
-              for (const studentId of uniqueStudentIds) {
-                const studentExists = await hasExactBooking(
+              for (const userId of uniqueUserIds) {
+                const userExists = await hasExactBooking(
                   client,
-                  studentId,
+                  userId,
                   resourceIds,
                   dayKey,
                   startTime,
                   endTime,
                   orgId
                 );
-                if (studentExists) {
+                if (userExists) {
                   continue;
                 }
-                const studentBookingResult = await client.query(
+                const userBookingResult = await client.query(
                   `
                   INSERT INTO bookings (user_id, date, start_time, end_time)
                   VALUES ($1, $2, $3, $4)
                   RETURNING *
                   `,
-                  [studentId, dayKey, startTime, endTime]
+                  [userId, dayKey, startTime, endTime]
                 );
-                const studentBooking = studentBookingResult.rows[0];
+                const userBooking = userBookingResult.rows[0];
                 for (const resourceId of resourceIds) {
                   await client.query(
                     `
                     INSERT INTO booking_resources (booking_id, resource_id, role)
                     VALUES ($1, $2, $3)
                     `,
-                    [studentBooking.id, resourceId, null]
+                    [userBooking.id, resourceId, null]
                   );
                 }
               }
@@ -739,8 +738,8 @@ router.post("/", async (req, res) => {
           reason = "No time slot fits the required duration";
         } else if (responsibleConflicts === attemptedSlots) {
           reason = "Responsible conflict for all available slots";
-        } else if (studentConflicts === attemptedSlots) {
-          reason = "Student conflict for all available slots";
+        } else if (userConflicts === attemptedSlots) {
+          reason = "User conflict for all available slots";
         } else if (resourceConflicts === attemptedSlots) {
           reason = "Resource conflict for all available slots";
         } else if (ruleConflicts === attemptedSlots) {

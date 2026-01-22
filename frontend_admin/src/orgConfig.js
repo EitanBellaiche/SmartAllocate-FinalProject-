@@ -1,14 +1,12 @@
 import { getAdminSession } from "./api/api";
 
 const DEFAULT_LABELS = {
-  student: "Student",
-  students: "Students",
-  lecturer: "Lecturer",
-  lecturers: "Lecturers",
-  responsible: "Responsible",
-  course: "Course",
-  courses: "Courses",
-  class: "Class",
+  user: "User",
+  users: "Users",
+  manager: "Manager",
+  managers: "Managers",
+  resource: "Resource",
+  resources: "Resources",
   userId: "National ID",
   request: "Request",
 };
@@ -16,14 +14,12 @@ const DEFAULT_LABELS = {
 const ORG_CONFIGS = {
   "demo.restaurant": {
     labels: {
-      student: "Employee",
-      students: "Employees",
-      lecturer: "Shift manager",
-      lecturers: "Shift managers",
-      responsible: "Shift manager",
-      course: "Shift",
-      courses: "Shifts",
-      class: "Shift",
+      user: "User",
+      users: "Users",
+      manager: "Manager",
+      managers: "Managers",
+      resource: "Resource",
+      resources: "Resources",
       userId: "Employee ID",
       request: "Request",
     },

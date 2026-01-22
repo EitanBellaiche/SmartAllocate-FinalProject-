@@ -742,7 +742,7 @@ export default function Rules() {
               <div className="text-sm font-semibold mb-2">Generic Comparison Rule</div>
               <div className="text-xs text-gray-500 mb-3">
                 Compare a numeric field from Resource Type A to Resource Type B in the same booking.
-                Example: Course.students &gt; Classroom.capacity.
+                Example: Resource.users &gt; Resource.capacity.
               </div>
               <div className="text-xs text-gray-500 mb-3">
                 This rule uses the selected types and fields, not hardcoded names.
@@ -1034,7 +1034,7 @@ export default function Rules() {
                     />
                     <div>
                       <div className="font-medium">Specific type</div>
-                      <div className="text-xs text-gray-500">Classroom / Teacher / …</div>
+                      <div className="text-xs text-gray-500">Resource A / Resource B / …</div>
                     </div>
                   </label>
 
@@ -1394,7 +1394,7 @@ export default function Rules() {
                   Use Advanced JSON
                 </label>
                 <div className="text-xs text-gray-500 mt-1">
-                  Use this for complex rules that compare two resources (e.g., Course vs Classroom).
+                  Use this for complex rules that compare two resources (e.g., Resource A vs Resource B).
                 </div>
 
                 {form.useAdvanced && (

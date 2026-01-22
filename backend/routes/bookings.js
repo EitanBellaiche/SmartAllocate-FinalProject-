@@ -39,18 +39,62 @@ async function ensureTables() {
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       message TEXT NOT NULL,
-      course_name TEXT,
+      resource_name TEXT,
       sender_name TEXT,
       target_user_id TEXT,
       organization_id TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `);
-  await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS course_name TEXT`);
+  await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS resource_name TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS sender_name TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS target_user_id TEXT`);
   await pool.query(`ALTER TABLE announcements ADD COLUMN IF NOT EXISTS organization_id TEXT`);
   tableReady = true;
+}
+
+function normalizeMetadata(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function extractUserIds(meta) {
+  if (!meta || typeof meta !== "object") return [];
+  const candidates = [
+    meta.user_ids,
+    meta.userIds,
+    meta.users,
+  ];
+  const list = [];
+  for (const value of candidates) {
+    if (!value) continue;
+    if (Array.isArray(value)) {
+      list.push(...value);
+    } else if (typeof value === "string") {
+      list.push(...value.split(/[\s,]+/));
+    }
+  }
+  return list.map((v) => String(v).trim()).filter(Boolean);
+}
+
+function hasAssignedUsers(meta) {
+  if (extractUserIds(meta).length > 0) return true;
+  const responsible =
+    meta.responsible_user_id ||
+    meta.responsibleUserId ||
+    meta.responsible_id ||
+    meta.responsibleId;
+  return Boolean(responsible);
+}
+
+function getPrimaryResourceRows(rows) {
+  const primary = rows.filter((row) => hasAssignedUsers(normalizeMetadata(row.resource_metadata)));
+  return primary.length > 0 ? primary : rows;
 }
 
 router.use(async (req, res, next) => {
@@ -152,7 +196,7 @@ router.get("/", async (req, res) => {
 router.post("/:id/cancel", async (req, res) => {
   const id = Number(req.params.id);
   const reason = String(req.body?.reason || "").trim();
-  const senderName = String(req.body?.sender_name || "Lecturer").trim();
+  const senderName = String(req.body?.sender_name || "Manager").trim();
   const targetUserIdRaw = String(req.body?.target_user_id || "").trim();
   const targetUserId = targetUserIdRaw || null;
   const orgId = getOrgId(req);
@@ -206,50 +250,20 @@ router.post("/:id/cancel", async (req, res) => {
       return res.status(409).json({ error: "Booking already cancelled" });
     }
 
-    const courseNames = bookingRows
-      .filter((r) => {
-        const type = String(r.type_name || "").toLowerCase();
-        return type === "courses" || type === "course";
-      })
-      .map((r) => r.resource_name)
-      .filter(Boolean);
-    const fallbackNames = bookingRows
-      .map((r) => r.resource_name)
-      .filter(Boolean);
-    const courseLabel = courseNames.length > 0 ? courseNames.join(" / ") : fallbackNames.join(" / ");
+    const primaryRows = getPrimaryResourceRows(bookingRows);
+    const primaryNames = primaryRows.map((r) => r.resource_name).filter(Boolean);
+    const fallbackNames = bookingRows.map((r) => r.resource_name).filter(Boolean);
+    const resourceLabel =
+      primaryNames.length > 0 ? primaryNames.join(" / ") : fallbackNames.join(" / ");
     const booking = bookingRows[0];
 
     const resourceIds = bookingRows.map((r) => r.resource_id).filter(Boolean);
-    const courseResourceIds = bookingRows
-      .filter((r) => {
-        const type = String(r.type_name || "").toLowerCase();
-        return type === "courses" || type === "course";
-      })
+    const primaryResourceIds = primaryRows
       .map((r) => r.resource_id)
       .filter(Boolean);
-    const metadataStudentIds = bookingRows
-      .filter((r) => {
-        const type = String(r.type_name || "").toLowerCase();
-        return type === "courses" || type === "course";
-      })
-      .flatMap((r) => {
-        const raw = r.resource_metadata;
-        if (!raw) return [];
-        let meta = raw;
-        if (typeof raw === "string") {
-          try {
-            meta = JSON.parse(raw);
-          } catch {
-            return [];
-          }
-        }
-        const ids = meta?.student_ids || meta?.studentIds || meta?.user_ids || meta?.userIds || [];
-        if (Array.isArray(ids)) return ids;
-        if (typeof ids === "string") {
-          return ids.split(/[\s,]+/).map((v) => v.trim()).filter(Boolean);
-        }
-        return [];
-      })
+    const metadataUserIds = primaryRows.flatMap((r) =>
+      extractUserIds(normalizeMetadata(r.resource_metadata))
+    )
       .map((id) => String(id).trim())
       .filter(Boolean);
     let targetBookings = [{ id: booking.id, user_id: booking.user_id }];
@@ -314,9 +328,9 @@ router.post("/:id/cancel", async (req, res) => {
         }
       }
 
-      if (targetBookings.length === 1 && courseResourceIds.length > 0) {
+      if (targetBookings.length === 1 && primaryResourceIds.length > 0) {
         const fallbackParams = [
-          courseResourceIds,
+          primaryResourceIds,
           booking.date,
           booking.start_time,
           booking.end_time,
@@ -344,7 +358,7 @@ router.post("/:id/cancel", async (req, res) => {
           targetBookings = fallbackRows;
         } else if (orgId) {
           const retryFallbackParams = [
-            courseResourceIds,
+            primaryResourceIds,
             booking.date,
             booking.start_time,
             booking.end_time,
@@ -369,16 +383,16 @@ router.post("/:id/cancel", async (req, res) => {
       }
     }
 
-    const extraStudentIds = Array.from(
+    const extraUserIds = Array.from(
       new Set(
-        metadataStudentIds
+        metadataUserIds
           .filter((id) => id && id !== String(booking.user_id || "").trim())
       )
     );
-    if (extraStudentIds.length > 0 && courseResourceIds.length > 0) {
+    if (extraUserIds.length > 0 && primaryResourceIds.length > 0) {
       const extraParams = [
-        extraStudentIds,
-        courseResourceIds,
+        extraUserIds,
+        primaryResourceIds,
         booking.date,
         booking.start_time,
         booking.end_time,
@@ -423,23 +437,29 @@ router.post("/:id/cancel", async (req, res) => {
       );
     }
 
-    const baseMessage = `Class cancelled: ${courseLabel} on ${booking.date} ${booking.start_time} - ${booking.end_time}.`;
+    const baseMessage = `Booking cancelled: ${resourceLabel} on ${booking.date} ${booking.start_time} - ${booking.end_time}.`;
     const message = reason ? `${baseMessage} Reason: ${reason}.` : baseMessage;
     const recipientSet = new Set(
       targetBookings
         .map((target) => String(target.user_id || ""))
         .filter(Boolean)
     );
+    for (const userId of metadataUserIds) {
+      const trimmed = String(userId || "").trim();
+      if (trimmed && trimmed !== String(booking.user_id || "").trim()) {
+        recipientSet.add(trimmed);
+      }
+    }
     if (recipientSet.size === 0 && targetUserId) {
       recipientSet.add(targetUserId);
     }
     for (const recipient of recipientSet) {
       await client.query(
         `
-        INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
+        INSERT INTO announcements (title, message, resource_name, sender_name, target_user_id, organization_id)
         VALUES ($1, $2, $3, $4, $5, $6)
         `,
-        ["Class cancelled", message, courseLabel || null, senderName || null, recipient, orgId]
+        ["Booking cancelled", message, resourceLabel || null, senderName || null, recipient, orgId]
       );
     }
 
@@ -459,9 +479,9 @@ router.post("/:id/reschedule", async (req, res) => {
   const date = String(req.body?.date || "").trim();
   const startTime = String(req.body?.start_time || "").trim();
   const endTime = String(req.body?.end_time || "").trim();
-  const location = String(req.body?.location || "classroom").trim().toLowerCase();
+  const location = String(req.body?.location || "onsite").trim().toLowerCase();
   const reason = String(req.body?.reason || "").trim();
-  const senderName = String(req.body?.sender_name || "Lecturer").trim();
+  const senderName = String(req.body?.sender_name || "Manager").trim();
   const targetUserIdRaw = String(req.body?.target_user_id || "").trim();
   const targetUserId = targetUserIdRaw || null;
   const orgId = getOrgId(req);
@@ -496,6 +516,7 @@ router.post("/:id/reschedule", async (req, res) => {
         b.user_id,
         r.id AS resource_id,
         r.name AS resource_name,
+        r.metadata AS resource_metadata,
         rt.name AS type_name
       FROM bookings b
       JOIN booking_resources br ON br.booking_id = b.id
@@ -538,17 +559,16 @@ router.post("/:id/reschedule", async (req, res) => {
       return res.status(409).json({ error: "Resources conflict" });
     }
 
-    const courseResourceIds = bookingRows
-      .filter((r) => {
-        const type = String(r.type_name || "").toLowerCase();
-        return type === "courses" || type === "course";
-      })
-      .map((r) => r.resource_id);
+    const primaryRows = getPrimaryResourceRows(bookingRows);
+    const primaryResourceIds = primaryRows.map((r) => r.resource_id).filter(Boolean);
+    const metadataUserIds = primaryRows.flatMap((r) =>
+      extractUserIds(normalizeMetadata(r.resource_metadata))
+    );
 
     let targetBookings = [{ id: booking.id, user_id: booking.user_id }];
-    if (courseResourceIds.length > 0) {
+    if (primaryResourceIds.length > 0) {
       const targetParams = [
-        courseResourceIds,
+        primaryResourceIds,
         booking.date,
         booking.start_time,
         booking.end_time,
@@ -607,19 +627,12 @@ router.post("/:id/reschedule", async (req, res) => {
       await client.query(`DELETE FROM booking_locations WHERE booking_id = ANY($1)`, [targetIds]);
     }
 
-    const courseNames = bookingRows
-      .filter((r) => {
-        const type = String(r.type_name || "").toLowerCase();
-        return type === "courses" || type === "course";
-      })
-      .map((r) => r.resource_name)
-      .filter(Boolean);
-    const fallbackNames = bookingRows
-      .map((r) => r.resource_name)
-      .filter(Boolean);
-    const courseLabel = courseNames.length > 0 ? courseNames.join(" / ") : fallbackNames.join(" / ");
-    const locationLabel = location === "zoom" ? "Zoom" : "Classroom";
-    const baseMessage = `Class rescheduled: ${courseLabel} moved from ${booking.date} ${booking.start_time} - ${booking.end_time} to ${date} ${startTime} - ${endTime}.`;
+    const primaryNames = primaryRows.map((r) => r.resource_name).filter(Boolean);
+    const fallbackNames = bookingRows.map((r) => r.resource_name).filter(Boolean);
+    const resourceLabel =
+      primaryNames.length > 0 ? primaryNames.join(" / ") : fallbackNames.join(" / ");
+    const locationLabel = location === "zoom" ? "Zoom" : "On-site";
+    const baseMessage = `Booking rescheduled: ${resourceLabel} moved from ${booking.date} ${booking.start_time} - ${booking.end_time} to ${date} ${startTime} - ${endTime}.`;
     const message = reason
       ? `${baseMessage} Reason: ${reason}. Location: ${locationLabel}.`
       : `${baseMessage} Location: ${locationLabel}.`;
@@ -629,16 +642,22 @@ router.post("/:id/reschedule", async (req, res) => {
         .map((target) => String(target.user_id || ""))
         .filter(Boolean)
     );
+    for (const userId of metadataUserIds) {
+      const trimmed = String(userId || "").trim();
+      if (trimmed && trimmed !== String(booking.user_id || "").trim()) {
+        recipientSet.add(trimmed);
+      }
+    }
     if (recipientSet.size === 0 && targetUserId) {
       recipientSet.add(targetUserId);
     }
     for (const recipient of recipientSet) {
       await client.query(
         `
-        INSERT INTO announcements (title, message, course_name, sender_name, target_user_id, organization_id)
+        INSERT INTO announcements (title, message, resource_name, sender_name, target_user_id, organization_id)
         VALUES ($1, $2, $3, $4, $5, $6)
         `,
-        ["Class rescheduled", message, courseLabel || null, senderName || null, recipient, orgId]
+        ["Booking rescheduled", message, resourceLabel || null, senderName || null, recipient, orgId]
       );
     }
 

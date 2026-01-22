@@ -47,7 +47,7 @@ export default function AutoScheduler() {
   const [selection, setSelection] = useState({
     resourceIds: [],
     responsibleId: "",
-    studentIds: "",
+    userIds: "",
     weeklyHours: String(DEFAULT_WEEKLY_HOURS),
   });
   const [groups, setGroups] = useState([]);
@@ -147,14 +147,14 @@ export default function AutoScheduler() {
       group_id: buildGroupId(),
       resource_ids: selection.resourceIds,
       responsible_user_id: selection.responsibleId.trim(),
-      student_ids: parseIds(selection.studentIds),
+      user_ids: parseIds(selection.userIds),
       weekly_hours: Number(selection.weeklyHours) || DEFAULT_WEEKLY_HOURS,
     };
     setGroups((prev) => [...prev, group]);
     setSelection({
       resourceIds: [],
       responsibleId: "",
-      studentIds: "",
+      userIds: "",
       weeklyHours: String(DEFAULT_WEEKLY_HOURS),
     });
     setMessage("");
@@ -380,9 +380,9 @@ export default function AutoScheduler() {
               <label className="block text-xs font-medium mb-1">Assigned user IDs</label>
               <input
                 className="border rounded px-2 py-1 w-full"
-                value={selection.studentIds}
+                value={selection.userIds}
                 onChange={(e) =>
-                  setSelection((prev) => ({ ...prev, studentIds: e.target.value }))
+                  setSelection((prev) => ({ ...prev, userIds: e.target.value }))
                 }
                 placeholder="123, 456"
               />
@@ -441,9 +441,9 @@ export default function AutoScheduler() {
                       <label className="block text-xs font-medium mb-1">Assigned user IDs</label>
                       <input
                         className="border rounded px-2 py-1 w-full"
-                        value={group.student_ids.join(", ")}
+                        value={group.user_ids.join(", ")}
                         onChange={(e) =>
-                          updateGroup(group.group_id, { student_ids: parseIds(e.target.value) })
+                          updateGroup(group.group_id, { user_ids: parseIds(e.target.value) })
                         }
                       />
                     </div>
