@@ -40,10 +40,157 @@ function fieldLabel(value) {
   return String(value).replace(/^metadata\./, "");
 }
 
+function humanizeField(raw) {
+  if (!raw) return "";
+  const cleaned = String(raw)
+    .replace(/^resource\./, "Resource ")
+    .replace(/^resources_by_type_id\./, "")
+    .replace(/\.metadata\./g, " ")
+    .replace(/\.id$/g, " id")
+    .replace(/_/g, " ");
+  return cleaned.trim();
+}
+
+function humanizeOp(op) {
+  switch (op) {
+    case "==":
+      return "is";
+    case "!=":
+      return "is not";
+    case ">":
+      return "is greater than";
+    case ">=":
+      return "is at least";
+    case "<":
+      return "is less than";
+    case "<=":
+      return "is at most";
+    case "contains":
+      return "contains";
+    case "in":
+      return "is in";
+    case "overlap":
+      return "overlaps";
+    default:
+      return op || "";
+  }
+}
+
+function formatValue(value) {
+  if (value && typeof value === "object" && "ref" in value) {
+    return `ref:${value.ref}`;
+  }
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value);
+}
+
+function formatCondition(condition, typeNameById, resourceNameById) {
+  if (!condition || typeof condition !== "object") return "";
+  const describeField = (field) => {
+    if (!field) return "?";
+    const raw = String(field);
+    const typeMatch = raw.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
+    if (typeMatch) {
+      const typeId = Number(typeMatch[1]);
+      const typeName = typeNameById?.get?.(typeId) || `Type ${typeMatch[1]}`;
+      const rest = typeMatch[2];
+      return `${typeName} ${humanizeField(rest)}`.trim();
+    }
+    if (raw === "resource.type_id") return "Resource type";
+    if (raw === "resource.id") return "Resource";
+    return humanizeField(raw);
+  };
+  const describeValue = (value) => {
+    if (value && typeof value === "object" && "ref" in value) {
+      const ref = String(value.ref || "");
+      const typeMatch = ref.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
+      if (typeMatch) {
+        const typeId = Number(typeMatch[1]);
+        const typeName = typeNameById?.get?.(typeId) || `Type ${typeMatch[1]}`;
+        const rest = typeMatch[2];
+        return `${typeName} ${humanizeField(rest)}`.trim();
+      }
+      if (ref === "resource.type_id") return "Resource type";
+      if (ref === "resource.id") return "Resource";
+      return `ref:${ref}`;
+    }
+    return formatValue(value);
+  };
+  const replaceTypeIds = (text) => {
+    if (!text) return text;
+    return text
+      .replace(/resource\.type_id\s*([=!<>]+)\s*(\d+)/g, (m, op, id) => {
+        const name = typeNameById?.get?.(Number(id));
+        return name ? `Resource type ${humanizeOp(op)} ${name}` : m;
+      })
+      .replace(/Resource type id\s*(is|is not|is greater than|is at least|is less than|is at most)\s*(\d+)/g, (m, op, id) => {
+        const name = typeNameById?.get?.(Number(id));
+        return name ? `Resource type ${op} ${name}` : m;
+      })
+      .replace(/resource\.id\s*([=!<>]+)\s*(\d+)/g, (m, op, id) => {
+        const name = resourceNameById?.get?.(Number(id));
+        return name ? `Resource ${humanizeOp(op)} ${name}` : m;
+      })
+      .replace(/resources_by_type_id\.(\d+)/g, (m, id) => {
+        const name = typeNameById?.get?.(Number(id));
+        return name ? `${name}` : m;
+      })
+      .replace(/\b(\d+)\b(?=\s)/g, (m, id) => {
+        const name = typeNameById?.get?.(Number(id));
+        return name ? name : m;
+      });
+  };
+  if (Array.isArray(condition.all)) {
+    const text = condition.all
+      .map((c) => {
+        if (!c || typeof c !== "object") return "";
+        if ("not" in c) {
+          const inner = c.not;
+          if (!inner || typeof inner !== "object") return "NOT ?";
+          return `NOT ${describeField(inner.field)} ${humanizeOp(inner.op)} ${describeValue(inner.value)}`.trim();
+        }
+        const left = describeField(c.field);
+        const right = describeValue(c.value);
+        const op = humanizeOp(c.op);
+        return `${left} ${op} ${right}`.trim();
+      })
+      .filter(Boolean)
+      .join(" AND ");
+    return replaceTypeIds(text);
+  }
+  if (Array.isArray(condition.any)) {
+    const text = condition.any
+      .map((c) => {
+        const left = humanizeField(c.field || "?");
+        const right = formatValue(c.value);
+        const op = humanizeOp(c.op);
+        return `${left} ${op} ${right}`.trim();
+      })
+      .filter(Boolean)
+      .join(" OR ");
+    return replaceTypeIds(text);
+  }
+  if ("not" in condition) {
+    const inner = condition.not;
+    if (!inner || typeof inner !== "object") return "NOT ?";
+    return replaceTypeIds(
+      `NOT ${inner.field || "?"} ${inner.op || ""} ${formatValue(inner.value)}`.trim()
+    );
+  }
+  if ("field" in condition) {
+    return replaceTypeIds(
+      `${humanizeField(condition.field || "?")} ${humanizeOp(condition.op)} ${formatValue(condition.value)}`.trim()
+    );
+  }
+  return "";
+}
+
 export default function Rules() {
   const [rules, setRules] = useState([]);
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [detailsModal, setDetailsModal] = useState({ open: false, rule: null });
 
   const [mode, setMode] = useState("single"); // single | pair
   const [form, setForm] = useState({
@@ -92,7 +239,11 @@ export default function Rules() {
 
   const resourceNameById = useMemo(() => {
     const map = new Map();
-    for (const r of resources) map.set(String(r.id), r.name);
+    for (const r of resources) {
+      if (!r?.id || !r?.name) continue;
+      map.set(String(r.id), r.name);
+      map.set(Number(r.id), r.name);
+    }
     return map;
   }, [resources]);
 
@@ -112,6 +263,16 @@ export default function Rules() {
     () => resources.find((r) => String(r.id) === String(form.resourceAId)) ?? null,
     [resources, form.resourceAId]
   );
+
+  const typeNameById = useMemo(() => {
+    const map = new Map();
+    for (const r of resources) {
+      if (r?.type_id && r?.type_name) {
+        map.set(Number(r.type_id), r.type_name);
+      }
+    }
+    return map;
+  }, [resources]);
 
   function getTypeFieldOptions(typeId) {
     if (!typeId) return [];
@@ -282,6 +443,10 @@ export default function Rules() {
       console.error("Error updating rule:", err);
       alert("Update failed");
     }
+  }
+
+  function openDetails(rule) {
+    setDetailsModal({ open: true, rule });
   }
 
   if (loading) return <p className="text-gray-500">Loading rules...</p>;
@@ -655,6 +820,7 @@ export default function Rules() {
               <th className="p-3">ID</th>
               <th className="p-3">Name</th>
               <th className="p-3">Target</th>
+              <th className="p-3">Condition</th>
               <th className="p-3">Active</th>
               <th className="p-3">Actions</th>
             </tr>
@@ -665,8 +831,17 @@ export default function Rules() {
                 <td className="p-3">{rule.id}</td>
                 <td className="p-3 font-medium">{rule.name}</td>
                 <td className="p-3">{rule.target_type}</td>
+                <td className="p-3 text-xs text-gray-600">
+                  {formatCondition(rule.condition, typeNameById, resourceNameById) || "-"}
+                </td>
                 <td className="p-3">{rule.is_active ? "Active" : "Disabled"}</td>
                 <td className="p-3 flex gap-2">
+                  <button
+                    onClick={() => openDetails(rule)}
+                    className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    View
+                  </button>
                   <button
                     onClick={() => toggleActive(rule)}
                     className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
@@ -693,6 +868,44 @@ export default function Rules() {
           </tbody>
         </table>
       </div>
+
+      {detailsModal.open && detailsModal.rule && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-lg w-[700px] shadow-xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Rule Details</h2>
+
+            <div className="space-y-2 text-sm">
+              <div><strong>ID:</strong> {detailsModal.rule.id}</div>
+              <div><strong>Name:</strong> {detailsModal.rule.name}</div>
+              <div><strong>Description:</strong> {detailsModal.rule.description || "-"}</div>
+              <div><strong>Target:</strong> {detailsModal.rule.target_type}</div>
+              <div><strong>Active:</strong> {detailsModal.rule.is_active ? "Yes" : "No"}</div>
+              <div><strong>Hard:</strong> {detailsModal.rule.is_hard ? "Yes" : "No"}</div>
+              <div><strong>Weight:</strong> {detailsModal.rule.weight}</div>
+              <div><strong>Sort Order:</strong> {detailsModal.rule.sort_order}</div>
+            </div>
+
+            <h3 className="font-semibold mt-4 mb-2">Condition (JSON)</h3>
+            <pre className="bg-gray-100 p-3 rounded text-xs border overflow-x-auto">
+              {JSON.stringify(detailsModal.rule.condition || {}, null, 2)}
+            </pre>
+
+            <h3 className="font-semibold mt-4 mb-2">Action (JSON)</h3>
+            <pre className="bg-gray-100 p-3 rounded text-xs border overflow-x-auto">
+              {JSON.stringify(detailsModal.rule.action || {}, null, 2)}
+            </pre>
+
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => setDetailsModal({ open: false, rule: null })}
+                className="px-4 py-2 border rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
