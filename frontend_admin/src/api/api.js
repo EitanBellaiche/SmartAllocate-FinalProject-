@@ -53,7 +53,9 @@ export async function apiGet(path) {
   const data = await safeJson(res);
 
   if (!res.ok) {
-    throw new Error(data?.error || "Request failed");
+    const err = new Error(data?.error || "Request failed");
+    err.data = data;
+    throw err;
   }
 
   return data;
@@ -70,7 +72,9 @@ export async function apiPost(path, body) {
   const data = await safeJson(res);
 
   if (!res.ok) {
-    throw new Error(data?.error || "Request failed");
+    const err = new Error(data?.error || "Request failed");
+    err.data = data;
+    throw err;
   }
 
   return data;
@@ -87,7 +91,9 @@ export async function apiPut(path, body) {
   const data = await safeJson(res);
 
   if (!res.ok) {
-    throw new Error(data?.error || "Request failed");
+    const err = new Error(data?.error || "Request failed");
+    err.data = data;
+    throw err;
   }
 
   return data;
@@ -102,7 +108,9 @@ export async function apiDelete(path) {
   const data = await safeJson(res);
 
   if (!res.ok) {
-    throw new Error(data?.error || "Delete failed");
+    const err = new Error(data?.error || "Delete failed");
+    err.data = data;
+    throw err;
   }
 
   return data;

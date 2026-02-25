@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgLabels } from "../orgConfig";
 
@@ -11,7 +11,6 @@ export default function Booking() {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
-  const [roles, setRoles] = useState({});
 
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -40,6 +39,17 @@ export default function Booking() {
     { label: "Fri", value: 5 },
     { label: "Sat", value: 6 },
   ];
+  const timeOptions = useMemo(() => {
+    const options = [];
+    for (let h = 0; h < 24; h += 1) {
+      for (let m = 0; m < 60; m += 5) {
+        const hh = String(h).padStart(2, "0");
+        const mm = String(m).padStart(2, "0");
+        options.push(`${hh}:${mm}`);
+      }
+    }
+    return options;
+  }, []);
 
   useEffect(() => {
     loadResources();
@@ -87,20 +97,9 @@ export default function Booking() {
   function toggleResource(id) {
     if (selectedResources.includes(id)) {
       setSelectedResources(selectedResources.filter(r => r !== id));
-
-      const updated = { ...roles };
-      delete updated[id];
-      setRoles(updated);
     } else {
       setSelectedResources([...selectedResources, id]);
     }
-  }
-
-  function updateRole(id, value) {
-    setRoles(prev => ({
-      ...prev,
-      [id]: value
-    }));
   }
 
   function toggleWeekday(dayValue) {
@@ -118,6 +117,20 @@ export default function Booking() {
       .map((val) => val.trim())
       .filter(Boolean);
     return Array.from(new Set(items));
+  }
+
+  function normalizeTo5Minutes(value) {
+    if (!value || typeof value !== "string") return value;
+    const parts = value.split(":");
+    if (parts.length !== 2) return value;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return value;
+    const total = h * 60 + m;
+    const rounded = Math.round(total / 5) * 5;
+    const nextH = Math.floor(rounded / 60) % 24;
+    const nextM = rounded % 60;
+    return `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
   }
 
   async function updateResourceAssignments(responsibleId, userIds) {
@@ -147,6 +160,10 @@ export default function Booking() {
       setMessage("❗ Please select time and at least one resource.");
       return;
     }
+    if (normalizeTo5Minutes(startTime) !== startTime || normalizeTo5Minutes(endTime) !== endTime) {
+      setMessage("❗ Times must be in 5-minute increments.");
+      return;
+    }
     if (startTime >= endTime) {
       setMessage("❗ End time must be after start time.");
       return;
@@ -171,7 +188,6 @@ export default function Booking() {
     try {
       const basePayload = {
         resources: selectedResources,
-        roles,
         start_time: startTime,
         end_time: endTime,
       };
@@ -214,16 +230,28 @@ export default function Booking() {
         );
         const failures = results.filter((r) => r.status === "rejected");
         if (failures.length > 0) {
-          throw new Error(
-            `Created ${results.length - failures.length} bookings; ${failures.length} failed.`
-          );
+          const violations = failures
+            .map((f) => f?.reason?.data?.violations || [])
+            .flat();
+          if (violations.length > 0) {
+            const names = violations
+              .map((v) => v?.name)
+              .filter(Boolean)
+              .join(", ");
+            setMessage(`❌ Rule blocked: ${names || "Unknown rule"}`);
+          } else {
+            setMessage(
+              `❌ Created ${results.length - failures.length} bookings; ${failures.length} failed.`
+            );
+          }
+          setSubmitting(false);
+          return;
         }
       }
 
       setMessage("✔ Booking created successfully!");
 
       setSelectedResources([]);
-      setRoles({});
       setDate("");
       setStartTime("");
       setEndTime("");
@@ -238,7 +266,18 @@ export default function Booking() {
       setWeekdays([]);
 
     } catch (err) {
-      setMessage(`❌ ${err?.message || "Failed to create booking."}`);
+      const violations = Array.isArray(err?.data?.violations)
+        ? err.data.violations
+        : [];
+      if (violations.length > 0) {
+        const names = violations
+          .map((v) => v?.name)
+          .filter(Boolean)
+          .join(", ");
+        setMessage(`❌ Rule blocked: ${names || "Unknown rule"}`);
+      } else {
+        setMessage(`❌ ${err?.message || "Failed to create booking."}`);
+      }
       console.error(err);
     }
 
@@ -327,21 +366,29 @@ export default function Booking() {
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block font-semibold mb-1">Start Time</label>
-          <input
-            type="time"
+          <select
             className="border px-3 py-2 rounded w-full"
             value={startTime}
             onChange={e => setStartTime(e.target.value)}
-          />
+          >
+            <option value="">Select time</option>
+            {timeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block font-semibold mb-1">End Time</label>
-          <input
-            type="time"
+          <select
             className="border px-3 py-2 rounded w-full"
             value={endTime}
             onChange={e => setEndTime(e.target.value)}
-          />
+          >
+            <option value="">Select time</option>
+            {timeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -424,38 +471,16 @@ export default function Booking() {
         <label className="block font-semibold mb-2">Select Resources</label>
 
         <div className="max-h-64 overflow-y-auto border rounded p-3">
-          {resources.map((r) => {
-            const type = resourceTypes.find((t) => t.id === r.type_id);
-            const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
-            return (
-              <div key={r.id} className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedResources.includes(r.id)}
-                    onChange={() => toggleResource(r.id)}
-                  />
-                  <span>{r.name}</span>
-                </div>
-
-                {/* ROLE SELECTOR */}
-                {selectedResources.includes(r.id) && typeRoles.length > 0 && (
-                  <select
-                    className="border rounded px-2 py-1"
-                    value={roles[r.id] || ""}
-                    onChange={e => updateRole(r.id, e.target.value)}
-                  >
-                    <option value="">Role (optional)</option>
-                    {typeRoles.map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            );
-          })}
+          {resources.map((r) => (
+            <div key={r.id} className="flex items-center gap-2 mb-2">
+              <input
+                type="checkbox"
+                checked={selectedResources.includes(r.id)}
+                onChange={() => toggleResource(r.id)}
+              />
+              <span>{r.name}</span>
+            </div>
+          ))}
         </div>
       </div>
 

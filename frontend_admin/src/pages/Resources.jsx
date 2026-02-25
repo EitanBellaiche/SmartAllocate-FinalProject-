@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, apiDelete } from "../api/api";
+import { apiGet, apiPost, apiPut, apiDelete } from "../api/api";
 
 export default function Resources() {
   const [resources, setResources] = useState([]);
@@ -16,11 +16,21 @@ export default function Resources() {
     metadata: {},
   });
 
-  // View Details Modal
-  const [detailsModal, setDetailsModal] = useState({
-    open: false,
-    item: null,
-  });
+  // View Details Modal
+  const [detailsModal, setDetailsModal] = useState({
+    open: false,
+    item: null,
+  });
+
+  // Edit Resource Modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editSelectedType, setEditSelectedType] = useState(null);
+  const [editForm, setEditForm] = useState({
+    id: null,
+    name: "",
+    type_id: "",
+    metadata: {},
+  });
 
   useEffect(() => {
     loadData();
@@ -45,9 +55,9 @@ export default function Resources() {
   // ADD RESOURCE
   // ---------------------------
 
-  function handleSelectType(typeId) {
-  const type = types.find((t) => t.id === Number(typeId));
-  setSelectedType(type);
+function handleSelectType(typeId) {
+  const type = types.find((t) => t.id === Number(typeId));
+  setSelectedType(type);
 
   if (!type || !Array.isArray(type.fields)) {
     setForm({
@@ -71,29 +81,92 @@ export default function Resources() {
   });
 }
 
+  function handleEditSelectType(typeId) {
+    const type = types.find((t) => t.id === Number(typeId));
+    setEditSelectedType(type);
 
-  function handleMetadataChange(field, value) {
-    setForm((prev) => ({
-      ...prev,
-      metadata: { ...prev.metadata, [field]: value },
-    }));
-  }
+    if (!type || !Array.isArray(type.fields)) {
+      setEditForm((prev) => ({
+        ...prev,
+        type_id: typeId,
+        metadata: {},
+      }));
+      return;
+    }
 
-  async function saveResource() {
-    try {
-      await apiPost("/resources", form);
+    const meta = {};
+    type.fields.forEach((f) => {
+      const existing = editForm.metadata?.[f.name];
+      meta[f.name] = existing !== undefined ? existing : (f.default || (f.type === "boolean" ? false : ""));
+    });
+
+    setEditForm((prev) => ({
+      ...prev,
+      type_id: typeId,
+      metadata: meta,
+    }));
+  }
+
+
+  function handleMetadataChange(field, value) {
+    setForm((prev) => ({
+      ...prev,
+      metadata: { ...prev.metadata, [field]: value },
+    }));
+  }
+
+  function handleEditMetadataChange(field, value) {
+    setEditForm((prev) => ({
+      ...prev,
+      metadata: { ...prev.metadata, [field]: value },
+    }));
+  }
+
+  async function saveResource() {
+    try {
+      await apiPost("/resources", form);
       setShowAdd(false);
       setSelectedType(null);
       setForm({ name: "", type_id: "", metadata: {} });
       loadData();
     } catch (err) {
       console.error("Error creating resource:", err);
-    }
-  }
+    }
+  }
 
-  // ---------------------------
-  // DELETE RESOURCE
-  // ---------------------------
+  function openEdit(resource) {
+    const type = types.find((t) => t.id === Number(resource.type_id));
+    setEditSelectedType(type || null);
+    setEditForm({
+      id: resource.id,
+      name: resource.name || "",
+      type_id: resource.type_id || "",
+      metadata: resource.metadata || {},
+    });
+    setShowEdit(true);
+  }
+
+  async function saveEdit() {
+    try {
+      if (!editForm.id) return;
+      const payload = {
+        name: editForm.name,
+        type_id: editForm.type_id,
+        metadata: editForm.metadata,
+      };
+      await apiPut(`/resources/${editForm.id}`, payload);
+      setShowEdit(false);
+      setEditSelectedType(null);
+      setEditForm({ id: null, name: "", type_id: "", metadata: {} });
+      loadData();
+    } catch (err) {
+      console.error("Error updating resource:", err);
+    }
+  }
+
+  // ---------------------------
+  // DELETE RESOURCE
+  // ---------------------------
   async function deleteResource(id) {
     if (!confirm("Are you sure you want to delete this resource?")) return;
 
@@ -145,21 +218,28 @@ export default function Resources() {
                 <td className="p-3 font-medium">{r.name}</td>
                 <td className="p-3">{r.type_name}</td>
 
-                <td className="p-3 flex gap-2">
-                  <button
-                    onClick={() =>
-                      setDetailsModal({ open: true, item: r })
-                    }
-                    className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                  >
-                    View
-                  </button>
+                <td className="p-3 flex gap-2">
+                  <button
+                    onClick={() =>
+                      setDetailsModal({ open: true, item: r })
+                    }
+                    className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    View
+                  </button>
 
-                  <button
-                    onClick={() => deleteResource(r.id)}
-                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
-                  >
-                    Delete
+                  <button
+                    onClick={() => openEdit(r)}
+                    className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() => deleteResource(r.id)}
+                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    Delete
                   </button>
                 </td>
               </tr>
@@ -168,101 +248,183 @@ export default function Resources() {
         </table>
       </div>
 
-      {/* ------------------------------------------------ */}
-      {/* ADD RESOURCE MODAL */}
-      {/* ------------------------------------------------ */}
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
-            <h2 className="text-xl font-bold mb-4">Add Resource</h2>
+      {/* ------------------------------------------------ */}
+      {/* ADD RESOURCE MODAL */}
+      {/* ------------------------------------------------ */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Add Resource</h2>
 
-            {/* SELECT TYPE */}
-            <label className="block mb-2 font-medium">Select Type</label>
-            <select
-              className="w-full p-2 border rounded mb-4"
-              value={form.type_id}
-              onChange={(e) => handleSelectType(e.target.value)}
-            >
-              <option value="">-- Select Type --</option>
-              {types.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <label className="block mb-2 font-medium">Select Type</label>
+            <select
+              className="w-full p-2 border rounded mb-4"
+              value={form.type_id}
+              onChange={(e) => handleSelectType(e.target.value)}
+            >
+              <option value="">-- Select Type --</option>
+              {types.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
 
-            {/* NAME */}
-            <input
-              type="text"
-              placeholder="Resource name"
-              className="w-full p-2 border rounded mb-4"
-              value={form.name}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, name: e.target.value }))
-              }
-            />
+            <input
+              type="text"
+              placeholder="Resource name"
+              className="w-full p-2 border rounded mb-4"
+              value={form.name}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, name: e.target.value }))
+              }
+            />
 
-            {/* DYNAMIC FIELDS */}
-            {selectedType && selectedType.fields && Array.isArray(selectedType.fields) && ( // <-- התיקון כאן!
-              <>
-                <h3 className="font-semibold mb-2">Resource Fields</h3>
+            {selectedType && selectedType.fields && Array.isArray(selectedType.fields) && (
+              <>
+                <h3 className="font-semibold mb-2">Resource Fields</h3>
+                {selectedType.fields.map((field, i) => (
+                  <div key={i} className="mb-3">
+                    <label className="block text-sm font-medium mb-1">
+                      {field.name} ({field.type})
+                    </label>
 
-                {selectedType.fields.map((field, i) => (
-                  <div key={i} className="mb-3">
-                    <label className="block text-sm font-medium mb-1">
-                      {field.name} ({field.type})
-                    </label>
+                    {field.type === "boolean" ? (
+                      <input
+                        type="checkbox"
+                        checked={form.metadata[field.name] || false}
+                        onChange={(e) =>
+                          handleMetadataChange(field.name, e.target.checked)
+                        }
+                      />
+                    ) : (
+                      <input
+                        type={field.type === "number" ? "number" : "text"}
+                        className="w-full p-2 border rounded"
+                        value={form.metadata[field.name]}
+                        onChange={(e) =>
+                          handleMetadataChange(field.name, e.target.value)
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
 
-                    {field.type === "boolean" ? (
-                      <input
-                        type="checkbox"
-                        checked={form.metadata[field.name] || false}
-                        onChange={(e) =>
-                          handleMetadataChange(field.name, e.target.checked)
-                        }
-                      />
-                    ) : (
-                      <input
-                        type={field.type === "number" ? "number" : "text"}
-                        className="w-full p-2 border rounded"
-                        value={form.metadata[field.name]}
-                        onChange={(e) =>
-                          handleMetadataChange(field.name, e.target.value)
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
-              </>
-            )}
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowAdd(false);
+                  setSelectedType(null);
+                }}
+                className="px-4 py-2 border rounded"
+              >
+                Cancel
+              </button>
 
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => {
-                  setShowAdd(false);
-                  setSelectedType(null);
-                }}
-                className="px-4 py-2 border rounded"
-              >
-                Cancel
-              </button>
+              <button
+                onClick={saveResource}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Save Resource
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              <button
-                onClick={saveResource}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Save Resource
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ------------------------------------------------ */}
+      {/* EDIT RESOURCE MODAL */}
+      {/* ------------------------------------------------ */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Edit Resource</h2>
 
-      {/* ------------------------------------------------ */}
-      {/* VIEW DETAILS MODAL */}
-      {/* ------------------------------------------------ */}
+            <label className="block mb-2 font-medium">Select Type</label>
+            <select
+              className="w-full p-2 border rounded mb-4"
+              value={editForm.type_id}
+              onChange={(e) => handleEditSelectType(e.target.value)}
+            >
+              <option value="">-- Select Type --</option>
+              {types.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="text"
+              placeholder="Resource name"
+              className="w-full p-2 border rounded mb-4"
+              value={editForm.name}
+              onChange={(e) =>
+                setEditForm((prev) => ({ ...prev, name: e.target.value }))
+              }
+            />
+
+            {editSelectedType && editSelectedType.fields && Array.isArray(editSelectedType.fields) && (
+              <>
+                <h3 className="font-semibold mb-2">Resource Fields</h3>
+                {editSelectedType.fields.map((field, i) => (
+                  <div key={i} className="mb-3">
+                    <label className="block text-sm font-medium mb-1">
+                      {field.name} ({field.type})
+                    </label>
+
+                    {field.type === "boolean" ? (
+                      <input
+                        type="checkbox"
+                        checked={editForm.metadata[field.name] || false}
+                        onChange={(e) =>
+                          handleEditMetadataChange(field.name, e.target.checked)
+                        }
+                      />
+                    ) : (
+                      <input
+                        type={field.type === "number" ? "number" : "text"}
+                        className="w-full p-2 border rounded"
+                        value={editForm.metadata[field.name] ?? ""}
+                        onChange={(e) =>
+                          handleEditMetadataChange(field.name, e.target.value)
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
+              </>
+            )}
+
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowEdit(false);
+                  setEditSelectedType(null);
+                }}
+                className="px-4 py-2 border rounded"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={saveEdit}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------ */}
+      {/* VIEW DETAILS MODAL */}
+      {/* ------------------------------------------------ */}
       {detailsModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
           <div className="bg-white p-6 rounded-lg w-[500px] shadow-xl">
             <h2 className="text-xl font-bold mb-4">
               Resource Details – {detailsModal.item.name}

@@ -41,6 +41,31 @@ function formatTime(t) {
   return t ? t.slice(0, 5) : "";
 }
 
+function extractAssignedUserIds(meta) {
+  if (!meta || typeof meta !== "object") return [];
+  const raw = meta.user_ids ?? meta.userIds ?? meta.users;
+  if (Array.isArray(raw)) {
+    return raw.map((v) => String(v).trim()).filter(Boolean);
+  }
+  if (typeof raw === "string") {
+    return raw.split(/[\s,]+/).map((v) => String(v).trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function isResourceAssignedToUser(resource, userId) {
+  if (!resource || !userId) return false;
+  const meta = resource.metadata || {};
+  const list = extractAssignedUserIds(meta);
+  if (list.includes(String(userId))) return true;
+  const responsible =
+    meta.responsible_user_id ||
+    meta.responsibleUserId ||
+    meta.responsible_id ||
+    meta.responsibleId;
+  return String(responsible || "").trim() === String(userId).trim();
+}
+
 function isPastBooking(booking) {
   if (!booking?.date || !booking?.start_time) return false;
   return new Date(`${booking.date}T${booking.start_time}`) < new Date();
@@ -103,28 +128,9 @@ function normalizeMetadata(raw) {
   }
 }
 
-function extractUserIds(meta) {
-  if (!meta || typeof meta !== "object") return [];
-  const candidates = [
-    meta.user_ids,
-    meta.userIds,
-    meta.users,
-  ];
-  const list = [];
-  for (const value of candidates) {
-    if (!value) continue;
-    if (Array.isArray(value)) {
-      list.push(...value);
-    } else if (typeof value === "string") {
-      list.push(...value.split(/[\s,]+/));
-    }
-  }
-  return list.map((v) => String(v).trim()).filter(Boolean);
-}
-
 function hasAssignedUsers(resource) {
   const meta = normalizeMetadata(resource?.metadata);
-  if (extractUserIds(meta).length > 0) return true;
+  if (extractAssignedUserIds(meta).length > 0) return true;
   const responsible =
     meta.responsible_user_id ||
     meta.responsibleUserId ||
@@ -530,7 +536,8 @@ export default function App() {
 
     async function refreshUserData() {
       try {
-        const tasks = [getBookingsByUser(currentUserId.trim())];
+        const userId = currentUserId.trim();
+        const tasks = [getBookingsByUser(userId), getAllResources()];
         if (role === "manager") {
           tasks.push(getResourceRequests());
         } else {
@@ -539,10 +546,33 @@ export default function App() {
         if (role === "user") {
           tasks.push(getAnnouncements({ userId: currentUserId.trim() }));
         }
-        const [bookingsData, requestsData, announcementsData] =
+        const [bookingsData, allResources, requestsData, announcementsData] =
           await Promise.all(tasks);
         if (!active) return;
-        setBookings(Array.isArray(bookingsData) ? bookingsData : []);
+        const baseBookings = Array.isArray(bookingsData) ? bookingsData : [];
+        const resourcesList = Array.isArray(allResources) ? allResources : [];
+        const assignedResources = resourcesList.filter((r) =>
+          isResourceAssignedToUser(r, userId)
+        );
+        let mergedBookings = baseBookings;
+        if (assignedResources.length > 0) {
+          const extra = await Promise.all(
+            assignedResources.map((r) => getBookingsByResource(r.id).catch(() => []))
+          );
+          const all = new Map();
+          for (const b of baseBookings) {
+            if (b?.id != null) all.set(String(b.id), b);
+          }
+          for (const list of extra) {
+            for (const b of list || []) {
+              if (b?.id != null && !all.has(String(b.id))) {
+                all.set(String(b.id), b);
+              }
+            }
+          }
+          mergedBookings = Array.from(all.values());
+        }
+        setBookings(mergedBookings);
         setUserRequests(Array.isArray(requestsData) ? requestsData : []);
         if (role === "user") {
           setAnnouncements(
