@@ -12,6 +12,8 @@ import announcementsRoutes from "./routes/announcements.js";
 import usersRoutes from "./routes/users.js";
 import userAvailabilityRoutes from "./routes/userAvailability.js";
 import autoScheduleRoutes from "./routes/autoSchedule.js";
+import schemaRoutes from "./routes/schema.js";
+import ruleWizardRoutes from "./routes/ruleWizard.js";
 
 dotenv.config();
 
@@ -34,11 +36,13 @@ app.use("/api/resources", resourcesRoutes);
 app.use("/api/bookings", bookingsRoutes);
 app.use("/api/availability", availabilityRoutes);
 app.use("/api/rules", rulesRoutes);           
+app.use("/api/rules", ruleWizardRoutes);
 app.use("/api/resource-requests", resourceRequestsRoutes);
 app.use("/api/announcements", announcementsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/user-availability", userAvailabilityRoutes);
 app.use("/api/auto-schedule", autoScheduleRoutes);
+app.use("/api/schema", schemaRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

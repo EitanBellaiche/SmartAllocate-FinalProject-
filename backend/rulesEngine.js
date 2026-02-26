@@ -101,6 +101,7 @@ function getActionEffect(rule) {
 
 function getScoreDelta(rule) {
   if (rule?.action?.effect !== "score") return 0;
+  if (Number.isFinite(Number(rule?.action?.value))) return Number(rule.action.value);
   if (Number.isFinite(Number(rule?.action?.delta))) return Number(rule.action.delta);
   if (Number.isFinite(Number(rule?.weight))) return Number(rule.weight);
   return 0;
