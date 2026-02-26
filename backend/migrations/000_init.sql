@@ -137,3 +137,4 @@ CREATE TABLE IF NOT EXISTS user_availability (
 );
 
 COMMIT;
+-- test-oranit
