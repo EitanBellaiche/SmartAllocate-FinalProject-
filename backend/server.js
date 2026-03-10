@@ -1,6 +1,5 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 
 import resourceTypesRoutes from "./routes/resourceTypes.js";
 import resourcesRoutes from "./routes/resources.js";
@@ -14,14 +13,26 @@ import userAvailabilityRoutes from "./routes/userAvailability.js";
 import autoScheduleRoutes from "./routes/autoSchedule.js";
 import schemaRoutes from "./routes/schema.js";
 import ruleWizardRoutes from "./routes/ruleWizard.js";
-
-dotenv.config();
+import { env, getAllowedOrigins } from "./config/env.js";
 
 console.log("➡ server.js LOADED");
 console.log("➡ SERVER BASE PATH:", process.cwd());
 
 const app = express();
-app.use(cors());
+const allowedOrigins = getAllowedOrigins();
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // GLOBAL LOGGER — כל בקשה שנכנסת
@@ -44,7 +55,7 @@ app.use("/api/user-availability", userAvailabilityRoutes);
 app.use("/api/auto-schedule", autoScheduleRoutes);
 app.use("/api/schema", schemaRoutes);
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 SmartAllocate backend running on port ${PORT}`);
+app.listen(env.port, () => {
+  console.log(`🚀 SmartAllocate backend running on port ${env.port}`);
+  console.log("🌐 Allowed CORS origins:", allowedOrigins.join(", "));
 });
