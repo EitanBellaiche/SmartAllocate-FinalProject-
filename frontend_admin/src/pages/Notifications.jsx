@@ -1,48 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../api/api";
 import { getOrgLabels } from "../orgConfig";
+import {
+  formatIsraelDate as formatDate,
+  formatIsraelDateTime as formatDateTime,
+  formatIsraelTime,
+} from "../utils/datetime";
 
 const FILTERS = ["pending", "all"];
 
-function parseDateOnly(value) {
-  if (!value) return null;
-  const text = String(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
-    const [y, m, d] = text.split("-").map(Number);
-    return new Date(y, m - 1, d);
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return parsed;
-  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-}
-
-function formatDateTime(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDate(value) {
-  if (!value) return "-";
-  const d = parseDateOnly(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function formatTimeRange(start, end) {
   if (!start || !end) return "-";
-  return `${String(start).slice(0, 5)} - ${String(end).slice(0, 5)}`;
+  return `${formatIsraelTime(start)} - ${formatIsraelTime(end)}`;
 }
 
 function StatusPill({ status }) {

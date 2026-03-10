@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../api/api";
+import { formatIsraelDate, getIsraelDateValue } from "../utils/datetime";
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -36,8 +37,7 @@ export default function Dashboard() {
           apiGet("/resource-types"),
         ]);
 
-        // היום בפורמט YYYY-MM-DD
-        const today = new Date().toISOString().split("T")[0];
+        const today = getIsraelDateValue();
 
         // ממיינים הזמנות לפי היום
         const bookingsToday = bookings.filter(
@@ -169,7 +169,7 @@ export default function Dashboard() {
 
   function formatDate(date) {
     if (!date) return "—";
-    return String(date).split("T")[0];
+    return formatIsraelDate(date);
   }
 
   async function openView(resource) {
@@ -509,4 +509,3 @@ function StatCard({ title, value }) {
     </div>
   );
 }
-

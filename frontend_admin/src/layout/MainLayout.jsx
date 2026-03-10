@@ -34,7 +34,6 @@ export default function MainLayout() {
           <NavItem to="/bookings">Bookings</NavItem>
           <NavItem to="/user-bookings">User Bookings</NavItem>
           <NavItem to="/requests">Requests</NavItem>
-          <NavItem to="/auto-scheduler">Auto Scheduler</NavItem>
 
           {/* ⭐ הוספת דף החוקים */}
           <NavItem to="/rules">Rules</NavItem>

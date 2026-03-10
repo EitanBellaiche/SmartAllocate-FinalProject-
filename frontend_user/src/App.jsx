@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
+import IsraelDateInput from "./IsraelDateInput";
 import {
   getBookingsByUser,
   getAllResources,
@@ -29,16 +30,22 @@ function formatDate(dateStr) {
   if (!dateStr) return "";
   const d = parseDateValue(dateStr);
   if (!d || Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString("he-IL", {
+    timeZone: "Asia/Jerusalem",
     weekday: "short",
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
   });
 }
 
 function formatTime(t) {
   return t ? t.slice(0, 5) : "";
+}
+
+function weekdayLabel(dayValue) {
+  const labels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return labels[Number(dayValue)] || `Day ${dayValue}`;
 }
 
 function extractAssignedUserIds(meta) {
@@ -288,7 +295,7 @@ export default function App() {
   const [rescheduleLocation, setRescheduleLocation] = useState("onsite");
   const [userAvailability, setUserAvailability] = useState([]);
   const [availabilityForm, setAvailabilityForm] = useState({
-    day_of_week: "1",
+    day_of_week: ["1"],
     start_time: "09:00",
     end_time: "12:00",
     start_date: "",
@@ -427,13 +434,15 @@ export default function App() {
     [availabilityMonthDate, availabilityBookings]
   );
 
-  const monthLabel = monthDate.toLocaleDateString("en-GB", {
+  const monthLabel = monthDate.toLocaleDateString("he-IL", {
+    timeZone: "Asia/Jerusalem",
     month: "long",
     year: "numeric",
   });
   const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
-    "en-GB",
+    "he-IL",
     {
+      timeZone: "Asia/Jerusalem",
       month: "long",
       year: "numeric",
     }
@@ -2291,32 +2300,46 @@ export default function App() {
             >
               <div style={{ fontWeight: 700 }}>Add availability</div>
               <label style={{ fontSize: 12, color: "#475569" }}>
-                Day of week
-                <select
-                  value={availabilityForm.day_of_week}
-                  onChange={(e) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      day_of_week: e.target.value,
-                    }))
-                  }
+                Days of week
+                <div
                   style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 8,
+                    marginTop: 8,
                   }}
                 >
-                  <option value="0">Sunday</option>
-                  <option value="1">Monday</option>
-                  <option value="2">Tuesday</option>
-                  <option value="3">Wednesday</option>
-                  <option value="4">Thursday</option>
-                  <option value="5">Friday</option>
-                  <option value="6">Saturday</option>
-                </select>
+                  {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                    <label
+                      key={day}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #e2e8f0",
+                        background: "#fff",
+                        color: "#0f172a",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={availabilityForm.day_of_week.includes(String(day))}
+                        onChange={() =>
+                          setAvailabilityForm((prev) => {
+                            const exists = prev.day_of_week.includes(String(day));
+                            const nextDays = exists
+                              ? prev.day_of_week.filter((value) => value !== String(day))
+                              : [...prev.day_of_week, String(day)];
+                            return { ...prev, day_of_week: nextDays };
+                          })
+                        }
+                      />
+                      <span>{weekdayLabel(day)}</span>
+                    </label>
+                  ))}
+                </div>
               </label>
               <label style={{ fontSize: 12, color: "#475569" }}>
                 Start time
@@ -2360,13 +2383,12 @@ export default function App() {
               </label>
               <label style={{ fontSize: 12, color: "#475569" }}>
                 Start date (optional)
-                <input
-                  type="date"
+                <IsraelDateInput
                   value={availabilityForm.start_date}
-                  onChange={(e) =>
+                  onChange={(nextDate) =>
                     setAvailabilityForm((prev) => ({
                       ...prev,
-                      start_date: e.target.value,
+                      start_date: nextDate,
                     }))
                   }
                   style={{
@@ -2380,13 +2402,12 @@ export default function App() {
               </label>
               <label style={{ fontSize: 12, color: "#475569" }}>
                 End date (optional)
-                <input
-                  type="date"
+                <IsraelDateInput
                   value={availabilityForm.end_date}
-                  onChange={(e) =>
+                  onChange={(nextDate) =>
                     setAvailabilityForm((prev) => ({
                       ...prev,
-                      end_date: e.target.value,
+                      end_date: nextDate,
                     }))
                   }
                   style={{
@@ -2404,19 +2425,26 @@ export default function App() {
                 onClick={async () => {
                   const userId = currentUserId.trim();
                   if (!userId) return;
+                  if (!availabilityForm.day_of_week.length) {
+                    setAvailabilityMessage("Choose at least one day.");
+                    return;
+                  }
                   setAvailabilitySaving(true);
                   setAvailabilityMessage("");
                   try {
-                    const payload = {
-                      user_id: userId,
-                      day_of_week: Number(availabilityForm.day_of_week),
-                      start_time: availabilityForm.start_time,
-                      end_time: availabilityForm.end_time,
-                      start_date: availabilityForm.start_date || null,
-                      end_date: availabilityForm.end_date || null,
-                    };
-                    const created = await createUserAvailability(payload);
-                    setUserAvailability((prev) => [...prev, created]);
+                    const created = await Promise.all(
+                      availabilityForm.day_of_week.map((day) =>
+                        createUserAvailability({
+                          user_id: userId,
+                          day_of_week: Number(day),
+                          start_time: availabilityForm.start_time,
+                          end_time: availabilityForm.end_time,
+                          start_date: availabilityForm.start_date || null,
+                          end_date: availabilityForm.end_date || null,
+                        })
+                      )
+                    );
+                    setUserAvailability((prev) => [...prev, ...created]);
                     setAvailabilityMessage("Availability saved.");
                   } catch (err) {
                     setAvailabilityMessage(err?.message || "Failed to save availability.");
@@ -2454,14 +2482,14 @@ export default function App() {
                       style={{ padding: 12, borderRadius: 12 }}
                     >
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                        Day {slot.day_of_week}
+                        {weekdayLabel(slot.day_of_week)}
                       </div>
                       <div style={{ color: "#475569", fontSize: 13 }}>
                         {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
                       </div>
                       {(slot.start_date || slot.end_date) && (
                         <div style={{ color: "#94a3b8", fontSize: 12 }}>
-                          {slot.start_date || "Any"} → {slot.end_date || "Any"}
+                          {slot.start_date ? formatDate(slot.start_date) : "כל תאריך"} → {slot.end_date ? formatDate(slot.end_date) : "כל תאריך"}
                         </div>
                       )}
                       <button
@@ -3088,10 +3116,9 @@ export default function App() {
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ fontSize: 12, color: "#475569" }}>
                     New date
-                    <input
-                      type="date"
+                    <IsraelDateInput
                       value={rescheduleDate}
-                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      onChange={setRescheduleDate}
                       style={{
                         width: "100%",
                         marginTop: 6,

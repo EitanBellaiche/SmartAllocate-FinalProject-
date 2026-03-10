@@ -10,7 +10,6 @@ import ResourceTypes from "./ResourceTypes";
 import Availability from "./Availability";
 import Rules from "./Rules";  
 import ResourceRequests from "./ResourceRequests";
-import AutoScheduler from "./AutoScheduler";
 import UserBookings from "./UserBookings";
 
 const DEFAULT_USER_URL = "http://localhost:4173";
@@ -86,7 +85,6 @@ export default function App() {
           <Route path="availability" element={<Availability />} />
           <Route path="rules" element={<Rules />} />  { }
           <Route path="requests" element={<ResourceRequests />} />
-          <Route path="auto-scheduler" element={<AutoScheduler />} />
           <Route path="user-bookings" element={<UserBookings />} />
         </Route>
       </Routes>

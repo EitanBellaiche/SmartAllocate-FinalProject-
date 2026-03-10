@@ -3,27 +3,29 @@ import { apiDelete, apiGet, apiPut } from "../api/api";
 import { Calendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
+import IsraelDateInput from "../components/IsraelDateInput";
 
 const localizer = momentLocalizer(moment);
+
+const EMPTY_EDIT_MODAL = {
+  open: false,
+  bookingId: null,
+  date: "",
+  start_time: "",
+  end_time: "",
+  user_id: "",
+  selectedResources: [],
+  roles: {},
+};
 
 export default function Availability() {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
   const [events, setEvents] = useState([]);
   const [bookings, setBookings] = useState([]);
-
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedResource, setSelectedResource] = useState("");
-  const [editModal, setEditModal] = useState({
-    open: false,
-    bookingId: null,
-    date: "",
-    start_time: "",
-    end_time: "",
-    user_id: "",
-    selectedResources: [],
-    roles: {},
-  });
+  const [editModal, setEditModal] = useState(EMPTY_EDIT_MODAL);
   const [modalMessage, setModalMessage] = useState("");
 
   useEffect(() => {
@@ -49,67 +51,44 @@ export default function Availability() {
     buildCalendarEvents(list);
   }
 
-  /* ----------------------------------
-     Create events for the calendar
-  ------------------------------------- */
   function buildCalendarEvents(list) {
-    const ev = [];
-    list.forEach((b) => {
-      const dateStr = moment(b.date).format("YYYY-MM-DD");
-      const start = moment(`${dateStr} ${b.start_time}`).toDate();
-      const end = moment(`${dateStr} ${b.end_time}`).toDate();
-      const resourcesList = Array.isArray(b.resources) ? b.resources : [];
+    const nextEvents = [];
+    list.forEach((booking) => {
+      const dateStr = moment(booking.date).format("YYYY-MM-DD");
+      const start = moment(`${dateStr} ${booking.start_time}`).toDate();
+      const end = moment(`${dateStr} ${booking.end_time}`).toDate();
+      const resourcesList = Array.isArray(booking.resources) ? booking.resources : [];
       const filteredResources = selectedResource
-        ? resourcesList.filter((r) => String(r.id) === String(selectedResource))
+        ? resourcesList.filter((resource) => String(resource.id) === String(selectedResource))
         : resourcesList;
       if (selectedResource && filteredResources.length === 0) return;
       const resourceNames =
         filteredResources.length > 0
-          ? filteredResources.map((r) => r.name).join(" / ")
+          ? filteredResources.map((resource) => resource.name).join(" / ")
           : "Resources";
 
-      ev.push({
-        id: `booking-${b.id}`,
-        booking_id: b.id,
+      nextEvents.push({
+        id: `booking-${booking.id}`,
+        booking_id: booking.id,
         resource_id: selectedResource || null,
-        title: `${resourceNames} (Booking #${b.id})`,
+        title: `${resourceNames} (Booking #${booking.id})`,
         start,
         end,
         allDay: false,
       });
     });
 
-    setEvents(ev);
-  }
-
-  function toggleResource(id) {
-    setEditModal((prev) => {
-      const selected = prev.selectedResources.includes(id);
-      const nextResources = selected
-        ? prev.selectedResources.filter((r) => r !== id)
-        : [...prev.selectedResources, id];
-
-      const nextRoles = { ...prev.roles };
-      if (selected) delete nextRoles[id];
-      return { ...prev, selectedResources: nextResources, roles: nextRoles };
-    });
-  }
-
-  function updateRole(id, value) {
-    setEditModal((prev) => ({
-      ...prev,
-      roles: { ...prev.roles, [id]: value },
-    }));
+    setEvents(nextEvents);
   }
 
   function openEditModal(event) {
-    const booking = bookings.find((b) => b.id === event.booking_id);
+    const booking = bookings.find((item) => item.id === event.booking_id);
     if (!booking) return;
 
-    const selectedResources = (booking.resources || []).map((r) => r.id);
+    const selectedResources = (booking.resources || []).map((resource) => resource.id);
     const roles = {};
-    (booking.resources || []).forEach((r) => {
-      if (r.role) roles[r.id] = r.role;
+    (booking.resources || []).forEach((resource) => {
+      if (resource.role) roles[resource.id] = resource.role;
     });
 
     setEditModal({
@@ -123,6 +102,31 @@ export default function Availability() {
       roles,
     });
     setModalMessage("");
+  }
+
+  function closeEditModal() {
+    setEditModal(EMPTY_EDIT_MODAL);
+    setModalMessage("");
+  }
+
+  function toggleResource(id) {
+    setEditModal((prev) => {
+      const selected = prev.selectedResources.includes(id);
+      const nextResources = selected
+        ? prev.selectedResources.filter((resourceId) => resourceId !== id)
+        : [...prev.selectedResources, id];
+
+      const nextRoles = { ...prev.roles };
+      if (selected) delete nextRoles[id];
+      return { ...prev, selectedResources: nextResources, roles: nextRoles };
+    });
+  }
+
+  function updateRole(id, value) {
+    setEditModal((prev) => ({
+      ...prev,
+      roles: { ...prev.roles, [id]: value },
+    }));
   }
 
   async function saveEdit() {
@@ -155,16 +159,7 @@ export default function Availability() {
         user_id: userId,
       });
       await loadBookings();
-      setEditModal({
-        open: false,
-        bookingId: null,
-        date: "",
-        start_time: "",
-        end_time: "",
-        user_id: "",
-        selectedResources: [],
-        roles: {},
-      });
+      closeEditModal();
     } catch (err) {
       setModalMessage(err?.message || "Failed to update booking.");
     }
@@ -174,30 +169,19 @@ export default function Availability() {
     try {
       await apiDelete(`/bookings/${editModal.bookingId}`);
       await loadBookings();
-      setEditModal({
-        open: false,
-        bookingId: null,
-        date: "",
-        start_time: "",
-        end_time: "",
-        user_id: "",
-        selectedResources: [],
-        roles: {},
-      });
+      closeEditModal();
     } catch (err) {
       setModalMessage(err?.message || "Failed to delete booking.");
     }
   }
 
   const resourceOptions = useMemo(() => {
-    return resources
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return resources.slice().sort((a, b) => a.name.localeCompare(b.name));
   }, [resources]);
 
   const selectedBookingResources = useMemo(() => {
     return editModal.selectedResources
-      .map((id) => resources.find((r) => r.id === id))
+      .map((id) => resources.find((resource) => resource.id === id))
       .filter(Boolean);
   }, [editModal.selectedResources, resources]);
 
@@ -214,9 +198,9 @@ export default function Availability() {
             onChange={(e) => setSelectedResource(e.target.value)}
           >
             <option value="">All resources</option>
-            {resourceOptions.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
+            {resourceOptions.map((resource) => (
+              <option key={resource.id} value={resource.id}>
+                {resource.name}
               </option>
             ))}
           </select>
@@ -237,7 +221,7 @@ export default function Availability() {
           views={["month", "week", "day", "agenda"]}
           defaultView="month"
           style={{ height: 600 }}
-          toolbar={true}
+          toolbar
           popup
           eventPropGetter={() => ({
             style: {
@@ -265,11 +249,10 @@ export default function Availability() {
             <div className="grid grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Date</label>
-                <input
-                  type="date"
+                <IsraelDateInput
                   className="p-2 border w-full rounded bg-white"
                   value={editModal.date}
-                  onChange={(e) => setEditModal((p) => ({ ...p, date: e.target.value }))}
+                  onChange={(nextDate) => setEditModal((prev) => ({ ...prev, date: nextDate }))}
                 />
               </div>
               <div>
@@ -278,7 +261,9 @@ export default function Availability() {
                   type="time"
                   className="p-2 border w-full rounded bg-white"
                   value={editModal.start_time}
-                  onChange={(e) => setEditModal((p) => ({ ...p, start_time: e.target.value }))}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({ ...prev, start_time: e.target.value }))
+                  }
                 />
               </div>
               <div>
@@ -287,7 +272,9 @@ export default function Availability() {
                   type="time"
                   className="p-2 border w-full rounded bg-white"
                   value={editModal.end_time}
-                  onChange={(e) => setEditModal((p) => ({ ...p, end_time: e.target.value }))}
+                  onChange={(e) =>
+                    setEditModal((prev) => ({ ...prev, end_time: e.target.value }))
+                  }
                 />
               </div>
             </div>
@@ -298,33 +285,37 @@ export default function Availability() {
                 type="number"
                 className="p-2 border w-full rounded bg-white"
                 value={editModal.user_id}
-                onChange={(e) => setEditModal((p) => ({ ...p, user_id: e.target.value }))}
+                onChange={(e) => setEditModal((prev) => ({ ...prev, user_id: e.target.value }))}
               />
             </div>
 
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">Resources</label>
               <div className="max-h-64 overflow-y-auto border rounded p-3 bg-gray-50">
-                {resourceOptions.map((r) => {
-                  const type = resourceTypes.find((t) => t.id === r.type_id);
+                {resourceOptions.map((resource) => {
+                  const type = resourceTypes.find((item) => item.id === resource.type_id);
                   const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
-                  const checked = editModal.selectedResources.includes(r.id);
+                  const checked = editModal.selectedResources.includes(resource.id);
+
                   return (
-                    <div key={r.id} className="flex items-center justify-between mb-2">
+                    <div
+                      key={resource.id}
+                      className="flex items-center justify-between mb-2"
+                    >
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => toggleResource(r.id)}
+                          onChange={() => toggleResource(resource.id)}
                         />
-                        <span>{r.name}</span>
+                        <span>{resource.name}</span>
                       </label>
 
                       {checked && typeRoles.length > 0 && (
                         <select
                           className="border rounded px-2 py-1"
-                          value={editModal.roles[r.id] || ""}
-                          onChange={(e) => updateRole(r.id, e.target.value)}
+                          value={editModal.roles[resource.id] || ""}
+                          onChange={(e) => updateRole(resource.id, e.target.value)}
                         >
                           <option value="">Role (optional)</option>
                           {typeRoles.map((role) => (
@@ -342,7 +333,7 @@ export default function Availability() {
 
             {selectedBookingResources.length > 0 && (
               <div className="mb-4 text-sm text-gray-600">
-                Selected: {selectedBookingResources.map((r) => r.name).join(", ")}
+                Selected: {selectedBookingResources.map((resource) => resource.name).join(", ")}
               </div>
             )}
 
@@ -355,21 +346,7 @@ export default function Availability() {
               </button>
 
               <div className="flex gap-2">
-                <button
-                  onClick={() =>
-                    setEditModal({
-                      open: false,
-                      bookingId: null,
-                      date: "",
-                      start_time: "",
-                      end_time: "",
-                      user_id: "",
-                      selectedResources: [],
-                      roles: {},
-                    })
-                  }
-                  className="px-4 py-2 border rounded"
-                >
+                <button onClick={closeEditModal} className="px-4 py-2 border rounded">
                   Cancel
                 </button>
                 <button

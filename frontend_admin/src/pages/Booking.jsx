@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgLabels } from "../orgConfig";
+import AutoScheduler from "./AutoScheduler";
+import IsraelDateInput from "../components/IsraelDateInput";
+import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function Booking() {
   const labels = getOrgLabels();
@@ -22,6 +27,8 @@ export default function Booking() {
   const [responsibleLoading, setResponsibleLoading] = useState(false);
   const [responsibleError, setResponsibleError] = useState("");
   const [responsibleUser, setResponsibleUser] = useState(null);
+  const [responsibleAvailability, setResponsibleAvailability] = useState([]);
+  const [responsibleOverrides, setResponsibleOverrides] = useState([]);
   const [userIdsInput, setUserIdsInput] = useState("");
   const [recurring, setRecurring] = useState(false);
   const [rangeStart, setRangeStart] = useState("");
@@ -30,6 +37,7 @@ export default function Booking() {
 
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [mode, setMode] = useState("booking");
 
   const weekdayOptions = [
     { label: "Sun", value: 0 },
@@ -81,6 +89,35 @@ export default function Booking() {
       clearTimeout(timeout);
     };
   }, [assignUsers, responsibleQuery]);
+
+  useEffect(() => {
+    const responsibleId = String(responsibleUser?.national_id || "").trim();
+    if (!assignUsers || !responsibleId) {
+      setResponsibleAvailability([]);
+      setResponsibleOverrides([]);
+      return;
+    }
+    let active = true;
+    (async () => {
+      try {
+        const [availabilityData, overrideData] = await Promise.all([
+          apiGet(`/user-availability?user_id=${encodeURIComponent(responsibleId)}`),
+          apiGet(`/user-availability/overrides?user_id=${encodeURIComponent(responsibleId)}`),
+        ]);
+        if (!active) return;
+        setResponsibleAvailability(Array.isArray(availabilityData) ? availabilityData : []);
+        setResponsibleOverrides(Array.isArray(overrideData) ? overrideData : []);
+      } catch {
+        if (!active) return;
+        setResponsibleAvailability([]);
+        setResponsibleOverrides([]);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [assignUsers, responsibleUser]);
 
   async function loadResources() {
     try {
@@ -305,7 +342,32 @@ export default function Booking() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Create New Booking</h1>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold">
+          {mode === "booking" ? "Create New Booking" : "Auto Scheduling"}
+        </h1>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className={`px-4 py-2 rounded border ${mode === "booking" ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-700"}`}
+            onClick={() => setMode("booking")}
+          >
+            Booking
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-2 rounded border ${mode === "auto" ? "bg-blue-600 text-white border-blue-600" : "border-gray-300 text-gray-700"}`}
+            onClick={() => setMode("auto")}
+          >
+            Auto
+          </button>
+        </div>
+      </div>
+
+      {mode === "auto" ? (
+        <AutoScheduler embedded />
+      ) : (
+        <>
 
       {message && (
         <div className="mb-4 p-2 bg-gray-800 text-white rounded">
@@ -330,33 +392,30 @@ export default function Booking() {
         {!recurring ? (
           <>
             <label className="block font-semibold mb-1">Date</label>
-            <input
-              type="date"
+            <IsraelDateInput
               className="border px-3 py-2 rounded w-full"
               value={date}
-              onChange={e => setDate(e.target.value)}
+              onChange={setDate}
             />
           </>
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold mb-1">Start Date</label>
-              <input
-                type="date"
+              <IsraelDateInput
                 className="border px-3 py-2 rounded w-full"
                 value={rangeStart}
                 max={rangeEnd || undefined}
-                onChange={(e) => setRangeStart(e.target.value)}
+                onChange={setRangeStart}
               />
             </div>
             <div>
               <label className="block font-semibold mb-1">End Date</label>
-              <input
-                type="date"
+              <IsraelDateInput
                 className="border px-3 py-2 rounded w-full"
                 value={rangeEnd}
                 min={rangeStart || undefined}
-                onChange={(e) => setRangeEnd(e.target.value)}
+                onChange={setRangeEnd}
               />
             </div>
           </div>
@@ -467,6 +526,43 @@ export default function Booking() {
           <div className="mt-2 text-sm text-gray-600">
             Selected: {responsibleUser?.national_id || "None"}
           </div>
+          {responsibleUser && (
+            <div className="mt-3 p-3 border rounded bg-gray-50 text-sm text-gray-700">
+              <div className="font-semibold mb-2">Responsible availability</div>
+              {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
+                <div>No availability defined yet.</div>
+              ) : (
+                <>
+                  {responsibleAvailability.length > 0 && (
+                    <div className="mb-2">
+                      {responsibleAvailability.map((slot) => (
+                        <div key={slot.id}>
+                          {WEEKDAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`} {" "}
+                          {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                          {slot.start_date || slot.end_date
+                            ? ` | ${formatIsraelDateRange(slot.start_date, slot.end_date)}`
+                            : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {responsibleOverrides.length > 0 && (
+                    <div className="text-xs text-gray-500">
+                      Overrides:
+                      {responsibleOverrides.map((slot) => (
+                        <div key={slot.id}>
+                          {formatIsraelDate(slot.date)} | {slot.is_available ? "Available" : "Blocked"}
+                          {slot.start_time && slot.end_time
+                            ? ` | ${formatIsraelTime(slot.start_time)}-${formatIsraelTime(slot.end_time)}`
+                            : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -544,6 +640,8 @@ export default function Booking() {
       >
         {submitting ? "Creating booking..." : "Create Booking"}
       </button>
+        </>
+      )}
     </div>
   );
 }

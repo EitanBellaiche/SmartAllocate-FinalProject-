@@ -5,6 +5,8 @@ import "./styles.css";
 
 const root = document.getElementById("root");
 
+document.documentElement.lang = "he-IL";
+
 createRoot(root).render(
   <React.StrictMode>
     <App />

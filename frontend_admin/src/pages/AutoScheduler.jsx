@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "../api/api";
+import IsraelDateInput from "../components/IsraelDateInput";
+import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 
 const DEFAULT_SEMESTER_MONTHS = 3;
 const DEFAULT_WEEKLY_HOURS = 3;
@@ -30,11 +32,18 @@ function buildGroupId() {
   return `group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export default function AutoScheduler() {
+export default function AutoScheduler({ embedded = false }) {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
   const [availability, setAvailability] = useState([]);
   const [responsibleUsers, setResponsibleUsers] = useState([]);
+  const [responsibleQuery, setResponsibleQuery] = useState("");
+  const [responsibleOptions, setResponsibleOptions] = useState([]);
+  const [responsibleLoading, setResponsibleLoading] = useState(false);
+  const [responsibleError, setResponsibleError] = useState("");
+  const [responsibleUser, setResponsibleUser] = useState(null);
+  const [responsibleAvailability, setResponsibleAvailability] = useState([]);
+  const [responsibleOverrides, setResponsibleOverrides] = useState([]);
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
@@ -77,6 +86,60 @@ export default function AutoScheduler() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const timeout = setTimeout(async () => {
+      setResponsibleLoading(true);
+      setResponsibleError("");
+      try {
+        const q = responsibleQuery.trim();
+        const query = q ? `&q=${encodeURIComponent(q)}` : "";
+        const data = await apiGet(`/users?role=responsible${query}`);
+        if (!active) return;
+        setResponsibleOptions(Array.isArray(data) ? data : []);
+      } catch (err) {
+        if (!active) return;
+        setResponsibleError(err?.message || "Failed to load responsible users.");
+      } finally {
+        if (active) setResponsibleLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [responsibleQuery]);
+
+  useEffect(() => {
+    const responsibleId = String(responsibleUser?.national_id || "").trim();
+    if (!responsibleId) {
+      setResponsibleAvailability([]);
+      setResponsibleOverrides([]);
+      return;
+    }
+    let active = true;
+    (async () => {
+      try {
+        const [availabilityData, overrideData] = await Promise.all([
+          apiGet(`/user-availability?user_id=${encodeURIComponent(responsibleId)}`),
+          apiGet(`/user-availability/overrides?user_id=${encodeURIComponent(responsibleId)}`),
+        ]);
+        if (!active) return;
+        setResponsibleAvailability(Array.isArray(availabilityData) ? availabilityData : []);
+        setResponsibleOverrides(Array.isArray(overrideData) ? overrideData : []);
+      } catch {
+        if (!active) return;
+        setResponsibleAvailability([]);
+        setResponsibleOverrides([]);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [responsibleUser]);
 
   const availabilityByUser = useMemo(() => {
     return availability.reduce((acc, row) => {
@@ -179,6 +242,9 @@ export default function AutoScheduler() {
       userIds: "",
       weeklyHours: String(DEFAULT_WEEKLY_HOURS),
     });
+    setResponsibleQuery("");
+    setResponsibleOptions([]);
+    setResponsibleUser(null);
     setMessage("");
   }
 
@@ -256,15 +322,17 @@ export default function AutoScheduler() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Auto Scheduler</h1>
-          <p className="text-sm text-gray-600">
-            Build allocations by picking resources together, then schedule by teacher availability.
-          </p>
+    <div className={embedded ? "" : "p-6"}>
+      {!embedded && (
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">Auto Scheduler</h1>
+            <p className="text-sm text-gray-600">
+              Build allocations by picking resources together, then schedule by teacher availability.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {message && (
         <div className="mb-4 p-2 rounded bg-blue-50 text-blue-700 border border-blue-100">
@@ -276,20 +344,18 @@ export default function AutoScheduler() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium mb-1">Range start</label>
-            <input
-              type="date"
+            <IsraelDateInput
               className="border rounded px-3 py-2 w-full"
               value={rangeStart}
-              onChange={(e) => setRangeStart(e.target.value)}
+              onChange={setRangeStart}
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Range end</label>
-            <input
-              type="date"
+            <IsraelDateInput
               className="border rounded px-3 py-2 w-full"
               value={rangeEnd}
-              onChange={(e) => setRangeEnd(e.target.value)}
+              onChange={setRangeEnd}
             />
           </div>
           <button
@@ -402,25 +468,81 @@ export default function AutoScheduler() {
           </div>
           <div className="grid gap-3">
             <div>
-              <label className="block text-xs font-medium mb-1">Responsible user ID</label>
+              <label className="block text-xs font-medium mb-1">Responsible user</label>
               <input
+                type="text"
                 className="border rounded px-2 py-1 w-full"
-                value={selection.responsibleId}
-                onChange={(e) =>
-                  setSelection((prev) => ({ ...prev, responsibleId: e.target.value }))
-                }
-                list="responsible-list"
-                placeholder="e.g. 12345"
+                value={responsibleQuery}
+                onChange={(e) => {
+                  setResponsibleQuery(e.target.value);
+                  setResponsibleUser(null);
+                  setSelection((prev) => ({ ...prev, responsibleId: "" }));
+                }}
+                placeholder="Search by name, email, or ID"
               />
-              <datalist id="responsible-list">
-                {responsibleUsers.map((user) => (
-                  <option
-                    key={user.id}
-                    value={user.national_id || ""}
-                    label={user.full_name || user.email || ""}
-                  />
-                ))}
-              </datalist>
+              {responsibleLoading && (
+                <div className="text-xs text-gray-500 mt-2">Loading users...</div>
+              )}
+              {responsibleError && (
+                <div className="text-xs text-red-600 mt-2">{responsibleError}</div>
+              )}
+              {responsibleOptions.length > 0 && (
+                <div className="border rounded mt-2 max-h-40 overflow-auto bg-white">
+                  {responsibleOptions.map((user) => (
+                    <button
+                      key={user.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
+                      onClick={() => {
+                        const nextId = String(user.national_id || user.id || "").trim();
+                        setResponsibleUser(user);
+                        setResponsibleQuery(
+                          user.full_name || user.email || user.national_id || ""
+                        );
+                        setSelection((prev) => ({ ...prev, responsibleId: nextId }));
+                      }}
+                    >
+                      {user.full_name || "User"} · {user.national_id || "No ID"} · {user.email}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="mt-2 text-xs text-gray-600">
+                Selected: {responsibleUser?.national_id || selection.responsibleId || "None"}
+              </div>
+              {responsibleUser && (
+                <div className="mt-3 p-3 border rounded bg-gray-50 text-xs text-gray-700">
+                  <div className="font-semibold mb-2">Responsible availability</div>
+                  {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
+                    <div>No availability defined yet.</div>
+                  ) : (
+                    <>
+                      {responsibleAvailability.map((slot) => (
+                        <div key={slot.id}>
+                          {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}{" "}
+                          {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                          {slot.start_date || slot.end_date
+                            ? ` | ${formatIsraelDateRange(slot.start_date, slot.end_date)}`
+                            : ""}
+                        </div>
+                      ))}
+                      {responsibleOverrides.length > 0 && (
+                        <div className="mt-2 text-gray-500">
+                      Overrides:
+                      {responsibleOverrides.map((slot) => (
+                        <div key={slot.id}>
+                          {formatIsraelDate(slot.date)} | {slot.is_available ? "Available" : "Blocked"}
+                          {slot.start_time && slot.end_time
+                            ? ` | ${formatIsraelTime(slot.start_time)}-${formatIsraelTime(slot.end_time)}`
+                            : ""}
+                        </div>
+                      ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium mb-1">Assigned user IDs</label>
@@ -575,8 +697,8 @@ export default function AutoScheduler() {
                   <div className="font-semibold">{resourcesLabel}</div>
                   <div className="text-xs text-gray-600">
                     Responsible: {item.responsible_user_id} | {dayLabel} |{" "}
-                    {String(item.start_time).slice(0, 5)}-{String(item.end_time).slice(0, 5)} |{" "}
-                    {item.start_date} -> {item.end_date} | {item.occurrences} weeks
+                    {formatIsraelTime(item.start_time)}-{formatIsraelTime(item.end_time)} |{" "}
+                    {formatIsraelDate(item.start_date)} -> {formatIsraelDate(item.end_date)} | {item.occurrences} weeks
                   </div>
                   <button
                     type="button"
