@@ -228,7 +228,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="bg-white shadow rounded-lg border border-gray-200">
+        <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-100 text-gray-700">
               <tr>
@@ -248,7 +248,8 @@ export default function Dashboard() {
                   <td className="p-3 text-sm text-gray-600">
                     {metadataSummary(r.metadata)}
                   </td>
-                  <td className="p-3 flex gap-2">
+                  <td className="p-3">
+                    <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => openView(r)}
                       className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
@@ -261,6 +262,7 @@ export default function Dashboard() {
                     >
                       Edit
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -281,8 +283,8 @@ export default function Dashboard() {
       </div>
 
       {editModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
               Edit Resource – {editForm.name || "Untitled"}
             </h2>
@@ -378,8 +380,8 @@ export default function Dashboard() {
       )}
 
       {viewModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[700px] shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[700px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
               Resource Details – {viewModal.item?.name || "Untitled"}
             </h2>

@@ -698,7 +698,7 @@ export default function AutoScheduler({ embedded = false }) {
                   <div className="text-xs text-gray-600">
                     Responsible: {item.responsible_user_id} | {dayLabel} |{" "}
                     {formatIsraelTime(item.start_time)}-{formatIsraelTime(item.end_time)} |{" "}
-                    {formatIsraelDate(item.start_date)} -> {formatIsraelDate(item.end_date)} | {item.occurrences} weeks
+                    {formatIsraelDate(item.start_date)} {"->"} {formatIsraelDate(item.end_date)} | {item.occurrences} weeks
                   </div>
                   <button
                     type="button"

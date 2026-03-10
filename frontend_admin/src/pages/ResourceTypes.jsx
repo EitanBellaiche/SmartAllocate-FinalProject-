@@ -159,7 +159,7 @@ export default function ResourceTypes() {
   return (
     <div>
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
         <h1 className="text-3xl font-bold">Resource Types</h1>
 
         <button
@@ -171,7 +171,7 @@ export default function ResourceTypes() {
       </div>
 
       {/* TABLE */}
-      <div className="bg-white shadow rounded-lg border border-gray-200">
+      <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-gray-100 text-gray-700">
             <tr>
@@ -192,7 +192,8 @@ export default function ResourceTypes() {
                 <td className="p-3">{t.description}</td>
                 <td className="p-3">{t.fields?.length || 0}</td>
                 <td className="p-3">{t.roles?.length || 0}</td>
-                <td className="p-3 flex gap-2">
+                <td className="p-3">
+                  <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => openEditModal(t)}
                     className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
@@ -206,6 +207,7 @@ export default function ResourceTypes() {
                   >
                     Delete
                   </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -217,8 +219,8 @@ export default function ResourceTypes() {
       {/* ADD TYPE MODAL */}
       {/* ------------------------------------------------ */}
       {showAdd && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Add Resource Type</h2>
 
             {/* BASIC INFO */}
@@ -245,7 +247,8 @@ export default function ResourceTypes() {
             {/* FIELDS TABLE */}
             <h3 className="text-lg font-semibold mb-2">Fields</h3>
 
-            <table className="w-full border mb-3">
+            <div className="overflow-x-auto">
+            <table className="w-full border mb-3 min-w-[640px]">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
                   <th className="p-2 border">Name</th>
@@ -317,6 +320,7 @@ export default function ResourceTypes() {
                 ))}
               </tbody>
             </table>
+            </div>
 
             {/* ADD FIELD BUTTON */}
             <button
@@ -398,8 +402,8 @@ export default function ResourceTypes() {
       {/* EDIT TYPE MODAL */}
       {/* ------------------------------------------------ */}
       {editModal.open && (
-        <div className="fixed inset-0 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
               Edit Resource Type – {editModal.type.name}
             </h2>
@@ -434,7 +438,8 @@ export default function ResourceTypes() {
             {/* FIELDS TABLE */}
             <h3 className="text-lg font-semibold mb-2">Fields</h3>
 
-            <table className="w-full border mb-3">
+            <div className="overflow-x-auto">
+            <table className="w-full border mb-3 min-w-[640px]">
               <thead className="bg-gray-100 text-gray-700">
                 <tr>
                   <th className="p-2 border">Name</th>
@@ -506,6 +511,7 @@ export default function ResourceTypes() {
                 ))}
               </tbody>
             </table>
+            </div>
 
             {/* ADD FIELD BUTTON */}
             <button

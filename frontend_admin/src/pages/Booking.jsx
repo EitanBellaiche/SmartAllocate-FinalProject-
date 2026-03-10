@@ -399,7 +399,7 @@ export default function Booking() {
             />
           </>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold mb-1">Start Date</label>
               <IsraelDateInput
@@ -441,7 +441,7 @@ export default function Booking() {
       )}
 
       {/* TIME */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div>
           <label className="block font-semibold mb-1">Start Time</label>
           <select

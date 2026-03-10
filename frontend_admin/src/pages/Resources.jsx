@@ -188,7 +188,7 @@ function handleSelectType(typeId) {
   return (
     <div>
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6">
         <h1 className="text-3xl font-bold">Resources</h1>
 
         <button
@@ -200,7 +200,7 @@ function handleSelectType(typeId) {
       </div>
 
       {/* TABLE */}
-      <div className="bg-white shadow rounded-lg border border-gray-200">
+      <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-gray-100 text-gray-700">
             <tr>
@@ -218,7 +218,8 @@ function handleSelectType(typeId) {
                 <td className="p-3 font-medium">{r.name}</td>
                 <td className="p-3">{r.type_name}</td>
 
-                <td className="p-3 flex gap-2">
+                <td className="p-3">
+                  <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() =>
                       setDetailsModal({ open: true, item: r })
@@ -241,6 +242,7 @@ function handleSelectType(typeId) {
                   >
                     Delete
                   </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -252,8 +254,8 @@ function handleSelectType(typeId) {
       {/* ADD RESOURCE MODAL */}
       {/* ------------------------------------------------ */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Add Resource</h2>
 
             <label className="block mb-2 font-medium">Select Type</label>
@@ -338,8 +340,8 @@ function handleSelectType(typeId) {
       {/* EDIT RESOURCE MODAL */}
       {/* ------------------------------------------------ */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[600px] shadow-xl">
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">Edit Resource</h2>
 
             <label className="block mb-2 font-medium">Select Type</label>
@@ -424,8 +426,8 @@ function handleSelectType(typeId) {
       {/* VIEW DETAILS MODAL */}
       {/* ------------------------------------------------ */}
       {detailsModal.open && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[500px] shadow-xl">
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-4">
+          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[500px] shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4">
               Resource Details – {detailsModal.item.name}
             </h2>

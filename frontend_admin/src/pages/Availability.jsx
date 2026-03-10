@@ -236,8 +236,8 @@ export default function Availability() {
       </div>
 
       {editModal.open && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center">
-          <div className="relative z-50 bg-white p-6 rounded-lg w-[680px] shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center p-4">
+          <div className="relative z-50 bg-white p-4 sm:p-6 rounded-lg w-full max-w-[680px] shadow-2xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl mb-4 font-semibold">Edit Booking</h3>
 
             {modalMessage && (
@@ -246,7 +246,7 @@ export default function Availability() {
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Date</label>
                 <IsraelDateInput
