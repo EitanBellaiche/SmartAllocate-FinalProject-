@@ -10,6 +10,7 @@ export default function Booking() {
   const userIdPlural = `${labels.userId}s`;
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
+  const [selectedTypeIds, setSelectedTypeIds] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
 
   const [date, setDate] = useState("");
@@ -102,6 +103,23 @@ export default function Booking() {
     }
   }
 
+  function toggleResourceType(id) {
+    if (selectedTypeIds.includes(id)) {
+      setSelectedTypeIds(selectedTypeIds.filter((typeId) => typeId !== id));
+    } else {
+      setSelectedTypeIds([...selectedTypeIds, id]);
+    }
+  }
+
+  const effectiveResourceIds = useMemo(() => {
+    const byType = resources
+      .filter((resource) =>
+        selectedTypeIds.some((typeId) => String(typeId) === String(resource.type_id))
+      )
+      .map((resource) => resource.id);
+    return Array.from(new Set([...selectedResources, ...byType]));
+  }, [resources, selectedResources, selectedTypeIds]);
+
   function toggleWeekday(dayValue) {
     setWeekdays((prev) => {
       if (prev.includes(dayValue)) {
@@ -134,7 +152,7 @@ export default function Booking() {
   }
 
   async function updateResourceAssignments(responsibleId, userIds) {
-    const targetResources = resources.filter((r) => selectedResources.includes(r.id));
+    const targetResources = resources.filter((r) => effectiveResourceIds.includes(r.id));
     if (targetResources.length === 0) return;
 
     await Promise.all(
@@ -156,7 +174,7 @@ export default function Booking() {
   }
 
   async function submitBooking() {
-    if (!startTime || !endTime || selectedResources.length === 0) {
+    if (!startTime || !endTime || effectiveResourceIds.length === 0) {
       setMessage("❗ Please select time and at least one resource.");
       return;
     }
@@ -187,7 +205,7 @@ export default function Booking() {
 
     try {
       const basePayload = {
-        resources: selectedResources,
+        resources: effectiveResourceIds,
         start_time: startTime,
         end_time: endTime,
       };
@@ -252,6 +270,7 @@ export default function Booking() {
       setMessage("✔ Booking created successfully!");
 
       setSelectedResources([]);
+      setSelectedTypeIds([]);
       setDate("");
       setStartTime("");
       setEndTime("");
@@ -469,18 +488,51 @@ export default function Booking() {
       {/* RESOURCES */}
       <div className="mb-6">
         <label className="block font-semibold mb-2">Select Resources</label>
-
-        <div className="max-h-64 overflow-y-auto border rounded p-3">
-          {resources.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 mb-2">
-              <input
-                type="checkbox"
-                checked={selectedResources.includes(r.id)}
-                onChange={() => toggleResource(r.id)}
-              />
-              <span>{r.name}</span>
+        <div className="mb-3 text-sm text-gray-600">
+          You can combine specific resources and whole resource types in the same booking.
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <div className="font-medium mb-2">Whole resource types</div>
+            <div className="max-h-48 overflow-y-auto border rounded p-3">
+              {resourceTypes.map((type) => (
+                <div key={type.id} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedTypeIds.includes(type.id)}
+                    onChange={() => toggleResourceType(type.id)}
+                  />
+                  <span>{type.name}</span>
+                </div>
+              ))}
+              {resourceTypes.length === 0 && (
+                <div className="text-sm text-gray-500">No resource types found.</div>
+              )}
             </div>
-          ))}
+          </div>
+          <div>
+            <div className="font-medium mb-2">Specific resources</div>
+            <div className="max-h-64 overflow-y-auto border rounded p-3">
+              {resources.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedResources.includes(r.id)}
+                    onChange={() => toggleResource(r.id)}
+                  />
+                  <span>{r.name}</span>
+                </div>
+              ))}
+              {resources.length === 0 && (
+                <div className="text-sm text-gray-500">No resources found.</div>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="mt-3 text-sm text-gray-600">
+          {effectiveResourceIds.length > 0
+            ? `${effectiveResourceIds.length} unique resources will be included in this booking.`
+            : "No resources selected yet."}
         </div>
       </div>
 

@@ -45,6 +45,7 @@ export default function AutoScheduler() {
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
   );
   const [selection, setSelection] = useState({
+    typeIds: [],
     resourceIds: [],
     responsibleId: "",
     userIds: "",
@@ -134,9 +135,28 @@ export default function AutoScheduler() {
     });
   }
 
+  function toggleType(typeId) {
+    setSelection((prev) => {
+      const exists = prev.typeIds.includes(typeId);
+      const next = exists
+        ? prev.typeIds.filter((id) => id !== typeId)
+        : [...prev.typeIds, typeId];
+      return { ...prev, typeIds: next };
+    });
+  }
+
+  const effectiveResourceIds = useMemo(() => {
+    const fromTypes = resources
+      .filter((resource) =>
+        selection.typeIds.some((typeId) => String(typeId) === String(resource.type_id))
+      )
+      .map((resource) => resource.id);
+    return Array.from(new Set([...(selection.resourceIds || []), ...fromTypes]));
+  }, [resources, selection.resourceIds, selection.typeIds]);
+
   function addGroup() {
-    if (selection.resourceIds.length === 0) {
-      setMessage("Select at least one resource for the allocation.");
+    if (effectiveResourceIds.length === 0) {
+      setMessage("Select at least one resource or resource type for the allocation.");
       return;
     }
     if (!selection.responsibleId.trim()) {
@@ -145,13 +165,15 @@ export default function AutoScheduler() {
     }
     const group = {
       group_id: buildGroupId(),
-      resource_ids: selection.resourceIds,
+      type_ids: selection.typeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
+      resource_ids: effectiveResourceIds,
       responsible_user_id: selection.responsibleId.trim(),
       user_ids: parseIds(selection.userIds),
       weekly_hours: Number(selection.weeklyHours) || DEFAULT_WEEKLY_HOURS,
     };
     setGroups((prev) => [...prev, group]);
     setSelection({
+      typeIds: [],
       resourceIds: [],
       responsibleId: "",
       userIds: "",
@@ -313,6 +335,9 @@ export default function AutoScheduler() {
 
       <div className="bg-white rounded-lg shadow-sm p-4 border mb-6">
         <h2 className="text-lg font-semibold mb-4">Build allocation</h2>
+        <div className="mb-3 text-sm text-gray-600">
+          You can combine specific resources and whole resource types in the same allocation.
+        </div>
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <input
             className="border rounded px-3 py-2"
@@ -334,25 +359,46 @@ export default function AutoScheduler() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="border rounded p-3 max-h-64 overflow-y-auto">
-            {filteredResources.map((resource) => {
-              const type = resourceTypes.find((t) => t.id === resource.type_id);
-              const typeName = type?.name || resource.type_name || "Resource";
-              return (
-                <label key={resource.id} className="flex items-center gap-2 mb-2 text-sm">
+          <div>
+            <div className="font-medium mb-2">Whole resource types</div>
+            <div className="border rounded p-3 max-h-48 overflow-y-auto">
+              {resourceTypes.map((type) => (
+                <label key={type.id} className="flex items-center gap-2 mb-2 text-sm">
                   <input
                     type="checkbox"
-                    checked={selection.resourceIds.includes(resource.id)}
-                    onChange={() => toggleResource(resource.id)}
+                    checked={selection.typeIds.includes(type.id)}
+                    onChange={() => toggleType(type.id)}
                   />
-                  <span>{resource.name}</span>
-                  <span className="text-xs text-gray-500">({typeName})</span>
+                  <span>{type.name}</span>
                 </label>
-              );
-            })}
-            {filteredResources.length === 0 && (
-              <div className="text-xs text-gray-500">No resources match.</div>
-            )}
+              ))}
+              {resourceTypes.length === 0 && (
+                <div className="text-xs text-gray-500">No resource types found.</div>
+              )}
+            </div>
+          </div>
+          <div>
+            <div className="font-medium mb-2">Specific resources</div>
+            <div className="border rounded p-3 max-h-64 overflow-y-auto">
+              {filteredResources.map((resource) => {
+                const type = resourceTypes.find((t) => t.id === resource.type_id);
+                const typeName = type?.name || resource.type_name || "Resource";
+                return (
+                  <label key={resource.id} className="flex items-center gap-2 mb-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selection.resourceIds.includes(resource.id)}
+                      onChange={() => toggleResource(resource.id)}
+                    />
+                    <span>{resource.name}</span>
+                    <span className="text-xs text-gray-500">({typeName})</span>
+                  </label>
+                );
+              })}
+              {filteredResources.length === 0 && (
+                <div className="text-xs text-gray-500">No resources match.</div>
+              )}
+            </div>
           </div>
           <div className="grid gap-3">
             <div>
@@ -406,6 +452,11 @@ export default function AutoScheduler() {
             >
               Add allocation
             </button>
+            <div className="text-xs text-gray-600">
+              {effectiveResourceIds.length > 0
+                ? `${effectiveResourceIds.length} unique resources will be included in this allocation.`
+                : "No resources selected yet."}
+            </div>
           </div>
         </div>
       </div>
@@ -418,12 +469,20 @@ export default function AutoScheduler() {
         {groups.length > 0 && (
           <div className="space-y-4">
             {groups.map((group) => {
+              const typeNames = Array.isArray(group.type_ids)
+                ? group.type_ids
+                    .map((typeId) => resourceTypes.find((type) => Number(type.id) === Number(typeId))?.name || `Type ${typeId}`)
+                    .join(", ")
+                : "";
               const resourceNames = group.resource_ids
                 .map((id) => resourceById[id]?.name || `Resource ${id}`)
                 .join(", ");
+              const title = typeNames
+                ? `${typeNames}${resourceNames ? ` + ${resourceNames}` : ""}`
+                : resourceNames;
               return (
                 <div key={group.group_id} className="border rounded-lg p-4">
-                  <div className="font-semibold mb-2">{resourceNames}</div>
+                  <div className="font-semibold mb-2">{title}</div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs font-medium mb-1">
@@ -564,6 +623,3 @@ export default function AutoScheduler() {
     </div>
   );
 }
-
-
-
