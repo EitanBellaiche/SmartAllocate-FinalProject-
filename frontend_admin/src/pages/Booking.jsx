@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { apiGet, apiPost, apiPut } from "../api/api";
+import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgLabels } from "../orgConfig";
 import AutoScheduler from "./AutoScheduler";
 import IsraelDateInput from "../components/IsraelDateInput";
@@ -15,6 +15,8 @@ export default function Booking() {
   const userIdPlural = `${labels.userId}s`;
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [editingBooking, setEditingBooking] = useState(null);
   const [selectedTypeIds, setSelectedTypeIds] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
 
@@ -36,6 +38,7 @@ export default function Booking() {
   const [weekdays, setWeekdays] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
+  const [updatingBooking, setUpdatingBooking] = useState(false);
   const [message, setMessage] = useState("");
   const [mode, setMode] = useState("booking");
 
@@ -121,12 +124,14 @@ export default function Booking() {
 
   async function loadResources() {
     try {
-      const [resourceData, typeData] = await Promise.all([
+      const [resourceData, typeData, bookingData] = await Promise.all([
         apiGet("/resources"),
         apiGet("/resource-types"),
+        apiGet("/bookings?include_details=1"),
       ]);
       setResources(resourceData);
       setResourceTypes(typeData);
+      setBookings(Array.isArray(bookingData) ? bookingData : []);
     } catch (err) {
       console.error("Error loading resources:", err);
     }
@@ -320,6 +325,7 @@ export default function Booking() {
       setRangeStart("");
       setRangeEnd("");
       setWeekdays([]);
+      await loadResources();
 
     } catch (err) {
       const violations = Array.isArray(err?.data?.violations)
@@ -338,6 +344,76 @@ export default function Booking() {
     }
 
     setSubmitting(false);
+  }
+
+  function openEditBooking(booking) {
+    setEditingBooking({
+      id: booking.id,
+      date: booking.date || "",
+      start_time: booking.start_time || "",
+      end_time: booking.end_time || "",
+      user_id: booking.user_id || "",
+      resources: (booking.resources || []).map((resource) => resource.id),
+    });
+  }
+
+  function toggleEditingBookingResource(resourceId) {
+    setEditingBooking((prev) => {
+      if (!prev) return prev;
+      const exists = prev.resources.includes(resourceId);
+      return {
+        ...prev,
+        resources: exists
+          ? prev.resources.filter((id) => id !== resourceId)
+          : [...prev.resources, resourceId],
+      };
+    });
+  }
+
+  async function saveBookingEdit() {
+    if (!editingBooking) return;
+    if (!editingBooking.date || !editingBooking.start_time || !editingBooking.end_time) {
+      setMessage("❗ Please fill date, start time, and end time.");
+      return;
+    }
+    if (!editingBooking.resources || editingBooking.resources.length === 0) {
+      setMessage("❗ Please select at least one resource.");
+      return;
+    }
+    if (editingBooking.start_time >= editingBooking.end_time) {
+      setMessage("❗ End time must be after start time.");
+      return;
+    }
+
+    setUpdatingBooking(true);
+    try {
+      await apiPut(`/bookings/${editingBooking.id}`, {
+        resources: editingBooking.resources,
+        date: editingBooking.date,
+        start_time: editingBooking.start_time,
+        end_time: editingBooking.end_time,
+        user_id: editingBooking.user_id || undefined,
+      });
+      setEditingBooking(null);
+      setMessage("✔ Booking updated successfully!");
+      await loadResources();
+    } catch (err) {
+      setMessage(`❌ ${err?.message || "Failed to update booking."}`);
+    } finally {
+      setUpdatingBooking(false);
+    }
+  }
+
+  async function deleteBooking(id) {
+    if (!confirm("Are you sure you want to delete this booking?")) return;
+
+    try {
+      await apiDelete(`/bookings/${id}`);
+      setMessage("✔ Booking deleted successfully!");
+      await loadResources();
+    } catch (err) {
+      setMessage(`❌ ${err?.message || "Failed to delete booking."}`);
+    }
   }
 
   return (
@@ -640,6 +716,180 @@ export default function Booking() {
       >
         {submitting ? "Creating booking..." : "Create Booking"}
       </button>
+
+      <div className="mt-10">
+        <h2 className="text-xl font-bold mb-4">Existing Bookings</h2>
+        <div className="space-y-3">
+          {bookings.map((booking) => (
+            <div key={booking.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="font-semibold">
+                  {formatIsraelDate(booking.date)} | {formatIsraelTime(booking.start_time)} - {formatIsraelTime(booking.end_time)}
+                </div>
+                <div className="text-sm text-gray-500">
+                  Booking #{booking.id}
+                </div>
+              </div>
+
+              <div className="mt-2 text-sm text-gray-600">
+                {booking.user_id ? `User: ${booking.user_id}` : "No user assigned"}
+              </div>
+
+              {booking.location && (
+                <div className="mt-1 text-sm text-gray-600">
+                  Location: {booking.location}
+                </div>
+              )}
+
+              {booking.cancelled_at && (
+                <div className="mt-2 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+                  Cancelled
+                  {booking.cancelled_reason ? `: ${booking.cancelled_reason}` : ""}
+                </div>
+              )}
+
+              <div className="mt-3">
+                <div className="mb-2 text-sm font-medium text-gray-700">Resources</div>
+                <div className="flex flex-wrap gap-2">
+                  {(booking.resources || []).map((resource) => (
+                    <span
+                      key={`${booking.id}-${resource.id}`}
+                      className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700"
+                    >
+                      {resource.name}
+                      {resource.type_name ? ` · ${resource.type_name}` : ""}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEditBooking(booking)}
+                  className="rounded bg-yellow-500 px-3 py-1 text-sm text-white hover:bg-yellow-600"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteBooking(booking.id)}
+                  className="rounded bg-red-600 px-3 py-1 text-sm text-white hover:bg-red-700"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {bookings.length === 0 && (
+            <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-gray-500">
+              No bookings have been created yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {editingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-[520px] rounded-lg bg-white p-4 shadow-xl">
+            <h2 className="mb-4 text-xl font-bold">Edit Booking</h2>
+
+            <div className="mb-4">
+              <label className="mb-1 block font-semibold">Date</label>
+              <IsraelDateInput
+                className="w-full rounded border px-3 py-2"
+                value={editingBooking.date}
+                onChange={(value) =>
+                  setEditingBooking((prev) => ({ ...prev, date: value }))
+                }
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block font-semibold">Start Time</label>
+                <select
+                  className="w-full rounded border px-3 py-2"
+                  value={editingBooking.start_time}
+                  onChange={(e) =>
+                    setEditingBooking((prev) => ({ ...prev, start_time: e.target.value }))
+                  }
+                >
+                  <option value="">Select time</option>
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block font-semibold">End Time</label>
+                <select
+                  className="w-full rounded border px-3 py-2"
+                  value={editingBooking.end_time}
+                  onChange={(e) =>
+                    setEditingBooking((prev) => ({ ...prev, end_time: e.target.value }))
+                  }
+                >
+                  <option value="">Select time</option>
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4 text-sm text-gray-600">
+              Select the resources that should stay attached to this booking.
+            </div>
+
+            <div className="mt-3">
+              <div className="mb-2 text-sm font-medium text-gray-700">Resources</div>
+              <div className="max-h-64 overflow-y-auto rounded border p-3">
+                {resources.map((resource) => (
+                  <label key={resource.id} className="mb-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editingBooking.resources.includes(resource.id)}
+                      onChange={() => toggleEditingBookingResource(resource.id)}
+                    />
+                    <span>
+                      {resource.name}
+                      {resource.type_name ? ` · ${resource.type_name}` : ""}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-2 text-sm text-gray-500">
+                {editingBooking.resources.length} resources selected.
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingBooking(null)}
+                className="rounded border px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveBookingEdit}
+                disabled={updatingBooking}
+                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-gray-500"
+              >
+                {updatingBooking ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </>
       )}
     </div>

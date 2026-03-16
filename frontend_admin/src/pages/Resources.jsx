@@ -9,9 +9,26 @@ function sortResourcesAlphabetically(items) {
   );
 }
 
+function getTypeFieldNames(type) {
+  return new Set(Array.isArray(type?.fields) ? type.fields.map((field) => field.name) : []);
+}
+
+function getCustomMetadataEntries(metadata, type) {
+  const typeFieldNames = getTypeFieldNames(type);
+  return Object.entries(metadata || {}).filter(([key]) => !typeFieldNames.has(key));
+}
+
+function normalizeCustomFieldValue(value, fieldType) {
+  if (fieldType === "boolean") return Boolean(value);
+  if (fieldType === "number") return value === "" ? "" : Number(value);
+  return String(value ?? "");
+}
+
 export default function Resources() {
   const [resources, setResources] = useState([]);
   const [types, setTypes] = useState([]);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
 
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +40,10 @@ export default function Resources() {
     type_id: "",
     metadata: {},
   });
+  const [customFieldDraft, setCustomFieldDraft] = useState({
+    name: "",
+    type: "text",
+  });
 
   // View Details Modal
   const [detailsModal, setDetailsModal] = useState({
@@ -38,6 +59,10 @@ export default function Resources() {
     name: "",
     type_id: "",
     metadata: {},
+  });
+  const [editCustomFieldDraft, setEditCustomFieldDraft] = useState({
+    name: "",
+    type: "text",
   });
 
   useEffect(() => {
@@ -73,6 +98,7 @@ function handleSelectType(typeId) {
       type_id: typeId,
       metadata: {},
     });
+    setCustomFieldDraft({ name: "", type: "text" });
     return;
   }
 
@@ -87,6 +113,7 @@ function handleSelectType(typeId) {
     type_id: typeId,
     metadata: meta,
   });
+  setCustomFieldDraft({ name: "", type: "text" });
 }
 
   function handleEditSelectType(typeId) {
@@ -99,6 +126,7 @@ function handleSelectType(typeId) {
         type_id: typeId,
         metadata: {},
       }));
+      setEditCustomFieldDraft({ name: "", type: "text" });
       return;
     }
 
@@ -113,6 +141,7 @@ function handleSelectType(typeId) {
       type_id: typeId,
       metadata: meta,
     }));
+    setEditCustomFieldDraft({ name: "", type: "text" });
   }
 
 
@@ -130,12 +159,71 @@ function handleSelectType(typeId) {
     }));
   }
 
+  function addCustomField() {
+    const fieldName = customFieldDraft.name.trim();
+    if (!fieldName) return;
+
+    setForm((prev) => {
+      if (Object.prototype.hasOwnProperty.call(prev.metadata, fieldName)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        metadata: {
+          ...prev.metadata,
+          [fieldName]: normalizeCustomFieldValue("", customFieldDraft.type),
+        },
+      };
+    });
+
+    setCustomFieldDraft({ name: "", type: "text" });
+  }
+
+  function addEditCustomField() {
+    const fieldName = editCustomFieldDraft.name.trim();
+    if (!fieldName) return;
+
+    setEditForm((prev) => {
+      if (Object.prototype.hasOwnProperty.call(prev.metadata, fieldName)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        metadata: {
+          ...prev.metadata,
+          [fieldName]: normalizeCustomFieldValue("", editCustomFieldDraft.type),
+        },
+      };
+    });
+
+    setEditCustomFieldDraft({ name: "", type: "text" });
+  }
+
+  function removeCustomField(fieldName) {
+    setForm((prev) => {
+      const metadata = { ...prev.metadata };
+      delete metadata[fieldName];
+      return { ...prev, metadata };
+    });
+  }
+
+  function removeEditCustomField(fieldName) {
+    setEditForm((prev) => {
+      const metadata = { ...prev.metadata };
+      delete metadata[fieldName];
+      return { ...prev, metadata };
+    });
+  }
+
   async function saveResource() {
     try {
       await apiPost("/resources", form);
       setShowAdd(false);
       setSelectedType(null);
       setForm({ name: "", type_id: "", metadata: {} });
+      setCustomFieldDraft({ name: "", type: "text" });
       loadData();
     } catch (err) {
       console.error("Error creating resource:", err);
@@ -151,6 +239,7 @@ function handleSelectType(typeId) {
       type_id: resource.type_id || "",
       metadata: resource.metadata || {},
     });
+    setEditCustomFieldDraft({ name: "", type: "text" });
     setShowEdit(true);
   }
 
@@ -166,6 +255,7 @@ function handleSelectType(typeId) {
       setShowEdit(false);
       setEditSelectedType(null);
       setEditForm({ id: null, name: "", type_id: "", metadata: {} });
+      setEditCustomFieldDraft({ name: "", type: "text" });
       loadData();
     } catch (err) {
       console.error("Error updating resource:", err);
@@ -193,6 +283,15 @@ function handleSelectType(typeId) {
   if (loading)
     return <p className="text-gray-500">Loading resources...</p>;
 
+  const filteredResources = sortResourcesAlphabetically(resources).filter((resource) => {
+    const matchesType = !typeFilter || String(resource.type_id) === typeFilter;
+    const matchesName = String(resource.name || "")
+      .toLowerCase()
+      .includes(nameFilter.trim().toLowerCase());
+
+    return matchesType && matchesName;
+  });
+
   return (
     <div>
       {/* HEADER */}
@@ -204,11 +303,44 @@ function handleSelectType(typeId) {
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
         >
           + Add Resource
-        </button>
-      </div>
+      </button>
+    </div>
 
-      {/* TABLE */}
-      <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Filter by type
+          </label>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+          >
+            <option value="">All types</option>
+            {sortResourcesAlphabetically(types).map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Search by resource name
+          </label>
+          <input
+            type="text"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            placeholder="Type a resource name..."
+            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+          />
+        </div>
+      </div>
+
+    {/* TABLE */}
+    <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
         <table className="w-full text-left">
         <thead className="bg-gray-100 text-gray-700">
           <tr>
@@ -219,7 +351,7 @@ function handleSelectType(typeId) {
         </thead>
 
           <tbody>
-            {sortResourcesAlphabetically(resources).map((r) => (
+            {filteredResources.map((r) => (
               <tr key={r.id} className="border-t">
                 <td className="p-3 font-medium">{r.name}</td>
                 <td className="p-3">{r.type_name}</td>
@@ -252,9 +384,16 @@ function handleSelectType(typeId) {
                 </td>
               </tr>
             ))}
+            {filteredResources.length === 0 && (
+              <tr className="border-t">
+                <td colSpan={3} className="p-4 text-center text-gray-500">
+                  No resources found.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
-      </div>
+    </div>
 
       {/* ------------------------------------------------ */}
       {/* ADD RESOURCE MODAL */}
@@ -320,11 +459,95 @@ function handleSelectType(typeId) {
               </>
             )}
 
+            {selectedType && (
+              <>
+                <h3 className="mt-6 mb-2 font-semibold">Custom Fields For This Resource</h3>
+                <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+                  <input
+                    type="text"
+                    placeholder="Field name"
+                    className="w-full p-2 border rounded"
+                    value={customFieldDraft.name}
+                    onChange={(e) =>
+                      setCustomFieldDraft((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                  />
+                  <select
+                    className="w-full p-2 border rounded"
+                    value={customFieldDraft.type}
+                    onChange={(e) =>
+                      setCustomFieldDraft((prev) => ({ ...prev, type: e.target.value }))
+                    }
+                  >
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="boolean">Boolean</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={addCustomField}
+                    className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
+                  >
+                    Add Field
+                  </button>
+                </div>
+
+                {getCustomMetadataEntries(form.metadata, selectedType).map(([fieldName, fieldValue]) => {
+                  const fieldType =
+                    typeof fieldValue === "boolean"
+                      ? "boolean"
+                      : typeof fieldValue === "number"
+                        ? "number"
+                        : "text";
+
+                  return (
+                    <div key={fieldName} className="mb-3 rounded border p-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium">
+                          {fieldName} ({fieldType})
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomField(fieldName)}
+                          className="px-2 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      {fieldType === "boolean" ? (
+                        <input
+                          type="checkbox"
+                          checked={Boolean(fieldValue)}
+                          onChange={(e) => handleMetadataChange(fieldName, e.target.checked)}
+                        />
+                      ) : (
+                        <input
+                          type={fieldType === "number" ? "number" : "text"}
+                          className="w-full p-2 border rounded"
+                          value={fieldValue ?? ""}
+                          onChange={(e) =>
+                            handleMetadataChange(
+                              fieldName,
+                              fieldType === "number"
+                                ? (e.target.value === "" ? "" : Number(e.target.value))
+                                : e.target.value
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => {
                   setShowAdd(false);
                   setSelectedType(null);
+                  setCustomFieldDraft({ name: "", type: "text" });
                 }}
                 className="px-4 py-2 border rounded"
               >
@@ -406,11 +629,95 @@ function handleSelectType(typeId) {
               </>
             )}
 
+            {editSelectedType && (
+              <>
+                <h3 className="mt-6 mb-2 font-semibold">Custom Fields For This Resource</h3>
+                <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
+                  <input
+                    type="text"
+                    placeholder="Field name"
+                    className="w-full p-2 border rounded"
+                    value={editCustomFieldDraft.name}
+                    onChange={(e) =>
+                      setEditCustomFieldDraft((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                  />
+                  <select
+                    className="w-full p-2 border rounded"
+                    value={editCustomFieldDraft.type}
+                    onChange={(e) =>
+                      setEditCustomFieldDraft((prev) => ({ ...prev, type: e.target.value }))
+                    }
+                  >
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="boolean">Boolean</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={addEditCustomField}
+                    className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-800"
+                  >
+                    Add Field
+                  </button>
+                </div>
+
+                {getCustomMetadataEntries(editForm.metadata, editSelectedType).map(([fieldName, fieldValue]) => {
+                  const fieldType =
+                    typeof fieldValue === "boolean"
+                      ? "boolean"
+                      : typeof fieldValue === "number"
+                        ? "number"
+                        : "text";
+
+                  return (
+                    <div key={fieldName} className="mb-3 rounded border p-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <label className="text-sm font-medium">
+                          {fieldName} ({fieldType})
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeEditCustomField(fieldName)}
+                          className="px-2 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      {fieldType === "boolean" ? (
+                        <input
+                          type="checkbox"
+                          checked={Boolean(fieldValue)}
+                          onChange={(e) => handleEditMetadataChange(fieldName, e.target.checked)}
+                        />
+                      ) : (
+                        <input
+                          type={fieldType === "number" ? "number" : "text"}
+                          className="w-full p-2 border rounded"
+                          value={fieldValue ?? ""}
+                          onChange={(e) =>
+                            handleEditMetadataChange(
+                              fieldName,
+                              fieldType === "number"
+                                ? (e.target.value === "" ? "" : Number(e.target.value))
+                                : e.target.value
+                            )
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => {
                   setShowEdit(false);
                   setEditSelectedType(null);
+                  setEditCustomFieldDraft({ name: "", type: "text" });
                 }}
                 className="px-4 py-2 border rounded"
               >
