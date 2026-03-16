@@ -58,7 +58,7 @@ router.get("/", async (req, res) => {
       query += ` WHERE ${conditions.join(" AND ")}`;
     }
 
-    query += ` ORDER BY resources.id`;
+    query += ` ORDER BY LOWER(resources.name), resources.id`;
 
     const result = await pool.query(query, params);
     res.json(result.rows);

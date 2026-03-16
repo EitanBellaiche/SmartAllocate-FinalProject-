@@ -1,6 +1,14 @@
 import { useState, useEffect } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/api";
 
+function sortTypesAlphabetically(items) {
+  return [...items].sort((a, b) =>
+    String(a?.name || "").localeCompare(String(b?.name || ""), undefined, {
+      sensitivity: "base",
+    }) || Number(a?.id || 0) - Number(b?.id || 0)
+  );
+}
+
 export default function ResourceTypes() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +41,7 @@ export default function ResourceTypes() {
   async function loadTypes() {
     try {
       const data = await apiGet("/resource-types");
-      setTypes(data);
+      setTypes(sortTypesAlphabetically(data));
     } catch (err) {
       console.error("Error loading resource types:", err);
     } finally {
@@ -175,7 +183,6 @@ export default function ResourceTypes() {
         <table className="w-full text-left">
           <thead className="bg-gray-100 text-gray-700">
             <tr>
-              <th className="p-3">ID</th>
               <th className="p-3">Name</th>
               <th className="p-3">Description</th>
               <th className="p-3">Fields</th>
@@ -185,9 +192,8 @@ export default function ResourceTypes() {
           </thead>
 
           <tbody>
-            {types.map((t) => (
+            {sortTypesAlphabetically(types).map((t) => (
               <tr key={t.id} className="border-t">
-                <td className="p-3">{t.id}</td>
                 <td className="p-3 font-medium">{t.name}</td>
                 <td className="p-3">{t.description}</td>
                 <td className="p-3">{t.fields?.length || 0}</td>

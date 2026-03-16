@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/api";
 
+function sortResourcesAlphabetically(items) {
+  return [...items].sort((a, b) =>
+    String(a?.name || "").localeCompare(String(b?.name || ""), undefined, {
+      sensitivity: "base",
+    }) || Number(a?.id || 0) - Number(b?.id || 0)
+  );
+}
+
 export default function Resources() {
   const [resources, setResources] = useState([]);
   const [types, setTypes] = useState([]);
@@ -43,7 +51,7 @@ export default function Resources() {
         apiGet("/resource-types"),
       ]);
 
-      setResources(resData);
+      setResources(sortResourcesAlphabetically(resData));
       setTypes(typeData);
     } catch (err) {
       console.error("Error loading resources:", err);
@@ -202,19 +210,17 @@ function handleSelectType(typeId) {
       {/* TABLE */}
       <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
         <table className="w-full text-left">
-          <thead className="bg-gray-100 text-gray-700">
-            <tr>
-              <th className="p-3">ID</th>
+        <thead className="bg-gray-100 text-gray-700">
+          <tr>
               <th className="p-3">Name</th>
               <th className="p-3">Type</th>
               <th className="p-3">Actions</th>
-            </tr>
-          </thead>
+          </tr>
+        </thead>
 
           <tbody>
-            {resources.map((r) => (
+            {sortResourcesAlphabetically(resources).map((r) => (
               <tr key={r.id} className="border-t">
-                <td className="p-3">{r.id}</td>
                 <td className="p-3 font-medium">{r.name}</td>
                 <td className="p-3">{r.type_name}</td>
 

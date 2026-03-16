@@ -42,7 +42,7 @@ router.get("/", async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT * FROM resource_types ${where} ORDER BY id`,
+      `SELECT * FROM resource_types ${where} ORDER BY LOWER(name), id`,
       params
     );
 
