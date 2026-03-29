@@ -465,11 +465,16 @@ export default function App() {
   }
 
   const filteredResources = useMemo(() => {
-    if (!resourceQuery.trim()) return [];
-    return resources.filter((r) => {
+    const visibleResources = resources.filter((r) => {
       if (role === "manager" && isPrimaryResource(r)) return false;
-      return resourceMatchesQuery(r, resourceQuery);
+      return true;
     });
+    const sortedResources = [...visibleResources].sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""))
+    );
+    if (role === "user" && !resourceQuery.trim()) return sortedResources;
+    if (!resourceQuery.trim()) return [];
+    return sortedResources.filter((r) => resourceMatchesQuery(r, resourceQuery));
   }, [resources, resourceQuery, role]);
 
   const filteredRequestResources = useMemo(() => {
@@ -480,22 +485,6 @@ export default function App() {
       return true;
     });
   }, [resources, requestQuery, onlyAvailable, role]);
-
-  const userResources = useMemo(() => {
-    if (role !== "user") return [];
-    const map = new Map();
-    bookings.forEach((booking) => {
-      (booking.resources || []).forEach((r) => {
-        if (!isPrimaryResource(r)) return;
-        if (!map.has(r.id)) {
-          map.set(r.id, r);
-        }
-      });
-    });
-    return Array.from(map.values()).sort((a, b) =>
-      String(a.name || "").localeCompare(String(b.name || ""))
-    );
-  }, [role, bookings]);
 
   const selectedResource = useMemo(() => {
     if (!selectedResourceId) return null;
@@ -560,6 +549,7 @@ export default function App() {
         if (!active) return;
         const baseBookings = Array.isArray(bookingsData) ? bookingsData : [];
         const resourcesList = Array.isArray(allResources) ? allResources : [];
+        setResources(resourcesList);
         const assignedResources = resourcesList.filter((r) =>
           isResourceAssignedToUser(r, userId)
         );
@@ -1552,107 +1542,6 @@ export default function App() {
           </>
         ) : section === "search" ? (
           <>
-            {role === "user" ? (
-              <>
-                <header
-                  style={{
-                    padding: "12px 0",
-                    borderBottom: "1px solid #e2e8f0",
-                    marginBottom: 16,
-                  }}
-                >
-                  <h1 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h1>
-                  <p style={{ margin: 0, color: "#475569" }}>
-                    Your {labelsLower.resources} and session details.
-                  </p>
-                </header>
-
-                <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
-                  {userResources.length === 0 ? (
-                    <div style={{ color: "#475569" }}>
-                      No {labelsLower.resources} available yet.
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {userResources.map((resource) => {
-                        const sessions = allResourceSessions[resource.id] || [];
-                        const upcomingSessions = sessions.filter(
-                          (s) =>
-                            new Date(`${s.date}T${s.start}`) >= new Date()
-                        );
-                        const nextSession =
-                          upcomingSessions[0] || sessions[0] || null;
-                        return (
-                          <div
-                            key={resource.id}
-                            className="glass"
-                            style={{
-                              padding: 16,
-                              borderRadius: 16,
-                              border: "1px solid #e2e8f0",
-                              background: "#fff",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: 10,
-                                marginBottom: 6,
-                              }}
-                            >
-                              <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                                {resource.name}
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  background: "#e0e7ff",
-                                  color: "#1d4ed8",
-                                  padding: "4px 10px",
-                                  borderRadius: 999,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {formatTypeLabel(resource.type_name, labels)}
-                              </span>
-                            </div>
-                            {resource.metadata &&
-                              Object.keys(resource.metadata).length > 0 && (
-                                <div
-                                  style={{
-                                    color: "#64748b",
-                                    fontSize: 12,
-                                    marginBottom: 8,
-                                  }}
-                                >
-                                  {Object.entries(resource.metadata)
-                                    .slice(0, 4)
-                                    .map(([k, v]) => `${k}: ${v}`)
-                                    .join(" | ")}
-                                </div>
-                              )}
-                            <div style={{ fontSize: 12, color: "#475569" }}>
-                              {nextSession ? (
-                                <>
-                                  Next session: {formatDate(nextSession.date)}{" "}
-                                  {formatTime(nextSession.start)} -{" "}
-                                  {formatTime(nextSession.end)}
-                                </>
-                              ) : (
-                                "No upcoming sessions scheduled."
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
             <header
               style={{
                 padding: "12px 0",
@@ -1664,7 +1553,9 @@ export default function App() {
                 Find a {labelsLower.resource}
               </h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                Search by name or tags, then expand to see your dates & times.
+                {role === "user"
+                  ? `Browse all ${labelsLower.resources}, then expand one to see your assignments.`
+                  : "Search by name or tags, then expand to see your dates & times."}
               </p>
             </header>
 
@@ -1698,7 +1589,7 @@ export default function App() {
                   }}
                 />
                 <button
-                  onClick={loadResources}
+                  onClick={() => loadResources({ allowEmptyQuery: role === "user" })}
                   disabled={resourceLoading}
                   style={{
                     padding: "10px 16px",
@@ -1721,7 +1612,8 @@ export default function App() {
                 </div>
               )}
 
-              {resourceQuery.trim() &&
+              {role !== "user" &&
+                resourceQuery.trim() &&
                 filteredResources.length === 0 &&
                 !resourceLoading && (
                   <div
@@ -1822,14 +1714,23 @@ export default function App() {
                     <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>
                       Sessions
                     </div>
-                    {(resourceSessions[selectedResource.id] || []).length === 0 && (
+                    {((role === "user"
+                      ? allResourceSessions[selectedResource.id]
+                      : resourceSessions[selectedResource.id]) || []
+                    ).length === 0 && (
                       <div style={{ color: "#475569" }}>
                         No sessions found for this {labelsLower.resource}.
                       </div>
                     )}
-                    {(resourceSessions[selectedResource.id] || []).length > 0 && (
+                    {((role === "user"
+                      ? allResourceSessions[selectedResource.id]
+                      : resourceSessions[selectedResource.id]) || []
+                    ).length > 0 && (
                       <div style={{ display: "grid", gap: 10 }}>
-                        {(resourceSessions[selectedResource.id] || []).map((s) => (
+                        {((role === "user"
+                          ? allResourceSessions[selectedResource.id]
+                          : resourceSessions[selectedResource.id]) || []
+                        ).map((s) => (
                           <div
                             key={`${s.bookingId}-${s.start}`}
                             style={{
@@ -1864,6 +1765,11 @@ export default function App() {
                                   Role: {s.role}
                                 </div>
                               )}
+                              {s.cancelled && (
+                                <div style={{ color: "#b45309", fontWeight: 700 }}>
+                                  Cancelled
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1881,7 +1787,10 @@ export default function App() {
                     }}
                   >
                     {filteredResources.slice(0, 20).map((r) => {
-                      const sessions = resourceSessions[r.id] || [];
+                      const sessions =
+                        (role === "user"
+                          ? allResourceSessions[r.id]
+                          : resourceSessions[r.id]) || [];
                       return (
                         <button
                           key={r.id}
@@ -1939,9 +1848,22 @@ export default function App() {
                   </div>
                 )
               )}
+
+              {role === "user" &&
+                filteredResources.length === 0 &&
+                !resourceLoading && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      color: "#475569",
+                    }}
+                  >
+                    {resourceQuery.trim()
+                      ? "No matches found. Try another keyword."
+                      : `No ${labelsLower.resources} available yet.`}
+                  </div>
+                )}
             </div>
-              </>
-            )}
           </>
         ) : section === "requests" ? (
           <>
