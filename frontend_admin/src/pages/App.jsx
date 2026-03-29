@@ -36,7 +36,8 @@ export default function App() {
     const existing = getAdminSession();
     const existingRole = String(existing?.role || "").toLowerCase();
     const hasOrg = String(existing?.organization_id || "").trim();
-    if (existingRole === "admin" && hasOrg) {
+    const hasIncomingAdminSession = Boolean(nationalId && role === "admin" && orgId);
+    if (!hasIncomingAdminSession && existingRole === "admin" && hasOrg) {
       setReady(true);
       return;
     }
