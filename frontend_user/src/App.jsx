@@ -1786,7 +1786,7 @@ export default function App() {
                       gap: 12,
                     }}
                   >
-                    {filteredResources.slice(0, 20).map((r) => {
+                    {filteredResources.map((r) => {
                       const sessions =
                         (role === "user"
                           ? allResourceSessions[r.id]
@@ -2091,7 +2091,7 @@ export default function App() {
                       gap: 12,
                     }}
                   >
-                    {filteredRequestResources.slice(0, 20).map((r) => {
+                    {filteredRequestResources.map((r) => {
                       const available = isResourceAvailable(r);
                       return (
                         <div
