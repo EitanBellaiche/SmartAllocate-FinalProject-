@@ -324,10 +324,15 @@ export default function AutoScheduler({ embedded = false }) {
   return (
     <div className={embedded ? "" : "p-6"}>
       {!embedded && (
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="mb-6 rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#eef4ff_50%,#ffffff_100%)] p-6 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
           <div>
-            <h1 className="text-2xl font-bold">Auto Scheduler</h1>
-            <p className="text-sm text-gray-600">
+            <div className="inline-flex rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+              Auto Planner
+            </div>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">
+              Auto Scheduler
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
               Build allocations by picking resources together, then schedule by teacher availability.
             </p>
           </div>
@@ -335,25 +340,25 @@ export default function AutoScheduler({ embedded = false }) {
       )}
 
       {message && (
-        <div className="mb-4 p-2 rounded bg-blue-50 text-blue-700 border border-blue-100">
+        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
           {message}
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 border">
+      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="block text-sm font-medium mb-1">Range start</label>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Range start</label>
             <IsraelDateInput
-              className="border rounded px-3 py-2 w-full"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
               value={rangeStart}
               onChange={setRangeStart}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Range end</label>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Range end</label>
             <IsraelDateInput
-              className="border rounded px-3 py-2 w-full"
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
               value={rangeEnd}
               onChange={setRangeEnd}
             />
@@ -361,7 +366,7 @@ export default function AutoScheduler({ embedded = false }) {
           <button
             type="button"
             onClick={runAutoSchedule}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="rounded-2xl bg-blue-600 px-4 py-3 text-base font-semibold text-white shadow-[0_14px_30px_rgba(37,99,235,0.26)] transition hover:bg-blue-700 disabled:bg-slate-400 disabled:shadow-none"
             disabled={groups.length === 0 || running}
           >
             {running ? "Running..." : "Run auto schedule"}
@@ -369,20 +374,22 @@ export default function AutoScheduler({ embedded = false }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-4 border mb-6">
-        <h2 className="text-lg font-semibold mb-4">Responsible availability</h2>
+      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">Responsible availability</h2>
         {availability.length === 0 ? (
-          <div className="text-sm text-gray-500">No availability found.</div>
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+            No availability found.
+          </div>
         ) : (
           <div className="space-y-3">
             {Object.entries(availabilityByUser).map(([userId, slots]) => {
               const user = responsibleById[userId];
               return (
-                <div key={userId} className="border rounded-lg p-3">
-                  <div className="font-semibold">
+                <div key={userId} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="font-semibold text-slate-900">
                     {user?.full_name || "Responsible"} - {userId}
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="mt-1 text-xs leading-6 text-slate-600">
                     {slots
                       .map(
                         (slot) =>
@@ -399,20 +406,20 @@ export default function AutoScheduler({ embedded = false }) {
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-4 border mb-6">
-        <h2 className="text-lg font-semibold mb-4">Build allocation</h2>
-        <div className="mb-3 text-sm text-gray-600">
+      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">Build allocation</h2>
+        <div className="mb-4 text-sm text-slate-600">
           You can combine specific resources and whole resource types in the same allocation.
         </div>
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <input
-            className="border rounded px-3 py-2"
+            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
             placeholder="Search resources..."
             value={resourceQuery}
             onChange={(e) => setResourceQuery(e.target.value)}
           />
           <select
-            className="border rounded px-3 py-2"
+            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
@@ -426,10 +433,10 @@ export default function AutoScheduler({ embedded = false }) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <div className="font-medium mb-2">Whole resource types</div>
-            <div className="border rounded p-3 max-h-48 overflow-y-auto">
+            <div className="mb-2 text-base font-semibold text-slate-900">Whole resource types</div>
+            <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
               {resourceTypes.map((type) => (
-                <label key={type.id} className="flex items-center gap-2 mb-2 text-sm">
+                <label key={type.id} className="mb-2 flex items-center gap-2 rounded-xl bg-white px-3 py-3 text-sm text-slate-700 shadow-sm">
                   <input
                     type="checkbox"
                     checked={selection.typeIds.includes(type.id)}
@@ -439,39 +446,39 @@ export default function AutoScheduler({ embedded = false }) {
                 </label>
               ))}
               {resourceTypes.length === 0 && (
-                <div className="text-xs text-gray-500">No resource types found.</div>
+                <div className="text-xs text-slate-500">No resource types found.</div>
               )}
             </div>
           </div>
           <div>
-            <div className="font-medium mb-2">Specific resources</div>
-            <div className="border rounded p-3 max-h-64 overflow-y-auto">
+            <div className="mb-2 text-base font-semibold text-slate-900">Specific resources</div>
+            <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
               {filteredResources.map((resource) => {
                 const type = resourceTypes.find((t) => t.id === resource.type_id);
                 const typeName = type?.name || resource.type_name || "Resource";
                 return (
-                  <label key={resource.id} className="flex items-center gap-2 mb-2 text-sm">
+                  <label key={resource.id} className="mb-2 flex items-center gap-2 rounded-xl bg-white px-3 py-3 text-sm text-slate-700 shadow-sm">
                     <input
                       type="checkbox"
                       checked={selection.resourceIds.includes(resource.id)}
                       onChange={() => toggleResource(resource.id)}
                     />
                     <span>{resource.name}</span>
-                    <span className="text-xs text-gray-500">({typeName})</span>
+                    <span className="text-xs text-slate-500">({typeName})</span>
                   </label>
                 );
               })}
               {filteredResources.length === 0 && (
-                <div className="text-xs text-gray-500">No resources match.</div>
+                <div className="text-xs text-slate-500">No resources match.</div>
               )}
             </div>
           </div>
-          <div className="grid gap-3">
+          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
             <div>
-              <label className="block text-xs font-medium mb-1">Responsible user</label>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Responsible user</label>
               <input
                 type="text"
-                className="border rounded px-2 py-1 w-full"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
                 value={responsibleQuery}
                 onChange={(e) => {
                   setResponsibleQuery(e.target.value);
@@ -481,18 +488,18 @@ export default function AutoScheduler({ embedded = false }) {
                 placeholder="Search by name, email, or ID"
               />
               {responsibleLoading && (
-                <div className="text-xs text-gray-500 mt-2">Loading users...</div>
+                <div className="mt-2 text-xs text-slate-500">Loading users...</div>
               )}
               {responsibleError && (
-                <div className="text-xs text-red-600 mt-2">{responsibleError}</div>
+                <div className="mt-2 text-xs text-red-600">{responsibleError}</div>
               )}
               {responsibleOptions.length > 0 && (
-                <div className="border rounded mt-2 max-h-40 overflow-auto bg-white">
+                <div className="mt-2 max-h-40 overflow-auto rounded-2xl border border-slate-200 bg-white p-2">
                   {responsibleOptions.map((user) => (
                     <button
                       key={user.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
+                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                       onClick={() => {
                         const nextId = String(user.national_id || user.id || "").trim();
                         setResponsibleUser(user);
@@ -507,12 +514,12 @@ export default function AutoScheduler({ embedded = false }) {
                   ))}
                 </div>
               )}
-              <div className="mt-2 text-xs text-gray-600">
+              <div className="mt-2 text-xs text-slate-600">
                 Selected: {responsibleUser?.national_id || selection.responsibleId || "None"}
               </div>
               {responsibleUser && (
-                <div className="mt-3 p-3 border rounded bg-gray-50 text-xs text-gray-700">
-                  <div className="font-semibold mb-2">Responsible availability</div>
+                <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-xs text-slate-700">
+                  <div className="mb-2 font-semibold text-slate-900">Responsible availability</div>
                   {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
                     <div>No availability defined yet.</div>
                   ) : (
@@ -527,7 +534,7 @@ export default function AutoScheduler({ embedded = false }) {
                         </div>
                       ))}
                       {responsibleOverrides.length > 0 && (
-                        <div className="mt-2 text-gray-500">
+                        <div className="mt-2 text-slate-500">
                       Overrides:
                       {responsibleOverrides.map((slot) => (
                         <div key={slot.id}>
@@ -545,9 +552,9 @@ export default function AutoScheduler({ embedded = false }) {
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Assigned user IDs</label>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Assigned user IDs</label>
               <input
-                className="border rounded px-2 py-1 w-full"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
                 value={selection.userIds}
                 onChange={(e) =>
                   setSelection((prev) => ({ ...prev, userIds: e.target.value }))
@@ -556,11 +563,11 @@ export default function AutoScheduler({ embedded = false }) {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium mb-1">Hours per week</label>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Hours per week</label>
               <input
                 type="number"
                 min="1"
-                className="border rounded px-2 py-1 w-full"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
                 value={selection.weeklyHours}
                 onChange={(e) =>
                   setSelection((prev) => ({ ...prev, weeklyHours: e.target.value }))
@@ -569,12 +576,12 @@ export default function AutoScheduler({ embedded = false }) {
             </div>
             <button
               type="button"
-              className="border border-blue-200 text-blue-700 px-3 py-2 rounded hover:bg-blue-50"
+              className="rounded-2xl border border-blue-200 bg-white px-4 py-3 font-medium text-blue-700 transition hover:bg-blue-50"
               onClick={addGroup}
             >
               Add allocation
             </button>
-            <div className="text-xs text-gray-600">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-600">
               {effectiveResourceIds.length > 0
                 ? `${effectiveResourceIds.length} unique resources will be included in this allocation.`
                 : "No resources selected yet."}
@@ -583,10 +590,10 @@ export default function AutoScheduler({ embedded = false }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-4 border">
-        <h2 className="text-lg font-semibold mb-4">Allocations</h2>
+      <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <h2 className="mb-4 text-xl font-semibold text-slate-900">Allocations</h2>
         {groups.length === 0 && (
-          <div className="text-sm text-gray-500">No allocations yet.</div>
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">No allocations yet.</div>
         )}
         {groups.length > 0 && (
           <div className="space-y-4">
@@ -603,15 +610,15 @@ export default function AutoScheduler({ embedded = false }) {
                 ? `${typeNames}${resourceNames ? ` + ${resourceNames}` : ""}`
                 : resourceNames;
               return (
-                <div key={group.group_id} className="border rounded-lg p-4">
-                  <div className="font-semibold mb-2">{title}</div>
+                <div key={group.group_id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-2 font-semibold text-slate-900">{title}</div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-xs font-medium mb-1">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Responsible user ID
                       </label>
                       <input
-                        className="border rounded px-2 py-1 w-full"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
                         value={group.responsible_user_id}
                         onChange={(e) =>
                           updateGroup(group.group_id, { responsible_user_id: e.target.value })
@@ -619,9 +626,9 @@ export default function AutoScheduler({ embedded = false }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1">Assigned user IDs</label>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Assigned user IDs</label>
                       <input
-                        className="border rounded px-2 py-1 w-full"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
                         value={group.user_ids.join(", ")}
                         onChange={(e) =>
                           updateGroup(group.group_id, { user_ids: parseIds(e.target.value) })
@@ -629,11 +636,11 @@ export default function AutoScheduler({ embedded = false }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1">Hours per week</label>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Hours per week</label>
                       <input
                         type="number"
                         min="1"
-                        className="border rounded px-2 py-1 w-full"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
                         value={group.weekly_hours}
                         onChange={(e) =>
                           updateGroup(group.group_id, {
@@ -645,7 +652,7 @@ export default function AutoScheduler({ embedded = false }) {
                     <div className="flex items-end">
                       <button
                         type="button"
-                        className="border px-3 py-2 rounded text-red-600 hover:bg-red-50 w-full"
+                        className="w-full rounded-2xl border border-red-200 bg-white px-3 py-2.5 text-red-600 transition hover:bg-red-50"
                         onClick={() => removeGroup(group.group_id)}
                       >
                         Remove
@@ -654,7 +661,7 @@ export default function AutoScheduler({ embedded = false }) {
                   </div>
                   {group.responsible_user_id &&
                     availabilityByUser[group.responsible_user_id]?.length > 0 && (
-                      <div className="mt-3 text-xs text-gray-600">
+                      <div className="mt-3 text-xs text-slate-600">
                         Availability records:{" "}
                         {availabilityByUser[group.responsible_user_id].length}
                       </div>
@@ -666,22 +673,22 @@ export default function AutoScheduler({ embedded = false }) {
         )}
       </div>
 
-      <div className="mt-6 bg-white rounded-lg shadow-sm p-4 border">
+      <div className="mt-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-lg font-semibold">Allocations in range</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Allocations in range</h2>
           <button
             type="button"
             onClick={loadAllocations}
-            className="border border-blue-200 text-blue-700 px-3 py-2 rounded hover:bg-blue-50"
+            className="rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-50"
             disabled={allocationsLoading}
           >
             {allocationsLoading ? "Loading..." : "Refresh list"}
           </button>
         </div>
         {allocationsLoading ? (
-          <div className="text-sm text-gray-500">Loading allocations...</div>
+          <div className="text-sm text-slate-500">Loading allocations...</div>
         ) : allocations.length === 0 ? (
-          <div className="text-sm text-gray-500">No allocations found in this range.</div>
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">No allocations found in this range.</div>
         ) : (
           <div className="space-y-3">
             {allocations.map((item, idx) => {
@@ -693,16 +700,16 @@ export default function AutoScheduler({ embedded = false }) {
               const dayLabel =
                 DAY_LABELS[item.day_of_week] || `Day ${item.day_of_week}`;
               return (
-                <div key={`${item.responsible_user_id}-${idx}`} className="border rounded-lg p-3">
-                  <div className="font-semibold">{resourcesLabel}</div>
-                  <div className="text-xs text-gray-600">
+                <div key={`${item.responsible_user_id}-${idx}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="font-semibold text-slate-900">{resourcesLabel}</div>
+                  <div className="mt-1 text-xs leading-6 text-slate-600">
                     Responsible: {item.responsible_user_id} | {dayLabel} |{" "}
                     {formatIsraelTime(item.start_time)}-{formatIsraelTime(item.end_time)} |{" "}
                     {formatIsraelDate(item.start_date)} {"->"} {formatIsraelDate(item.end_date)} | {item.occurrences} weeks
                   </div>
                   <button
                     type="button"
-                    className="mt-2 border px-3 py-1 rounded text-red-600 hover:bg-red-50"
+                    className="mt-3 rounded-xl border border-red-200 bg-white px-3 py-2 text-red-600 transition hover:bg-red-50"
                     onClick={() => removeAllocation(item)}
                   >
                     Remove allocation
@@ -715,22 +722,22 @@ export default function AutoScheduler({ embedded = false }) {
       </div>
 
       {lastRun.scheduled.length > 0 && (
-        <div className="mt-6 border rounded p-3 bg-gray-50">
-          <div className="text-xs font-semibold text-gray-700 mb-1">
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
             Scheduled summary
           </div>
-          <div className="text-xs text-gray-600">
+          <div className="text-xs text-slate-600">
             {lastRun.scheduled.length} sessions scheduled. See allocations in range for the full
             recurring blocks.
           </div>
         </div>
       )}
       {lastRun.skipped.length > 0 && (
-        <div className="mt-4 border rounded p-3 bg-red-50">
-          <div className="text-xs font-semibold text-red-700 mb-2">
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
             Skipped details
           </div>
-          <div className="text-xs text-red-700 space-y-1">
+          <div className="space-y-1 text-xs text-red-700">
             {lastRun.skipped.slice(0, 10).map((item, idx) => (
               <div key={`${item.group_id || idx}`}>
                 {item.reason}

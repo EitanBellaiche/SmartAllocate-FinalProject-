@@ -185,81 +185,120 @@ export default function Availability() {
       .filter(Boolean);
   }, [editModal.selectedResources, resources]);
 
+  const calendarEventStyle = {
+    backgroundColor: "#2563eb",
+    color: "#ffffff",
+    borderRadius: "10px",
+    padding: "4px 8px",
+    border: "1px solid rgba(37, 99, 235, 0.2)",
+    boxShadow: "0 8px 20px rgba(37, 99, 235, 0.2)",
+    fontWeight: 600,
+  };
+
   return (
-    <div className="p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold">Bookings Calendar</h1>
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <section className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#f2f6ff_55%,#ffffff_100%)] p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+              Calendar Studio
+            </div>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              Bookings Calendar
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
+              Same calendar workflow, just with cleaner hierarchy, a softer shell, and controls
+              that feel more polished and easier to scan.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">Resource</label>
-          <select
-            className="p-2 border rounded bg-white"
-            value={selectedResource}
-            onChange={(e) => setSelectedResource(e.target.value)}
-          >
-            <option value="">All resources</option>
-            {resourceOptions.map((resource) => (
-              <option key={resource.id} value={resource.id}>
-                {resource.name}
-              </option>
-            ))}
-          </select>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Resource</label>
+            <select
+              className="min-w-[280px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white"
+              value={selectedResource}
+              onChange={(e) => setSelectedResource(e.target.value)}
+            >
+              <option value="">All resources</option>
+              {resourceOptions.map((resource) => (
+                <option key={resource.id} value={resource.id}>
+                  {resource.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="bg-white p-6 rounded-xl shadow-xl">
-        <h2 className="text-xl font-semibold mb-4">Calendar View</h2>
+      <section className="mt-6 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-7">
+        <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">Calendar View</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Navigate bookings by month, week, day, or agenda and open any event directly for
+              editing.
+            </p>
+          </div>
+          <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+            Live schedule
+          </div>
+        </div>
 
-        <Calendar
-          localizer={localizer}
-          events={events}
-          date={currentDate}
-          onNavigate={(date) => setCurrentDate(date)}
-          onSelectEvent={openEditModal}
-          startAccessor="start"
-          endAccessor="end"
-          views={["month", "week", "day", "agenda"]}
-          defaultView="month"
-          style={{ height: 600 }}
-          toolbar
-          popup
-          eventPropGetter={() => ({
-            style: {
-              backgroundColor: "#2563eb",
-              color: "white",
-              borderRadius: "6px",
-              padding: "4px",
-              border: "none",
-            },
-          })}
-        />
-      </div>
+        <div className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-3 shadow-inner sm:p-4">
+          <div className="[&_.rbc-toolbar]:mb-5 [&_.rbc-toolbar]:flex-wrap [&_.rbc-toolbar]:gap-3 [&_.rbc-toolbar-label]:text-2xl [&_.rbc-toolbar-label]:font-semibold [&_.rbc-toolbar-label]:text-slate-900 [&_.rbc-btn-group]:overflow-hidden [&_.rbc-btn-group]:rounded-2xl [&_.rbc-btn-group]:border [&_.rbc-btn-group]:border-slate-200 [&_.rbc-btn-group]:bg-white [&_.rbc-btn-group_button]:border-0 [&_.rbc-btn-group_button]:px-4 [&_.rbc-btn-group_button]:py-2.5 [&_.rbc-btn-group_button]:text-sm [&_.rbc-btn-group_button]:font-medium [&_.rbc-btn-group_button]:text-slate-600 [&_.rbc-btn-group_button:hover]:bg-slate-50 [&_.rbc-active]:bg-blue-600 [&_.rbc-active]:text-white [&_.rbc-month-view]:overflow-hidden [&_.rbc-month-view]:rounded-[22px] [&_.rbc-month-view]:border [&_.rbc-month-view]:border-slate-200 [&_.rbc-month-view]:bg-white [&_.rbc-header]:border-b [&_.rbc-header]:border-slate-200 [&_.rbc-header]:bg-slate-50 [&_.rbc-header]:py-3 [&_.rbc-header]:font-semibold [&_.rbc-header]:text-slate-800 [&_.rbc-date-cell]:px-2 [&_.rbc-date-cell]:pt-2 [&_.rbc-date-cell]:text-slate-700 [&_.rbc-off-range-bg]:bg-slate-100 [&_.rbc-today]:bg-blue-50 [&_.rbc-day-bg+_.rbc-day-bg]:border-l-slate-200 [&_.rbc-month-row+_.rbc-month-row]:border-t-slate-200 [&_.rbc-time-view]:overflow-hidden [&_.rbc-time-view]:rounded-[22px] [&_.rbc-time-view]:border [&_.rbc-time-view]:border-slate-200 [&_.rbc-time-view]:bg-white [&_.rbc-time-header]:border-b-slate-200 [&_.rbc-timeslot-group]:border-b-slate-100 [&_.rbc-agenda-view]:rounded-[22px] [&_.rbc-agenda-view]:border [&_.rbc-agenda-view]:border-slate-200 [&_.rbc-agenda-view]:bg-white [&_.rbc-agenda-view_table]:w-full [&_.rbc-agenda-view_table]:text-sm [&_.rbc-agenda-date-cell]:font-medium [&_.rbc-current-time-indicator]:bg-red-400">
+            <Calendar
+              localizer={localizer}
+              events={events}
+              date={currentDate}
+              onNavigate={(date) => setCurrentDate(date)}
+              onSelectEvent={openEditModal}
+              startAccessor="start"
+              endAccessor="end"
+              views={["month", "week", "day", "agenda"]}
+              defaultView="month"
+              style={{ height: 640 }}
+              toolbar
+              popup
+              eventPropGetter={() => ({
+                style: calendarEventStyle,
+              })}
+            />
+          </div>
+        </div>
+      </section>
 
       {editModal.open && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center p-4">
-          <div className="relative z-50 bg-white p-4 sm:p-6 rounded-lg w-full max-w-[680px] shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl mb-4 font-semibold">Edit Booking</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+          <div className="relative z-50 max-h-[90vh] w-full max-w-[720px] overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <div className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+                  Edit Event
+                </div>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-900">Edit Booking</h3>
+              </div>
+            </div>
 
             {modalMessage && (
-              <div className="mb-3 p-2 bg-red-100 text-red-700 rounded">
+              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {modalMessage}
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="block text-sm font-medium mb-1">Date</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">Date</label>
                 <IsraelDateInput
-                  className="p-2 border w-full rounded bg-white"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
                   value={editModal.date}
                   onChange={(nextDate) => setEditModal((prev) => ({ ...prev, date: nextDate }))}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Start</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">Start</label>
                 <input
                   type="time"
-                  className="p-2 border w-full rounded bg-white"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
                   value={editModal.start_time}
                   onChange={(e) =>
                     setEditModal((prev) => ({ ...prev, start_time: e.target.value }))
@@ -267,10 +306,10 @@ export default function Availability() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">End</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">End</label>
                 <input
                   type="time"
-                  className="p-2 border w-full rounded bg-white"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
                   value={editModal.end_time}
                   onChange={(e) =>
                     setEditModal((prev) => ({ ...prev, end_time: e.target.value }))
@@ -279,19 +318,19 @@ export default function Availability() {
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">User ID</label>
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-semibold text-slate-700">User ID</label>
               <input
                 type="number"
-                className="p-2 border w-full rounded bg-white"
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
                 value={editModal.user_id}
                 onChange={(e) => setEditModal((prev) => ({ ...prev, user_id: e.target.value }))}
               />
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Resources</label>
-              <div className="max-h-64 overflow-y-auto border rounded p-3 bg-gray-50">
+            <div className="mt-5">
+              <label className="mb-3 block text-sm font-semibold text-slate-700">Resources</label>
+              <div className="max-h-64 overflow-y-auto rounded-[22px] border border-slate-200 bg-slate-50 p-3">
                 {resourceOptions.map((resource) => {
                   const type = resourceTypes.find((item) => item.id === resource.type_id);
                   const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
@@ -300,7 +339,7 @@ export default function Availability() {
                   return (
                     <div
                       key={resource.id}
-                      className="flex items-center justify-between mb-2"
+                      className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-transparent bg-white px-3 py-3 shadow-sm"
                     >
                       <label className="flex items-center gap-2">
                         <input
@@ -313,7 +352,7 @@ export default function Availability() {
 
                       {checked && typeRoles.length > 0 && (
                         <select
-                          className="border rounded px-2 py-1"
+                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                           value={editModal.roles[resource.id] || ""}
                           onChange={(e) => updateRole(resource.id, e.target.value)}
                         >
@@ -337,21 +376,24 @@ export default function Availability() {
               </div>
             )}
 
-            <div className="flex justify-between gap-2">
+            <div className="mt-6 flex justify-between gap-2">
               <button
                 onClick={deleteBooking}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                className="rounded-xl bg-red-600 px-4 py-2.5 text-white transition hover:bg-red-700"
               >
                 Delete
               </button>
 
               <div className="flex gap-2">
-                <button onClick={closeEditModal} className="px-4 py-2 border rounded">
+                <button
+                  onClick={closeEditModal}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700"
+                >
                   Cancel
                 </button>
                 <button
                   onClick={saveEdit}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-white transition hover:bg-blue-700"
                 >
                   Save Changes
                 </button>

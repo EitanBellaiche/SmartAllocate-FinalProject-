@@ -67,10 +67,11 @@ export default function Dashboard() {
     loadStats();
   }, []);
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const hasSearchQuery = normalizedSearchQuery.length > 0;
 
   const filteredResources = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return resources;
+    if (!hasSearchQuery) return [];
 
     return resources.filter((r) => {
       const haystack = [
@@ -83,9 +84,9 @@ export default function Dashboard() {
         .join(" ")
         .toLowerCase();
 
-      return haystack.includes(query);
+      return haystack.includes(normalizedSearchQuery);
     });
-  }, [resources, searchQuery]);
+  }, [hasSearchQuery, normalizedSearchQuery, resources]);
 
   if (loading) return <p className="text-gray-500">Loading...</p>;
   if (!stats) return <p className="text-red-500">Failed to load data.</p>;
@@ -199,88 +200,132 @@ export default function Dashboard() {
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-        <StatCard title="Total Resources" value={stats.totalResources} />
-        <StatCard title="Resource Types" value={stats.totalResourceTypes} />
-        <StatCard title="Bookings Today" value={stats.bookingsToday} />
-        <StatCard title="Pending Approvals" value={stats.pending} />
-        <StatCard title="Total Bookings" value={stats.totalBookings} />
-      </div>
-
-      <div className="mt-10">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <h2 className="text-xl font-bold">Find Resources</h2>
-          <div className="text-sm text-gray-500">
-            Showing {filteredResources.length} of {resources.length}
+    <div className="space-y-6">
+      <section className="rounded-[30px] border border-sky-100 bg-[linear-gradient(135deg,#ffffff,#f8fbff,#eef6ff)] p-6 shadow-[0_18px_45px_rgba(59,130,246,0.08)] sm:p-8">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <div className="mb-3 inline-flex items-center rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+              Executive Overview
+            </div>
+            <h1 className="text-4xl font-black tracking-tight text-slate-900">Dashboard</h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+              A clean operational snapshot of resources, activity, and booking volume across the system.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-sky-100 bg-white/80 px-4 py-3 text-sm text-slate-600 shadow-sm">
+            System overview updated from live resources and bookings.
           </div>
         </div>
 
-        <div className="mb-4">
+        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <StatCard title="Total Resources" value={stats.totalResources} tone="blue" />
+          <StatCard title="Resource Types" value={stats.totalResourceTypes} tone="sky" />
+          <StatCard title="Bookings Today" value={stats.bookingsToday} tone="emerald" />
+          <StatCard title="Pending Approvals" value={stats.pending} tone="amber" />
+          <StatCard title="Total Bookings" value={stats.totalBookings} tone="violet" />
+        </div>
+      </section>
+
+      <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Find Resources</h2>
+            <div className="mt-1 text-sm text-slate-500">
+              Search the resource inventory without overwhelming the page by default.
+            </div>
+          </div>
+          <div className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+            {hasSearchQuery
+              ? `Showing ${filteredResources.length} of ${resources.length}`
+              : `Search across ${resources.length} resources`}
+          </div>
+        </div>
+
+        <div className="mb-5 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4">
           <input
             type="text"
             placeholder="Search by name, type, id, or metadata..."
-            className="w-full p-3 border rounded-lg"
+            className="w-full rounded-2xl border border-transparent bg-white px-5 py-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-200 focus:ring-4 focus:ring-sky-100"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        <div className="bg-white shadow rounded-lg border border-gray-200 overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-100 text-gray-700">
+        <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white shadow-sm">
+          <table className="min-w-[920px] w-full text-left">
+            <thead className="bg-slate-100 text-slate-700">
               <tr>
                 <th className="p-3">ID</th>
                 <th className="p-3">Name</th>
                 <th className="p-3">Type</th>
                 <th className="p-3">Metadata</th>
-                <th className="p-3">Actions</th>
+                <th className="p-3 w-[170px]">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredResources.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="p-3">{r.id}</td>
-                  <td className="p-3 font-medium">{r.name}</td>
-                  <td className="p-3">{r.type_name}</td>
-                  <td className="p-3 text-sm text-gray-600">
+              {!hasSearchQuery && (
+                <tr>
+                  <td
+                    colSpan="5"
+                    className="px-6 py-16 text-center text-slate-500"
+                  >
+                    <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
+                      <div className="text-lg font-semibold text-slate-800">Search to reveal results</div>
+                      <div className="mt-2 text-sm text-slate-500">
+                        Start typing to search for a resource and keep the dashboard focused.
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+
+              {hasSearchQuery && filteredResources.map((r) => (
+                <tr key={r.id} className="border-t border-slate-100">
+                  <td className="p-3 text-slate-600">{r.id}</td>
+                  <td className="p-3 font-semibold text-slate-900">{r.name}</td>
+                  <td className="p-3">
+                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                      {r.type_name}
+                    </span>
+                  </td>
+                  <td className="p-3 text-sm text-slate-600">
                     {metadataSummary(r.metadata)}
                   </td>
                   <td className="p-3">
-                    <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => openView(r)}
-                      className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => openEdit(r)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <button
+                        onClick={() => openView(r)}
+                        className="min-w-[72px] rounded-xl bg-slate-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => openEdit(r)}
+                        className="min-w-[72px] rounded-xl bg-sky-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
+                      >
+                        Edit
+                      </button>
                     </div>
                   </td>
                 </tr>
               ))}
 
-              {filteredResources.length === 0 && (
+              {hasSearchQuery && filteredResources.length === 0 && (
                 <tr>
                   <td
                     colSpan="5"
-                    className="text-center p-5 text-gray-500"
+                    className="p-10 text-center text-slate-500"
                   >
-                    No resources match your search.
+                    <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
+                      No resources match your search.
+                    </div>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
       {editModal.open && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
@@ -503,11 +548,19 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value }) {
+function StatCard({ title, value, tone = "blue" }) {
+  const tones = {
+    blue: "border-blue-100 bg-white text-blue-600 shadow-blue-100/60",
+    sky: "border-sky-100 bg-white text-sky-600 shadow-sky-100/60",
+    emerald: "border-emerald-100 bg-white text-emerald-600 shadow-emerald-100/60",
+    amber: "border-amber-100 bg-white text-amber-600 shadow-amber-100/60",
+    violet: "border-violet-100 bg-white text-violet-600 shadow-violet-100/60",
+  };
+
   return (
-    <div className="p-5 bg-white shadow rounded-lg border border-gray-200">
-      <p className="text-gray-500 text-sm">{title}</p>
-      <p className="text-3xl font-bold text-blue-600">{value}</p>
+    <div className={`rounded-[24px] border p-5 shadow-[0_14px_30px] ${tones[tone] || tones.blue}`}>
+      <p className="text-sm font-medium text-slate-500">{title}</p>
+      <p className="mt-3 text-4xl font-black">{value}</p>
     </div>
   );
 }
