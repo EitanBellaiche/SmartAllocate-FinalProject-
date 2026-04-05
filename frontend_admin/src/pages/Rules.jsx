@@ -222,6 +222,15 @@ function parseInputValue(raw, op) {
   return parsePrimitive(text);
 }
 
+function stringifyInputValue(value) {
+  if (Array.isArray(value)) {
+    return value.join(",");
+  }
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
 function buildFieldPath(typeId, field) {
   if (!typeId || !field) return "";
   return `resources_by_type_id.${typeId}.${field}`;
@@ -303,6 +312,23 @@ function detectContradictions(clauses) {
 }
 
 export default function Rules() {
+  const createEmptyForm = () => ({
+    name: "",
+    description: "",
+    aMode: "resource",
+    resourceAId: "",
+    typeAId: "",
+    fieldA: "",
+    op: "<",
+    constValue: "",
+    effect: "forbid",
+    scoreDelta: 10,
+    is_active: true,
+    comparisons: [
+      { compareMode: "field", side: "A", bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "", value: "" },
+    ],
+  });
+
   const [rules, setRules] = useState([]);
   const [resources, setResources] = useState([]);
   const [schemaTypes, setSchemaTypes] = useState([]);
@@ -315,24 +341,10 @@ export default function Rules() {
   const [wizardAnswers, setWizardAnswers] = useState({});
   const [wizardBusy, setWizardBusy] = useState(false);
   const [showSimpleBuilder, setShowSimpleBuilder] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState(null);
 
   const [mode, setMode] = useState("single"); // single | pair
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    aMode: "resource", // resource | type
-    resourceAId: "",
-    typeAId: "",
-    fieldA: "",
-    op: "<",
-    constValue: "",
-    effect: "forbid", // forbid | alert | score
-    scoreDelta: 10,
-    is_active: true,
-    comparisons: [
-      { compareMode: "field", side: "A", bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "", value: "" },
-    ],
-  });
+  const [form, setForm] = useState(createEmptyForm);
 
   const createEmptyWizard = () => ({
     actionEffect: "forbid",
@@ -966,6 +978,283 @@ export default function Rules() {
     return updated;
   }
 
+  function resetForm() {
+    setMode("single");
+    setEditingRuleId(null);
+    setForm(ensureDefaultFieldA(createEmptyForm()));
+  }
+
+  function buildFormPayload() {
+    if (!form.name.trim()) return { error: "Name is required" };
+    if (form.aMode === "resource" && !form.resourceAId) return { error: "Please choose Resource A." };
+    if (form.aMode === "type" && !form.typeAId) return { error: "Please choose Resource Type A." };
+
+    let condition;
+    let target_type = "resource";
+
+    const aScopeClause =
+      form.aMode === "type"
+        ? { field: "resource.type_id", op: "==", value: Number(form.typeAId) }
+        : { field: "resource.id", op: "==", value: Number(form.resourceAId) };
+
+    if (mode === "single") {
+      if (!form.fieldA) return { error: "Please choose a field for Resource A." };
+      condition = {
+        all: [
+          aScopeClause,
+          {
+            field: `resource.${form.fieldA}`,
+            op: form.op,
+            value: toNumberIfPossible(form.constValue),
+          },
+        ],
+      };
+    } else {
+      if (!form.comparisons.length) return { error: "Add at least one resource to compare." };
+      target_type = "pair";
+      const clauses = [aScopeClause];
+      const scopedBResourceKeys = new Set();
+
+      for (const [idx, comp] of form.comparisons.entries()) {
+        const addSpecificBScopeIfNeeded = (typeIdB, resourceBId) => {
+          const scopeKey = `${typeIdB}:${resourceBId}`;
+          if (scopedBResourceKeys.has(scopeKey)) return;
+          scopedBResourceKeys.add(scopeKey);
+          clauses.push({
+            field: `resources_by_type_id.${typeIdB}.id`,
+            op: "==",
+            value: Number(resourceBId),
+          });
+        };
+
+        if (comp.compareMode === "field") {
+          if (!comp.fieldA) return { error: `Choose Field A for row ${idx + 1}` };
+          if (!comp.fieldB) return { error: `Choose Field B for row ${idx + 1}` };
+
+          if (comp.bMode === "resource") {
+            if (!comp.resourceBId) return { error: `Choose Resource B for row ${idx + 1}` };
+            const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
+            if (!resourceB?.type_id) return { error: `Resource B (row ${idx + 1}) is missing type.` };
+
+            const typeIdB = Number(resourceB.type_id);
+            addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
+            clauses.push({
+              field: `resource.${comp.fieldA}`,
+              op: comp.op,
+              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+            });
+          } else {
+            if (!comp.typeBId) return { error: `Choose Resource Type for row ${idx + 1}` };
+            const typeIdB = Number(comp.typeBId);
+            clauses.push({
+              field: `resource.${comp.fieldA}`,
+              op: comp.op,
+              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+            });
+          }
+          continue;
+        }
+
+        if (comp.side === "A") {
+          if (!comp.fieldA) return { error: `Choose Field A for row ${idx + 1}` };
+          if (comp.value === "") return { error: `Enter a value for row ${idx + 1}` };
+          clauses.push({
+            field: `resource.${comp.fieldA}`,
+            op: comp.op,
+            value: parseInputValue(comp.value, comp.op),
+          });
+          continue;
+        }
+
+        if (!comp.fieldB) return { error: `Choose Field B for row ${idx + 1}` };
+        if (comp.value === "") return { error: `Enter a value for row ${idx + 1}` };
+
+        if (comp.bMode === "resource") {
+          if (!comp.resourceBId) return { error: `Choose Resource B for row ${idx + 1}` };
+          const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
+          if (!resourceB?.type_id) return { error: `Resource B (row ${idx + 1}) is missing type.` };
+          const typeIdB = Number(resourceB.type_id);
+          addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
+          clauses.push({
+            field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
+            op: comp.op,
+            value: parseInputValue(comp.value, comp.op),
+          });
+          continue;
+        }
+
+        if (!comp.typeBId) return { error: `Choose Resource Type for row ${idx + 1}` };
+        const typeIdB = Number(comp.typeBId);
+        clauses.push({
+          field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
+          op: comp.op,
+          value: parseInputValue(comp.value, comp.op),
+        });
+      }
+
+      condition = { all: clauses };
+    }
+
+    let action;
+    if (form.effect === "alert") action = { effect: "alert" };
+    else if (form.effect === "score") action = { effect: "score", delta: Number(form.scoreDelta) || 0 };
+    else action = { effect: "forbid" };
+
+    return {
+      payload: {
+        name: form.name.trim(),
+        description: form.description ?? "",
+        target_type,
+        is_hard: form.effect === "forbid",
+        is_active: !!form.is_active,
+        weight: 0,
+        sort_order: 0,
+        condition,
+        action,
+      },
+    };
+  }
+
+  function loadRuleIntoForm(rule) {
+    const condition = rule?.condition;
+    const clauses = Array.isArray(condition?.all) ? condition.all : null;
+    if (!clauses?.length) {
+      alert("This rule format cannot be edited in the simple builder yet.");
+      return;
+    }
+
+    const aScope = clauses.find(
+      (clause) =>
+        clause?.field === "resource.id" ||
+        clause?.field === "resource.type_id"
+    );
+
+    if (!aScope || aScope.op !== "==") {
+      alert("This rule format cannot be edited in the simple builder yet.");
+      return;
+    }
+
+    const remainingClauses = clauses.filter((clause) => clause !== aScope);
+    const bScopes = new Map();
+    for (const clause of remainingClauses) {
+      const match = String(clause?.field || "").match(/^resources_by_type_id\.(\d+)\.id$/);
+      if (match && clause.op === "==" && Number.isFinite(Number(clause.value))) {
+        bScopes.set(String(match[1]), String(clause.value));
+      }
+    }
+
+    const comparisonClauses = remainingClauses.filter((clause) => {
+      const field = String(clause?.field || "");
+      return !/^resources_by_type_id\.\d+\.id$/.test(field);
+    });
+
+    const nextMode =
+      rule.target_type === "pair" || comparisonClauses.length > 1 || String(comparisonClauses[0]?.field || "").startsWith("resources_by_type_id.")
+        ? "pair"
+        : "single";
+
+    const baseForm = createEmptyForm();
+    baseForm.name = rule.name || "";
+    baseForm.description = rule.description || "";
+    baseForm.is_active = !!rule.is_active;
+    baseForm.effect =
+      rule.action?.effect === "score"
+        ? "score"
+        : rule.action?.effect === "alert"
+        ? "alert"
+        : "forbid";
+    baseForm.scoreDelta = Number(rule.action?.delta) || 10;
+    baseForm.aMode = aScope.field === "resource.type_id" ? "type" : "resource";
+    if (baseForm.aMode === "type") baseForm.typeAId = String(aScope.value ?? "");
+    else baseForm.resourceAId = String(aScope.value ?? "");
+
+    if (nextMode === "single") {
+      const clause = comparisonClauses[0];
+      if (!String(clause?.field || "").startsWith("resource.")) {
+        alert("This rule format cannot be edited in the simple builder yet.");
+        return;
+      }
+      baseForm.fieldA = String(clause.field).replace(/^resource\./, "");
+      baseForm.op = clause.op || "==";
+      baseForm.constValue = stringifyInputValue(clause.value);
+    } else {
+      const parsedComparisons = comparisonClauses.map((clause) => {
+        const field = String(clause?.field || "");
+        const ref = clause?.value && typeof clause.value === "object" && "ref" in clause.value
+          ? String(clause.value.ref || "")
+          : "";
+
+        if (field.startsWith("resource.") && ref) {
+          const refMatch = ref.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
+          if (!refMatch) return null;
+          const typeIdB = refMatch[1];
+          const resourceBId = bScopes.get(typeIdB) || "";
+          return {
+            compareMode: "field",
+            side: "A",
+            bMode: resourceBId ? "resource" : "type",
+            resourceBId,
+            typeBId: typeIdB,
+            fieldA: field.replace(/^resource\./, ""),
+            op: clause.op || "==",
+            fieldB: refMatch[2],
+            value: "",
+          };
+        }
+
+        if (field.startsWith("resource.")) {
+          return {
+            compareMode: "value",
+            side: "A",
+            bMode: "resource",
+            resourceBId: "",
+            typeBId: "",
+            fieldA: field.replace(/^resource\./, ""),
+            op: clause.op || "==",
+            fieldB: "",
+            value: stringifyInputValue(clause.value),
+          };
+        }
+
+        const bMatch = field.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
+        if (bMatch) {
+          const typeIdB = bMatch[1];
+          const resourceBId = bScopes.get(typeIdB) || "";
+          return {
+            compareMode: "value",
+            side: "B",
+            bMode: resourceBId ? "resource" : "type",
+            resourceBId,
+            typeBId: typeIdB,
+            fieldA: "",
+            op: clause.op || "==",
+            fieldB: bMatch[2],
+            value: stringifyInputValue(clause.value),
+          };
+        }
+
+        return null;
+      });
+
+      if (parsedComparisons.some((entry) => !entry)) {
+        alert("This rule format cannot be edited in the simple builder yet.");
+        return;
+      }
+
+      baseForm.comparisons = parsedComparisons.length
+        ? parsedComparisons
+        : baseForm.comparisons;
+      const firstAField = parsedComparisons.find((entry) => entry.fieldA)?.fieldA || "";
+      baseForm.fieldA = firstAField;
+    }
+
+    setMode(nextMode);
+    setEditingRuleId(rule.id);
+    setShowSimpleBuilder(true);
+    setForm(ensureDefaultFieldA(baseForm));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   function updateForm(patch) {
     setForm((prev) => ensureDefaultFieldA({ ...prev, ...patch }));
   }
@@ -999,140 +1288,21 @@ export default function Rules() {
   }
 
   async function createRule() {
-    if (!form.name.trim()) return alert("Name is required");
-    if (form.aMode === "resource" && !form.resourceAId) return alert("Please choose Resource A.");
-    if (form.aMode === "type" && !form.typeAId) return alert("Please choose Resource Type A.");
-
-    let condition;
-    let target_type = "resource";
-
-    const aScopeClause =
-      form.aMode === "type"
-        ? { field: "resource.type_id", op: "==", value: Number(form.typeAId) }
-        : { field: "resource.id", op: "==", value: Number(form.resourceAId) };
-
-    if (mode === "single") {
-      if (!form.fieldA) return alert("Please choose a field for Resource A.");
-      condition = {
-        all: [
-          aScopeClause,
-          {
-            field: `resource.${form.fieldA}`,
-            op: form.op,
-            value: toNumberIfPossible(form.constValue),
-          },
-        ],
-      };
-    } else {
-      if (!form.comparisons.length) return alert("Add at least one resource to compare.");
-      target_type = "pair";
-      const clauses = [aScopeClause];
-      const scopedBResourceKeys = new Set();
-
-      for (const [idx, comp] of form.comparisons.entries()) {
-        const addSpecificBScopeIfNeeded = (typeIdB, resourceBId) => {
-          const scopeKey = `${typeIdB}:${resourceBId}`;
-          if (scopedBResourceKeys.has(scopeKey)) return;
-          scopedBResourceKeys.add(scopeKey);
-          clauses.push({
-            field: `resources_by_type_id.${typeIdB}.id`,
-            op: "==",
-            value: Number(resourceBId),
-          });
-        };
-
-        if (comp.compareMode === "field") {
-          if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
-          if (!comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
-
-          if (comp.bMode === "resource") {
-            if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
-            const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
-            if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
-
-            const typeIdB = Number(resourceB.type_id);
-            addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
-            clauses.push({
-              field: `resource.${comp.fieldA}`,
-              op: comp.op,
-              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-            });
-          } else {
-            if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
-            const typeIdB = Number(comp.typeBId);
-            clauses.push({
-              field: `resource.${comp.fieldA}`,
-              op: comp.op,
-              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-            });
-          }
-          continue;
-        }
-
-        if (comp.side === "A") {
-          if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
-          if (comp.value === "") return alert(`Enter a value for row ${idx + 1}`);
-          clauses.push({
-            field: `resource.${comp.fieldA}`,
-            op: comp.op,
-            value: parseInputValue(comp.value, comp.op),
-          });
-          continue;
-        }
-
-        if (!comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
-        if (comp.value === "") return alert(`Enter a value for row ${idx + 1}`);
-
-        if (comp.bMode === "resource") {
-          if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
-          const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
-          if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
-          const typeIdB = Number(resourceB.type_id);
-          addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
-          clauses.push({
-            field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
-            op: comp.op,
-            value: parseInputValue(comp.value, comp.op),
-          });
-          continue;
-        }
-
-        if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
-        const typeIdB = Number(comp.typeBId);
-        clauses.push({
-          field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
-          op: comp.op,
-          value: parseInputValue(comp.value, comp.op),
-        });
-      }
-
-      condition = { all: clauses };
-    }
-
-    let action;
-    if (form.effect === "alert") action = { effect: "alert" };
-    else if (form.effect === "score") action = { effect: "score", delta: Number(form.scoreDelta) || 0 };
-    else action = { effect: "forbid" };
-
-    const payload = {
-      name: form.name.trim(),
-      description: form.description ?? "",
-      target_type,
-      is_hard: form.effect === "forbid",
-      is_active: !!form.is_active,
-      weight: 0,
-      sort_order: 0,
-      condition,
-      action,
-    };
+    const { payload, error } = buildFormPayload();
+    if (error) return alert(error);
 
     try {
-      await apiPost("/rules", payload);
+      if (editingRuleId) {
+        await apiPut(`/rules/${editingRuleId}`, payload);
+      } else {
+        await apiPost("/rules", payload);
+      }
       reloadRules();
-      alert("Rule created.");
+      alert(editingRuleId ? "Rule updated." : "Rule created.");
+      resetForm();
     } catch (err) {
-      console.error("Error creating rule:", err);
-      alert("Failed to create rule");
+      console.error("Error saving rule:", err);
+      alert(editingRuleId ? "Failed to update rule" : "Failed to create rule");
     }
   }
 
@@ -1260,7 +1430,14 @@ export default function Rules() {
 
       <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
         <div className="flex items-center justify-between mb-2">
-          <div className="text-base font-semibold text-slate-900">Simple Rule Builder</div>
+          <div>
+            <div className="text-base font-semibold text-slate-900">Simple Rule Builder</div>
+            {editingRuleId ? (
+              <div className="mt-1 text-xs font-medium text-blue-700">
+                Editing rule #{editingRuleId}
+              </div>
+            ) : null}
+          </div>
           <button
             onClick={() => setShowSimpleBuilder((prev) => !prev)}
             className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -1570,8 +1747,8 @@ export default function Rules() {
                           </div>
                         </div>
                       ) : (
-                        <div className="w-full p-2 text-xs text-gray-400">
-                          -
+                        <div className="w-full rounded border bg-gray-50 p-2 text-xs text-gray-500">
+                          Value is disabled for "A vs B". Choose "Field vs value" to enter a fixed value.
                         </div>
                       )}
                     </div>
@@ -1671,12 +1848,23 @@ export default function Rules() {
           )}
         </div>
 
-        <button
-          onClick={createRule}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Create Rule
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={createRule}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            {editingRuleId ? "Save Changes" : "Create Rule"}
+          </button>
+          {editingRuleId ? (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-4 py-2 border rounded hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+          ) : null}
+        </div>
 
         <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3">
           Preview: {previewText}
@@ -1739,6 +1927,12 @@ export default function Rules() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
+                  <button
+                    onClick={() => loadRuleIntoForm(rule)}
+                    className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                  >
+                    Edit
+                  </button>
                   <button
                     onClick={() => openDetails(rule)}
                     className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
