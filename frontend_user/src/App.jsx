@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
+import IsraelDateInput from "./IsraelDateInput";
 import {
   getBookingsByUser,
   getAllResources,
@@ -29,16 +30,22 @@ function formatDate(dateStr) {
   if (!dateStr) return "";
   const d = parseDateValue(dateStr);
   if (!d || Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-GB", {
+  return d.toLocaleDateString("he-IL", {
+    timeZone: "Asia/Jerusalem",
     weekday: "short",
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
   });
 }
 
 function formatTime(t) {
   return t ? t.slice(0, 5) : "";
+}
+
+function weekdayLabel(dayValue) {
+  const labels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  return labels[Number(dayValue)] || `Day ${dayValue}`;
 }
 
 function extractAssignedUserIds(meta) {
@@ -288,7 +295,7 @@ export default function App() {
   const [rescheduleLocation, setRescheduleLocation] = useState("onsite");
   const [userAvailability, setUserAvailability] = useState([]);
   const [availabilityForm, setAvailabilityForm] = useState({
-    day_of_week: "1",
+    day_of_week: ["1"],
     start_time: "09:00",
     end_time: "12:00",
     start_date: "",
@@ -427,13 +434,15 @@ export default function App() {
     [availabilityMonthDate, availabilityBookings]
   );
 
-  const monthLabel = monthDate.toLocaleDateString("en-GB", {
+  const monthLabel = monthDate.toLocaleDateString("he-IL", {
+    timeZone: "Asia/Jerusalem",
     month: "long",
     year: "numeric",
   });
   const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
-    "en-GB",
+    "he-IL",
     {
+      timeZone: "Asia/Jerusalem",
       month: "long",
       year: "numeric",
     }
@@ -456,11 +465,16 @@ export default function App() {
   }
 
   const filteredResources = useMemo(() => {
-    if (!resourceQuery.trim()) return [];
-    return resources.filter((r) => {
+    const visibleResources = resources.filter((r) => {
       if (role === "manager" && isPrimaryResource(r)) return false;
-      return resourceMatchesQuery(r, resourceQuery);
+      return true;
     });
+    const sortedResources = [...visibleResources].sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""))
+    );
+    if (role === "user" && !resourceQuery.trim()) return sortedResources;
+    if (!resourceQuery.trim()) return [];
+    return sortedResources.filter((r) => resourceMatchesQuery(r, resourceQuery));
   }, [resources, resourceQuery, role]);
 
   const filteredRequestResources = useMemo(() => {
@@ -471,22 +485,6 @@ export default function App() {
       return true;
     });
   }, [resources, requestQuery, onlyAvailable, role]);
-
-  const userResources = useMemo(() => {
-    if (role !== "user") return [];
-    const map = new Map();
-    bookings.forEach((booking) => {
-      (booking.resources || []).forEach((r) => {
-        if (!isPrimaryResource(r)) return;
-        if (!map.has(r.id)) {
-          map.set(r.id, r);
-        }
-      });
-    });
-    return Array.from(map.values()).sort((a, b) =>
-      String(a.name || "").localeCompare(String(b.name || ""))
-    );
-  }, [role, bookings]);
 
   const selectedResource = useMemo(() => {
     if (!selectedResourceId) return null;
@@ -551,6 +549,7 @@ export default function App() {
         if (!active) return;
         const baseBookings = Array.isArray(bookingsData) ? bookingsData : [];
         const resourcesList = Array.isArray(allResources) ? allResources : [];
+        setResources(resourcesList);
         const assignedResources = resourcesList.filter((r) =>
           isResourceAssignedToUser(r, userId)
         );
@@ -1543,107 +1542,6 @@ export default function App() {
           </>
         ) : section === "search" ? (
           <>
-            {role === "user" ? (
-              <>
-                <header
-                  style={{
-                    padding: "12px 0",
-                    borderBottom: "1px solid #e2e8f0",
-                    marginBottom: 16,
-                  }}
-                >
-                  <h1 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h1>
-                  <p style={{ margin: 0, color: "#475569" }}>
-                    Your {labelsLower.resources} and session details.
-                  </p>
-                </header>
-
-                <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
-                  {userResources.length === 0 ? (
-                    <div style={{ color: "#475569" }}>
-                      No {labelsLower.resources} available yet.
-                    </div>
-                  ) : (
-                    <div style={{ display: "grid", gap: 12 }}>
-                      {userResources.map((resource) => {
-                        const sessions = allResourceSessions[resource.id] || [];
-                        const upcomingSessions = sessions.filter(
-                          (s) =>
-                            new Date(`${s.date}T${s.start}`) >= new Date()
-                        );
-                        const nextSession =
-                          upcomingSessions[0] || sessions[0] || null;
-                        return (
-                          <div
-                            key={resource.id}
-                            className="glass"
-                            style={{
-                              padding: 16,
-                              borderRadius: 16,
-                              border: "1px solid #e2e8f0",
-                              background: "#fff",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                gap: 10,
-                                marginBottom: 6,
-                              }}
-                            >
-                              <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                                {resource.name}
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: 12,
-                                  background: "#e0e7ff",
-                                  color: "#1d4ed8",
-                                  padding: "4px 10px",
-                                  borderRadius: 999,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {formatTypeLabel(resource.type_name, labels)}
-                              </span>
-                            </div>
-                            {resource.metadata &&
-                              Object.keys(resource.metadata).length > 0 && (
-                                <div
-                                  style={{
-                                    color: "#64748b",
-                                    fontSize: 12,
-                                    marginBottom: 8,
-                                  }}
-                                >
-                                  {Object.entries(resource.metadata)
-                                    .slice(0, 4)
-                                    .map(([k, v]) => `${k}: ${v}`)
-                                    .join(" | ")}
-                                </div>
-                              )}
-                            <div style={{ fontSize: 12, color: "#475569" }}>
-                              {nextSession ? (
-                                <>
-                                  Next session: {formatDate(nextSession.date)}{" "}
-                                  {formatTime(nextSession.start)} -{" "}
-                                  {formatTime(nextSession.end)}
-                                </>
-                              ) : (
-                                "No upcoming sessions scheduled."
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <>
             <header
               style={{
                 padding: "12px 0",
@@ -1655,7 +1553,9 @@ export default function App() {
                 Find a {labelsLower.resource}
               </h1>
               <p style={{ margin: 0, color: "#475569" }}>
-                Search by name or tags, then expand to see your dates & times.
+                {role === "user"
+                  ? `Browse all ${labelsLower.resources}, then expand one to see your assignments.`
+                  : "Search by name or tags, then expand to see your dates & times."}
               </p>
             </header>
 
@@ -1689,7 +1589,7 @@ export default function App() {
                   }}
                 />
                 <button
-                  onClick={loadResources}
+                  onClick={() => loadResources({ allowEmptyQuery: role === "user" })}
                   disabled={resourceLoading}
                   style={{
                     padding: "10px 16px",
@@ -1712,7 +1612,8 @@ export default function App() {
                 </div>
               )}
 
-              {resourceQuery.trim() &&
+              {role !== "user" &&
+                resourceQuery.trim() &&
                 filteredResources.length === 0 &&
                 !resourceLoading && (
                   <div
@@ -1813,14 +1714,23 @@ export default function App() {
                     <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 8 }}>
                       Sessions
                     </div>
-                    {(resourceSessions[selectedResource.id] || []).length === 0 && (
+                    {((role === "user"
+                      ? allResourceSessions[selectedResource.id]
+                      : resourceSessions[selectedResource.id]) || []
+                    ).length === 0 && (
                       <div style={{ color: "#475569" }}>
                         No sessions found for this {labelsLower.resource}.
                       </div>
                     )}
-                    {(resourceSessions[selectedResource.id] || []).length > 0 && (
+                    {((role === "user"
+                      ? allResourceSessions[selectedResource.id]
+                      : resourceSessions[selectedResource.id]) || []
+                    ).length > 0 && (
                       <div style={{ display: "grid", gap: 10 }}>
-                        {(resourceSessions[selectedResource.id] || []).map((s) => (
+                        {((role === "user"
+                          ? allResourceSessions[selectedResource.id]
+                          : resourceSessions[selectedResource.id]) || []
+                        ).map((s) => (
                           <div
                             key={`${s.bookingId}-${s.start}`}
                             style={{
@@ -1855,6 +1765,11 @@ export default function App() {
                                   Role: {s.role}
                                 </div>
                               )}
+                              {s.cancelled && (
+                                <div style={{ color: "#b45309", fontWeight: 700 }}>
+                                  Cancelled
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1871,8 +1786,11 @@ export default function App() {
                       gap: 12,
                     }}
                   >
-                    {filteredResources.slice(0, 20).map((r) => {
-                      const sessions = resourceSessions[r.id] || [];
+                    {filteredResources.map((r) => {
+                      const sessions =
+                        (role === "user"
+                          ? allResourceSessions[r.id]
+                          : resourceSessions[r.id]) || [];
                       return (
                         <button
                           key={r.id}
@@ -1930,9 +1848,22 @@ export default function App() {
                   </div>
                 )
               )}
+
+              {role === "user" &&
+                filteredResources.length === 0 &&
+                !resourceLoading && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      color: "#475569",
+                    }}
+                  >
+                    {resourceQuery.trim()
+                      ? "No matches found. Try another keyword."
+                      : `No ${labelsLower.resources} available yet.`}
+                  </div>
+                )}
             </div>
-              </>
-            )}
           </>
         ) : section === "requests" ? (
           <>
@@ -2160,7 +2091,7 @@ export default function App() {
                       gap: 12,
                     }}
                   >
-                    {filteredRequestResources.slice(0, 20).map((r) => {
+                    {filteredRequestResources.map((r) => {
                       const available = isResourceAvailable(r);
                       return (
                         <div
@@ -2291,32 +2222,46 @@ export default function App() {
             >
               <div style={{ fontWeight: 700 }}>Add availability</div>
               <label style={{ fontSize: 12, color: "#475569" }}>
-                Day of week
-                <select
-                  value={availabilityForm.day_of_week}
-                  onChange={(e) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      day_of_week: e.target.value,
-                    }))
-                  }
+                Days of week
+                <div
                   style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 8,
+                    marginTop: 8,
                   }}
                 >
-                  <option value="0">Sunday</option>
-                  <option value="1">Monday</option>
-                  <option value="2">Tuesday</option>
-                  <option value="3">Wednesday</option>
-                  <option value="4">Thursday</option>
-                  <option value="5">Friday</option>
-                  <option value="6">Saturday</option>
-                </select>
+                  {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                    <label
+                      key={day}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #e2e8f0",
+                        background: "#fff",
+                        color: "#0f172a",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={availabilityForm.day_of_week.includes(String(day))}
+                        onChange={() =>
+                          setAvailabilityForm((prev) => {
+                            const exists = prev.day_of_week.includes(String(day));
+                            const nextDays = exists
+                              ? prev.day_of_week.filter((value) => value !== String(day))
+                              : [...prev.day_of_week, String(day)];
+                            return { ...prev, day_of_week: nextDays };
+                          })
+                        }
+                      />
+                      <span>{weekdayLabel(day)}</span>
+                    </label>
+                  ))}
+                </div>
               </label>
               <label style={{ fontSize: 12, color: "#475569" }}>
                 Start time
@@ -2360,13 +2305,12 @@ export default function App() {
               </label>
               <label style={{ fontSize: 12, color: "#475569" }}>
                 Start date (optional)
-                <input
-                  type="date"
+                <IsraelDateInput
                   value={availabilityForm.start_date}
-                  onChange={(e) =>
+                  onChange={(nextDate) =>
                     setAvailabilityForm((prev) => ({
                       ...prev,
-                      start_date: e.target.value,
+                      start_date: nextDate,
                     }))
                   }
                   style={{
@@ -2380,13 +2324,12 @@ export default function App() {
               </label>
               <label style={{ fontSize: 12, color: "#475569" }}>
                 End date (optional)
-                <input
-                  type="date"
+                <IsraelDateInput
                   value={availabilityForm.end_date}
-                  onChange={(e) =>
+                  onChange={(nextDate) =>
                     setAvailabilityForm((prev) => ({
                       ...prev,
-                      end_date: e.target.value,
+                      end_date: nextDate,
                     }))
                   }
                   style={{
@@ -2404,19 +2347,26 @@ export default function App() {
                 onClick={async () => {
                   const userId = currentUserId.trim();
                   if (!userId) return;
+                  if (!availabilityForm.day_of_week.length) {
+                    setAvailabilityMessage("Choose at least one day.");
+                    return;
+                  }
                   setAvailabilitySaving(true);
                   setAvailabilityMessage("");
                   try {
-                    const payload = {
-                      user_id: userId,
-                      day_of_week: Number(availabilityForm.day_of_week),
-                      start_time: availabilityForm.start_time,
-                      end_time: availabilityForm.end_time,
-                      start_date: availabilityForm.start_date || null,
-                      end_date: availabilityForm.end_date || null,
-                    };
-                    const created = await createUserAvailability(payload);
-                    setUserAvailability((prev) => [...prev, created]);
+                    const created = await Promise.all(
+                      availabilityForm.day_of_week.map((day) =>
+                        createUserAvailability({
+                          user_id: userId,
+                          day_of_week: Number(day),
+                          start_time: availabilityForm.start_time,
+                          end_time: availabilityForm.end_time,
+                          start_date: availabilityForm.start_date || null,
+                          end_date: availabilityForm.end_date || null,
+                        })
+                      )
+                    );
+                    setUserAvailability((prev) => [...prev, ...created]);
                     setAvailabilityMessage("Availability saved.");
                   } catch (err) {
                     setAvailabilityMessage(err?.message || "Failed to save availability.");
@@ -2454,14 +2404,14 @@ export default function App() {
                       style={{ padding: 12, borderRadius: 12 }}
                     >
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                        Day {slot.day_of_week}
+                        {weekdayLabel(slot.day_of_week)}
                       </div>
                       <div style={{ color: "#475569", fontSize: 13 }}>
                         {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
                       </div>
                       {(slot.start_date || slot.end_date) && (
                         <div style={{ color: "#94a3b8", fontSize: 12 }}>
-                          {slot.start_date || "Any"} → {slot.end_date || "Any"}
+                          {slot.start_date ? formatDate(slot.start_date) : "כל תאריך"} → {slot.end_date ? formatDate(slot.end_date) : "כל תאריך"}
                         </div>
                       )}
                       <button
@@ -3088,10 +3038,9 @@ export default function App() {
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ fontSize: 12, color: "#475569" }}>
                     New date
-                    <input
-                      type="date"
+                    <IsraelDateInput
                       value={rescheduleDate}
-                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      onChange={setRescheduleDate}
                       style={{
                         width: "100%",
                         marginTop: 6,

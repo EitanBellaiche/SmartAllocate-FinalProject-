@@ -4,6 +4,34 @@ import { evaluateRules } from "../rulesEngine.js";
 
 const router = express.Router();
 
+async function ensureAvailabilityTables(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS user_availability (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      day_of_week INTEGER NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      start_date DATE,
+      end_date DATE,
+      organization_id TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS user_availability_overrides (
+      id SERIAL PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      date DATE NOT NULL,
+      start_time TIME,
+      end_time TIME,
+      is_available BOOLEAN NOT NULL DEFAULT false,
+      organization_id TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )
+  `);
+}
+
 function getOrgId(req) {
   const value =
     req.query?.org_id ||
@@ -41,6 +69,11 @@ function normalizeDateKey(value) {
   return "";
 }
 
+function normalizeTimeKey(value) {
+  if (!value) return "";
+  return String(value).slice(0, 5);
+}
+
 function addMinutes(timeStr, minutes) {
   const [h, m] = timeStr.split(":").map(Number);
   const total = h * 60 + m + minutes;
@@ -52,6 +85,94 @@ function addMinutes(timeStr, minutes) {
 function timeToMinutes(timeStr) {
   const [h, m] = timeStr.split(":").map(Number);
   return h * 60 + m;
+}
+
+function mergeIntervals(intervals) {
+  if (!intervals.length) return [];
+  const sorted = intervals
+    .filter((interval) => interval.end > interval.start)
+    .sort((a, b) => a.start - b.start);
+  if (!sorted.length) return [];
+
+  const merged = [sorted[0]];
+  for (const current of sorted.slice(1)) {
+    const prev = merged[merged.length - 1];
+    if (current.start <= prev.end) {
+      prev.end = Math.max(prev.end, current.end);
+    } else {
+      merged.push({ ...current });
+    }
+  }
+  return merged;
+}
+
+function subtractInterval(interval, exclusion) {
+  if (exclusion.end <= interval.start || exclusion.start >= interval.end) {
+    return [interval];
+  }
+  const result = [];
+  if (exclusion.start > interval.start) {
+    result.push({ start: interval.start, end: exclusion.start });
+  }
+  if (exclusion.end < interval.end) {
+    result.push({ start: exclusion.end, end: interval.end });
+  }
+  return result;
+}
+
+function getDayAvailabilityWindows(baseAvailability, overrides, dayKey, dayOfWeek) {
+  let intervals = baseAvailability
+    .filter((slot) => {
+      if (Number(slot.day_of_week) !== dayOfWeek) return false;
+      const startKey = normalizeDateKey(slot.start_date);
+      const endKey = normalizeDateKey(slot.end_date);
+      if (startKey && startKey > dayKey) return false;
+      if (endKey && endKey < dayKey) return false;
+      return true;
+    })
+    .map((slot) => ({
+      start: timeToMinutes(normalizeTimeKey(slot.start_time)),
+      end: timeToMinutes(normalizeTimeKey(slot.end_time)),
+    }));
+
+  const dayOverrides = overrides.filter(
+    (override) => normalizeDateKey(override.date) === dayKey
+  );
+
+  for (const override of dayOverrides) {
+    const startTime = normalizeTimeKey(override.start_time);
+    const endTime = normalizeTimeKey(override.end_time);
+    const isAvailable = Boolean(override.is_available);
+
+    if (!isAvailable && !startTime && !endTime) {
+      intervals = [];
+      continue;
+    }
+
+    if (!startTime || !endTime) {
+      if (isAvailable) {
+        intervals.push({ start: 0, end: 24 * 60 });
+      }
+      continue;
+    }
+
+    const overrideInterval = {
+      start: timeToMinutes(startTime),
+      end: timeToMinutes(endTime),
+    };
+
+    if (isAvailable) {
+      intervals.push(overrideInterval);
+      continue;
+    }
+
+    intervals = intervals.flatMap((interval) => subtractInterval(interval, overrideInterval));
+  }
+
+  return mergeIntervals(intervals).map((interval) => ({
+    start_time: addMinutes("00:00", interval.start),
+    end_time: addMinutes("00:00", interval.end),
+  }));
 }
 
 function getWeekStart(dateObj) {
@@ -108,6 +229,7 @@ function buildCandidateSlots(availability, durationMinutes) {
 
 async function pickLockedSlot({
   availability,
+  availabilityOverrides,
   durationMinutes,
   startDate,
   endDate,
@@ -119,20 +241,54 @@ async function pickLockedSlot({
   orgId,
   client,
   }) {
-    const candidates = buildCandidateSlots(availability, durationMinutes);
-    const weekStarts = getWeekStartsInRange(startDate, endDate);
-    let lastFailure = "No available slot found";
-    let firstCandidateFailure = null;
+  const weekStarts = getWeekStartsInRange(startDate, endDate);
+  const candidatesMap = new Map();
+  let lastFailure = "No available slot found";
+  let firstCandidateFailure = null;
 
-  for (const candidate of candidates) {
+  for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
+    const dayKey = formatDate(day);
+    const dayOfWeek = day.getDay();
+    const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
+    for (const window of windows) {
+      const slotStartMin = timeToMinutes(window.start_time);
+      const slotEndMin = timeToMinutes(window.end_time);
+      for (
+        let candidate = slotStartMin;
+        candidate + durationMinutes <= slotEndMin;
+        candidate += 30
+      ) {
+        const startTime = addMinutes("00:00", candidate);
+        const endTime = addMinutes("00:00", candidate + durationMinutes);
+        const key = `${dayOfWeek}-${startTime}-${endTime}`;
+        candidatesMap.set(key, {
+          day_of_week: dayOfWeek,
+          start_time: startTime,
+          end_time: endTime,
+        });
+      }
+    }
+  }
+
+  for (const candidate of candidatesMap.values()) {
     const occurrences = [];
     for (const weekStart of weekStarts) {
       const dateObj = new Date(weekStart);
       dateObj.setDate(weekStart.getDate() + candidate.day_of_week);
       if (dateObj < startDate || dateObj > endDate) continue;
-      const dateKey = formatDate(dateObj);
-      if (!availabilityCoversDate(candidate.availability, dateKey)) continue;
-      occurrences.push(dateKey);
+      const dayKey = formatDate(dateObj);
+      const windows = getDayAvailabilityWindows(
+        availability,
+        availabilityOverrides,
+        dayKey,
+        candidate.day_of_week
+      );
+      const covered = windows.some(
+        (window) =>
+          candidate.start_time >= window.start_time && candidate.end_time <= window.end_time
+      );
+      if (!covered) continue;
+      occurrences.push(dayKey);
     }
 
     if (occurrences.length === 0) {
@@ -204,23 +360,23 @@ async function pickLockedSlot({
       }
     }
 
-      if (!conflictReason) {
-        return {
-          slot: {
-            day_of_week: candidate.day_of_week,
-            start_time: candidate.start_time,
-            end_time: candidate.end_time,
-          },
-        };
-      }
-      if (!firstCandidateFailure) {
-        firstCandidateFailure = conflictReason;
-      }
-      lastFailure = conflictReason;
+    if (!conflictReason) {
+      return {
+        slot: {
+          day_of_week: candidate.day_of_week,
+          start_time: candidate.start_time,
+          end_time: candidate.end_time,
+        },
+      };
     }
-
-    return { slot: null, reason: firstCandidateFailure || lastFailure };
+    if (!firstCandidateFailure) {
+      firstCandidateFailure = conflictReason;
+    }
+    lastFailure = conflictReason;
   }
+
+  return { slot: null, reason: firstCandidateFailure || lastFailure };
+}
 
 async function hasUserConflict(client, userIds, date, startTime, endTime, orgId) {
   if (!userIds.length) return false;
@@ -391,6 +547,7 @@ router.post("/", async (req, res) => {
 
   const client = await pool.connect();
   try {
+    await ensureAvailabilityTables(client);
     const ruleParams = [];
     let ruleWhere = "WHERE is_active = true";
     if (orgId) {
@@ -471,8 +628,17 @@ router.post("/", async (req, res) => {
         `,
         availParams
       );
+      const { rows: availabilityOverrides } = await client.query(
+        `
+        SELECT *
+        FROM user_availability_overrides
+        ${availWhere}
+        ORDER BY date, start_time NULLS FIRST
+        `,
+        availParams
+      );
 
-      if (availability.length === 0) {
+      if (availability.length === 0 && availabilityOverrides.length === 0) {
         skipped.push({ group_id: group?.group_id || null, reason: "No availability for responsible" });
         continue;
       }
@@ -489,6 +655,7 @@ router.post("/", async (req, res) => {
 
       const lockedCandidate = await pickLockedSlot({
         availability,
+        availabilityOverrides,
         durationMinutes,
         startDate,
         endDate,
@@ -523,14 +690,12 @@ router.post("/", async (req, res) => {
         for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
           const dayOfWeek = day.getDay();
           const dayKey = formatDate(day);
-          const dayAvailability = availability.filter((a) => {
-            if (Number(a.day_of_week) !== dayOfWeek) return false;
-            const startKey = normalizeDateKey(a.start_date);
-            const endKey = normalizeDateKey(a.end_date);
-            if (startKey && startKey > dayKey) return false;
-            if (endKey && endKey < dayKey) return false;
-            return true;
-          });
+          const dayAvailability = getDayAvailabilityWindows(
+            availability,
+            availabilityOverrides,
+            dayKey,
+            dayOfWeek
+          );
 
           if (dayAvailability.length === 0) continue;
           availabilityDays += 1;
@@ -546,8 +711,8 @@ router.post("/", async (req, res) => {
           }
 
           for (const slot of dayAvailability) {
-            const slotStart = String(slot.start_time).slice(0, 5);
-            const slotEnd = String(slot.end_time).slice(0, 5);
+            const slotStart = normalizeTimeKey(slot.start_time);
+            const slotEnd = normalizeTimeKey(slot.end_time);
             const slotStartMin = timeToMinutes(slotStart);
             const slotEndMin = timeToMinutes(slotEnd);
             for (

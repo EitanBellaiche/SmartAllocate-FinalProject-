@@ -5,30 +5,12 @@ const DEFAULT_LABELS = {
   managers: "Managers",
   resource: "Resource",
   resources: "Resources",
-  userId: "National ID",
+  userId: "ID",
   request: "Request",
   requests: "Requests",
 };
 
-const ORG_CONFIGS = {
-  "demo.restaurant": {
-    labels: {
-      user: "User",
-      users: "Users",
-      manager: "Manager",
-      managers: "Managers",
-      resource: "Resource",
-      resources: "Resources",
-      userId: "Employee ID",
-      request: "Request",
-      requests: "Requests",
-    },
-  },
-};
-
 export function getOrgConfig(orgId) {
-  const key = String(orgId || "").trim();
-  if (key && ORG_CONFIGS[key]) return ORG_CONFIGS[key];
   return { labels: DEFAULT_LABELS };
 }
 

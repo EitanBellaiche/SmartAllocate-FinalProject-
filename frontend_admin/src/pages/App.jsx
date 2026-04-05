@@ -10,7 +10,6 @@ import ResourceTypes from "./ResourceTypes";
 import Availability from "./Availability";
 import Rules from "./Rules";  
 import ResourceRequests from "./ResourceRequests";
-import AutoScheduler from "./AutoScheduler";
 import UserBookings from "./UserBookings";
 
 const DEFAULT_USER_URL = "http://localhost:4173";
@@ -37,7 +36,8 @@ export default function App() {
     const existing = getAdminSession();
     const existingRole = String(existing?.role || "").toLowerCase();
     const hasOrg = String(existing?.organization_id || "").trim();
-    if (existingRole === "admin" && hasOrg) {
+    const hasIncomingAdminSession = Boolean(nationalId && role === "admin" && orgId);
+    if (!hasIncomingAdminSession && existingRole === "admin" && hasOrg) {
       setReady(true);
       return;
     }
@@ -86,7 +86,6 @@ export default function App() {
           <Route path="availability" element={<Availability />} />
           <Route path="rules" element={<Rules />} />  { }
           <Route path="requests" element={<ResourceRequests />} />
-          <Route path="auto-scheduler" element={<AutoScheduler />} />
           <Route path="user-bookings" element={<UserBookings />} />
         </Route>
       </Routes>

@@ -17,7 +17,7 @@ INSERT INTO resource_types (name, description, fields, roles, organization_id)
 SELECT
   'Lab',
   'Computer or electronics lab',
-  '[{"name":"capacity","label":"Capacity","type":"number"},{"name":"building","label":"Building","type":"text"},{"name":"floor","label":"Floor","type":"number"},{"name":"equipment","label":"Equipment","type":"text"}]'::jsonb,
+  '[{"name":"capacity","label":"Capacity","type":"number"},{"name":"building","label":"Building","type":"text"},{"name":"floor","label":"Floor","type":"number"}]'::jsonb,
   '["user","manager"]'::jsonb,
   'shenkar'
 WHERE NOT EXISTS (
@@ -62,7 +62,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Classroom 201',
   (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":40,"building":"A","floor":2,"projector":true}'::jsonb,
+  '{"capacity":40,"building":"Fernic","floor":2,"projector":true}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -77,7 +77,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Classroom 305',
   (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":32,"building":"B","floor":3,"projector":true}'::jsonb,
+  '{"capacity":32,"building":"Mitchel","floor":3,"projector":true}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -92,7 +92,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Computer Lab 1',
   (SELECT id FROM resource_types WHERE name = 'Lab' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":28,"building":"A","floor":1,"equipment":"Windows PCs"}'::jsonb,
+  '{"capacity":28,"building":"Fernic","floor":1}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -107,7 +107,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Electronics Lab',
   (SELECT id FROM resource_types WHERE name = 'Lab' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":20,"building":"C","floor":1,"equipment":"Oscilloscopes"}'::jsonb,
+  '{"capacity":20,"building":"C","floor":1}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -152,7 +152,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Meeting Room 101',
   (SELECT id FROM resource_types WHERE name = 'Meeting Room' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":10,"building":"A","floor":1,"whiteboard":true}'::jsonb,
+  '{"capacity":10,"building":"Fernic","floor":1,"whiteboard":true}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -167,7 +167,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Meeting Room 404',
   (SELECT id FROM resource_types WHERE name = 'Meeting Room' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":8,"building":"B","floor":4,"whiteboard":false}'::jsonb,
+  '{"capacity":8,"building":"Mitchel","floor":4,"whiteboard":false}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -254,12 +254,445 @@ WHERE
     SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
   );
 
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Advanced Algorithms 320',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":48,"department":"computer_science"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Advanced Algorithms 320' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Database Systems 220',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":44,"department":"software"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Database Systems 220' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Operating Systems 315',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":38,"department":"computer_science"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Operating Systems 315' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Software Engineering 301',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":52,"department":"software"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Software Engineering 301' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Fashion Design Studio',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":26,"department":"fashion"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Fashion Design Studio' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Pattern Making Fundamentals',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":24,"department":"fashion"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Pattern Making Fundamentals' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Textile Innovation Lab',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":22,"department":"fashion"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Textile Innovation Lab' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Jewelry Design Basics',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":20,"department":"jewelry_design"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Jewelry Design Basics' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Gemstone Setting Workshop',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":18,"department":"jewelry_design"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Gemstone Setting Workshop' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Digital Jewelry Modeling',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":21,"department":"jewelry_design"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Digital Jewelry Modeling' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Circuit Analysis I',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":34,"department":"electrical_engineering"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Circuit Analysis I' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Electronics Systems Lab',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":28,"department":"electrical_engineering"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Electronics Systems Lab' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Signals and Systems',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":31,"department":"electrical_engineering"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Signals and Systems' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Advanced Fashion Illustration',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"23","need_projector":true,"building":"Workshops"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Advanced Fashion Illustration' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Sustainable Fashion Materials',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"27","need_projector":false,"building":"Workshops"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Sustainable Fashion Materials' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Jewelry Collection Development',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"19","need_projector":false,"building":"Workshops"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Jewelry Collection Development' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Metal Casting Techniques',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"17","need_projector":false,"building":"Workshops"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Metal Casting Techniques' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Physics I',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"36","need_projector":true,"building":"Mitchel"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Physics I' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Applied Mathematics',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"33","need_projector":true,"building":"Mitchel"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Applied Mathematics' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Linear Algebra',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"34","need_projector":true,"building":"Mitchel"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Linear Algebra' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Calculus for Engineers',
+  (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1),
+  '{"students_number":"38","need_projector":true,"building":"Mitchel"}'::jsonb,
+  true,
+  'shenkar'
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM resources WHERE name = 'Calculus for Engineers' AND organization_id = 'shenkar'
+  )
+  AND EXISTS (
+    SELECT 1 FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar'
+  );
+
+UPDATE resources
+SET metadata = jsonb_build_object(
+  'students_number', COALESCE(metadata->>'students_number', '35'),
+  'need_projector', COALESCE((metadata->>'need_projector')::boolean, false),
+  'building', COALESCE(NULLIF(metadata->>'building', ''), 'Fernic')
+)
+WHERE organization_id = 'shenkar'
+  AND type_id = (
+    SELECT id
+    FROM resource_types
+    WHERE name = 'Courses' AND organization_id = 'shenkar'
+    LIMIT 1
+  );
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Advanced Fashion Illustration (Paper)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":false}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Advanced Fashion Illustration (Paper)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Sustainable Fashion Materials (Paper)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":false}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Sustainable Fashion Materials (Paper)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Jewelry Collection Development (Paper)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":false}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Jewelry Collection Development (Paper)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Metal Casting Techniques (Paper)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":false}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Metal Casting Techniques (Paper)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Physics I (Computerized)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":true}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Physics I (Computerized)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Applied Mathematics (Computerized)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":true}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Applied Mathematics (Computerized)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Linear Algebra (Computerized)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":true}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Linear Algebra (Computerized)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Calculus for Engineers (Computerized)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":true}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Calculus for Engineers (Computerized)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
 -- Additional classrooms
 INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Classroom 110',
   (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":25,"building":"A","floor":1,"projector":true}'::jsonb,
+  '{"capacity":25,"building":"Fernic","floor":1,"projector":true}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -274,7 +707,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Classroom 410',
   (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":60,"building":"B","floor":4,"projector":true}'::jsonb,
+  '{"capacity":60,"building":"Mitchel","floor":4,"projector":true}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -285,12 +718,93 @@ WHERE
     SELECT 1 FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar'
   );
 
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Classroom ' || room_num,
+  classroom_type.id,
+  jsonb_build_object(
+    'capacity', 28 + ((room_num - 100) % 5) * 4,
+    'building', 'Fernic',
+    'floor', 1,
+    'projector', true,
+    'computer_lab', false
+  ),
+  true,
+  'shenkar'
+FROM generate_series(100, 106) AS room_num
+CROSS JOIN LATERAL (
+  SELECT id
+  FROM resource_types
+  WHERE name = 'Classroom' AND organization_id = 'shenkar'
+  LIMIT 1
+) AS classroom_type
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM resources
+  WHERE name = 'Classroom ' || room_num
+    AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Classroom ' || room_num,
+  classroom_type.id,
+  jsonb_build_object(
+    'capacity', 36 + ((room_num - 200) % 5) * 4,
+    'building', 'Fernic',
+    'floor', 2,
+    'projector', true,
+    'computer_lab', false
+  ),
+  true,
+  'shenkar'
+FROM generate_series(200, 206) AS room_num
+CROSS JOIN LATERAL (
+  SELECT id
+  FROM resource_types
+  WHERE name = 'Classroom' AND organization_id = 'shenkar'
+  LIMIT 1
+) AS classroom_type
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM resources
+  WHERE name = 'Classroom ' || room_num
+    AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Classroom ' || room_num,
+  classroom_type.id,
+  jsonb_build_object(
+    'capacity', 40 + ((room_num - 300) % 5) * 5,
+    'building', 'Fernic',
+    'floor', 3,
+    'projector', true,
+    'computer_lab', false
+  ),
+  true,
+  'shenkar'
+FROM generate_series(300, 306) AS room_num
+CROSS JOIN LATERAL (
+  SELECT id
+  FROM resource_types
+  WHERE name = 'Classroom' AND organization_id = 'shenkar'
+  LIMIT 1
+) AS classroom_type
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM resources
+  WHERE name = 'Classroom ' || room_num
+    AND organization_id = 'shenkar'
+);
+
 -- Additional labs
 INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Networking Lab',
   (SELECT id FROM resource_types WHERE name = 'Lab' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":24,"building":"C","floor":2,"equipment":"Routers, Switches"}'::jsonb,
+  '{"capacity":24,"building":"C","floor":2}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -305,7 +819,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'AI Lab',
   (SELECT id FROM resource_types WHERE name = 'Lab' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":20,"building":"C","floor":3,"equipment":"GPU Workstations"}'::jsonb,
+  '{"capacity":20,"building":"C","floor":3}'::jsonb,
   true,
   'shenkar'
 WHERE
@@ -402,7 +916,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Auditorium A',
   (SELECT id FROM resource_types WHERE name = 'Auditorium' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":180,"building":"A","projector":true,"sound_system":true}'::jsonb,
+  '{"capacity":180,"building":"Fernic","projector":true,"sound_system":true}'::jsonb,
   true,
   'shenkar'
 WHERE NOT EXISTS (
@@ -415,7 +929,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Auditorium B',
   (SELECT id FROM resource_types WHERE name = 'Auditorium' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":120,"building":"B","projector":false,"sound_system":true}'::jsonb,
+  '{"capacity":120,"building":"Mitchel","projector":false,"sound_system":true}'::jsonb,
   true,
   'shenkar'
 WHERE NOT EXISTS (
@@ -428,7 +942,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Exam Room 1',
   (SELECT id FROM resource_types WHERE name = 'Exam Room' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":40,"building":"A","accessible":true,"quiet":true}'::jsonb,
+  '{"capacity":40,"building":"Fernic","accessible":true,"quiet":true}'::jsonb,
   true,
   'shenkar'
 WHERE NOT EXISTS (
@@ -441,7 +955,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Exam Room 2',
   (SELECT id FROM resource_types WHERE name = 'Exam Room' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":30,"building":"B","accessible":false,"quiet":true}'::jsonb,
+  '{"capacity":30,"building":"Mitchel","accessible":false,"quiet":true}'::jsonb,
   true,
   'shenkar'
 WHERE NOT EXISTS (
@@ -454,7 +968,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Library Room 1',
   (SELECT id FROM resource_types WHERE name = 'Library Room' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":8,"building":"A","silent":true}'::jsonb,
+  '{"capacity":8,"building":"Fernic","silent":true}'::jsonb,
   true,
   'shenkar'
 WHERE NOT EXISTS (
@@ -467,7 +981,7 @@ INSERT INTO resources (name, type_id, metadata, active, organization_id)
 SELECT
   'Library Room 2',
   (SELECT id FROM resource_types WHERE name = 'Library Room' AND organization_id = 'shenkar' LIMIT 1),
-  '{"capacity":6,"building":"B","silent":false}'::jsonb,
+  '{"capacity":6,"building":"Mitchel","silent":false}'::jsonb,
   true,
   'shenkar'
 WHERE NOT EXISTS (
@@ -528,6 +1042,58 @@ SELECT
   'shenkar'
 WHERE NOT EXISTS (
   SELECT 1 FROM resources WHERE name = 'Exam - History 101 (Paper)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Advanced Algorithms 320 (Computerized)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":true}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Advanced Algorithms 320 (Computerized)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Database Systems 220 (Computerized)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":true}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Database Systems 220 (Computerized)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Operating Systems 315 (Paper)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":false}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Operating Systems 315 (Paper)' AND organization_id = 'shenkar'
+) AND EXISTS (
+  SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
+);
+
+INSERT INTO resources (name, type_id, metadata, active, organization_id)
+SELECT
+  'Exam - Software Engineering 301 (Paper)',
+  (SELECT id FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar' LIMIT 1),
+  '{"computerized":false}'::jsonb,
+  true,
+  'shenkar'
+WHERE NOT EXISTS (
+  SELECT 1 FROM resources WHERE name = 'Exam - Software Engineering 301 (Paper)' AND organization_id = 'shenkar'
 ) AND EXISTS (
   SELECT 1 FROM resource_types WHERE name = 'Exam' AND organization_id = 'shenkar'
 );
