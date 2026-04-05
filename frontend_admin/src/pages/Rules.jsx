@@ -12,7 +12,7 @@ const OP_OPTIONS = [
 const WIZARD_OP_OPTIONS = [...OP_OPTIONS, { label: "in", value: "in" }];
 
 /** @typedef {{ id: string, side: "A" | "B", field: string, op: string, compare: "value" | "field", value: string, refField: string }} WizardCondition */
-/** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
+/** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, extraBSelections?: { id: string, scopeMode: "type" | "resource", resourceId: string, typeId: string }[], conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
 
 function uniq(arr) {
   return Array.from(new Set(arr));
@@ -262,6 +262,17 @@ function getFieldOptionsForType(schemaTypes, typeId) {
   return [...base, ...meta];
 }
 
+function intersectFieldOptions(optionLists) {
+  const validLists = optionLists.filter((list) => Array.isArray(list) && list.length > 0);
+  if (!validLists.length) return [];
+  const firstList = validLists[0];
+  const allowed = validLists.slice(1).reduce((acc, list) => {
+    const set = new Set(list.map((item) => item.value));
+    return new Set([...acc].filter((value) => set.has(value)));
+  }, new Set(firstList.map((item) => item.value)));
+  return firstList.filter((item) => allowed.has(item.value));
+}
+
 function detectContradictions(clauses) {
   const tracker = new Map();
   for (const clause of clauses) {
@@ -319,7 +330,7 @@ export default function Rules() {
     scoreDelta: 10,
     is_active: true,
     comparisons: [
-      { bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "" },
+      { compareMode: "field", side: "A", bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "", value: "" },
     ],
   });
 
@@ -332,6 +343,7 @@ export default function Rules() {
     resourceBId: "",
     typeAId: "",
     typeBId: "",
+    extraBSelections: [],
     conditions: [
       { id: "c1", side: "A", field: "", op: "==", compare: "value", value: "", refField: "" },
     ],
@@ -437,6 +449,108 @@ export default function Rules() {
     setWizardOpen(false);
   }
 
+  function getWizardBSelections(wizardState = wizard) {
+    const primary = [{
+      id: "b1",
+      scopeMode: wizardState.scopeBMode,
+      resourceId: wizardState.resourceBId,
+      typeId: wizardState.typeBId,
+    }];
+    const extras = Array.isArray(wizardState.extraBSelections) ? wizardState.extraBSelections : [];
+    return [...primary, ...extras];
+  }
+
+  function getConfiguredWizardBSelections(wizardState = wizard) {
+    return getWizardBSelections(wizardState).filter((selection) => {
+      if (!selection?.typeId) return false;
+      if (selection.scopeMode === "resource") return !!selection.resourceId;
+      return true;
+    });
+  }
+
+  function addWizardBSelection() {
+    setWizard((prev) => ({
+      ...prev,
+      extraBSelections: [
+        ...(Array.isArray(prev.extraBSelections) ? prev.extraBSelections : []),
+        {
+          id: `b${getWizardBSelections(prev).length + 1}`,
+          scopeMode: "resource",
+          resourceId: "",
+          typeId: "",
+        },
+      ],
+      lastAppliedSentence: "",
+    }));
+  }
+
+  function updateWizardBSelection(idx, patch) {
+    setWizard((prev) => {
+      if (idx === 0) {
+        const next = { ...prev, lastAppliedSentence: "" };
+        if ("scopeMode" in patch && patch.scopeMode !== prev.scopeBMode) {
+          next.scopeBMode = patch.scopeMode;
+          next.resourceBId = "";
+          next.typeBId = "";
+        }
+        if ("resourceId" in patch && patch.resourceId !== prev.resourceBId) {
+          const selected = resources.find((r) => String(r.id) === String(patch.resourceId));
+          next.resourceBId = patch.resourceId;
+          next.typeBId = selected?.type_id ? String(selected.type_id) : "";
+        }
+        if ("typeId" in patch && patch.typeId !== prev.typeBId) {
+          next.typeBId = patch.typeId;
+        }
+        return next;
+      }
+
+      const extras = [...(Array.isArray(prev.extraBSelections) ? prev.extraBSelections : [])];
+      const extraIdx = idx - 1;
+      const current = extras[extraIdx];
+      if (!current) return prev;
+      const nextSelection = { ...current, ...patch };
+      if ("scopeMode" in patch && patch.scopeMode !== current.scopeMode) {
+        nextSelection.resourceId = "";
+        nextSelection.typeId = "";
+      }
+      if ("resourceId" in patch && patch.resourceId !== current.resourceId) {
+        const selected = resources.find((r) => String(r.id) === String(patch.resourceId));
+        nextSelection.typeId = selected?.type_id ? String(selected.type_id) : "";
+      }
+      extras[extraIdx] = nextSelection;
+      return { ...prev, extraBSelections: extras, lastAppliedSentence: "" };
+    });
+  }
+
+  function removeWizardBSelection(idx) {
+    if (idx === 0) {
+      setWizard((prev) => ({
+        ...(prev.extraBSelections?.length
+          ? {
+              ...prev,
+              scopeBMode: prev.extraBSelections[0].scopeMode,
+              resourceBId: prev.extraBSelections[0].resourceId,
+              typeBId: prev.extraBSelections[0].typeId,
+              extraBSelections: prev.extraBSelections.slice(1),
+              lastAppliedSentence: "",
+            }
+          : {
+              ...prev,
+              scopeBMode: "type",
+              resourceBId: "",
+              typeBId: "",
+              lastAppliedSentence: "",
+            }),
+      }));
+      return;
+    }
+    setWizard((prev) => ({
+      ...prev,
+      extraBSelections: (prev.extraBSelections || []).filter((_, extraIdx) => extraIdx !== idx - 1),
+      lastAppliedSentence: "",
+    }));
+  }
+
   function updateWizard(patch) {
     setWizard((prev) => {
       const next = { ...prev, ...patch };
@@ -473,6 +587,7 @@ export default function Rules() {
         next.scopeBMode = "type";
         next.resourceBId = "";
         next.typeBId = "";
+        next.extraBSelections = [];
         next.conditions = next.conditions.map((c) => ({
           ...c,
           side: "A",
@@ -516,6 +631,7 @@ export default function Rules() {
 
   async function applySentenceConditions() {
     const sentence = String(wizard.conditionSentence || "").trim();
+    const bSelections = getConfiguredWizardBSelections();
     if (!sentence) {
       setWizardError("Please write a short condition sentence.");
       return;
@@ -528,8 +644,8 @@ export default function Rules() {
       setWizardError("Select Resource A type and fields first.");
       return;
     }
-    if (wizard.target === "pair" && !wizardFieldsB.length) {
-      setWizardError("Select Resource B type and fields first.");
+    if (bSelections.length && !wizardFieldsB.length) {
+      setWizardError("Select Resource B resources/types with shared fields first.");
       return;
     }
     setWizardError("");
@@ -537,9 +653,13 @@ export default function Rules() {
     try {
       const payload = {
         sentence,
-        target: wizard.target,
+        target: bSelections.length ? "pair" : "single",
         typeAName: schemaTypeById.get(String(wizard.typeAId))?.name || "",
-        typeBName: schemaTypeById.get(String(wizard.typeBId))?.name || "",
+        typeBName: bSelections
+          .map((selection, idx) =>
+            schemaTypeById.get(String(selection.typeId))?.name || `B${idx + 1}`
+          )
+          .join(", "),
         fieldsA: wizardFieldsA.map((f) => f.value),
         fieldsB: wizardFieldsB.map((f) => f.value),
       };
@@ -594,21 +714,42 @@ export default function Rules() {
   }
 
   function buildWizardClauses() {
+    const bSelections = getConfiguredWizardBSelections();
     return wizard.conditions
-      .map((c) => {
+      .flatMap((c) => {
         const isSideB = c.side === "B";
-        const field = isSideB
-          ? buildFieldPath(wizard.typeBId, c.field)
-          : buildResourceFieldPath(c.field);
-        if (!field) return null;
-        if (c.compare === "field") {
-          const ref = isSideB
-            ? buildResourceFieldPath(c.refField)
-            : buildFieldPath(wizard.typeBId, c.refField);
-          if (!ref) return null;
-          return { field, op: c.op, value: { ref } };
+        if (!isSideB) {
+          const field = buildResourceFieldPath(c.field);
+          if (!field) return [];
+          if (c.compare === "field") {
+            if (!bSelections.length) {
+              const ref = buildResourceFieldPath(c.refField);
+              if (!ref) return [];
+              return [{ field, op: c.op, value: { ref } }];
+            }
+            return bSelections
+              .map((selection) => {
+                const ref = buildFieldPath(selection.typeId, c.refField);
+                if (!ref) return null;
+                return { field, op: c.op, value: { ref } };
+              })
+              .filter(Boolean);
+          }
+          return [{ field, op: c.op, value: parseInputValue(c.value, c.op) }];
         }
-        return { field, op: c.op, value: parseInputValue(c.value, c.op) };
+
+        return bSelections
+          .map((selection) => {
+            const field = buildFieldPath(selection.typeId, c.field);
+            if (!field) return null;
+            if (c.compare === "field") {
+              const ref = buildResourceFieldPath(c.refField);
+              if (!ref) return null;
+              return { field, op: c.op, value: { ref } };
+            }
+            return { field, op: c.op, value: parseInputValue(c.value, c.op) };
+          })
+          .filter(Boolean);
       })
       .filter(Boolean);
   }
@@ -616,18 +757,27 @@ export default function Rules() {
 
   function validateWizardStep(step) {
     if (step >= 1 && !wizard.actionEffect) return "Choose an action type.";
-    if (step >= 2 && !wizard.target) return "Choose a target.";
-    if (step >= 3) {
+    if (step >= 2) {
       if (!wizard.scopeAMode) return "Choose whether the rule is for one resource or a whole type.";
       if (wizard.scopeAMode === "resource" && !wizard.resourceAId) return "Choose Resource A.";
       if (!wizard.typeAId) return "Choose Resource A type.";
     }
-    if (step >= 4 && wizard.target === "pair") {
-      if (!wizard.scopeBMode) return "Choose whether Resource B is one resource or a whole type.";
-      if (wizard.scopeBMode === "resource" && !wizard.resourceBId) return "Choose Resource B.";
-      if (!wizard.typeBId) return "Choose Resource B type.";
+    if (step >= 3) {
+      const bSelections = getWizardBSelections();
+      const configuredSelections = getConfiguredWizardBSelections();
+      for (const [idx, selection] of bSelections.entries()) {
+        const hasAnyValue = Boolean(selection.resourceId || selection.typeId);
+        if (!hasAnyValue) continue;
+        if (!selection.scopeMode) return `Choose whether Resource B${idx + 1} is one resource or a whole type.`;
+        if (selection.scopeMode === "resource" && !selection.resourceId) return `Choose Resource B${idx + 1}.`;
+        if (!selection.typeId) return `Choose Resource B${idx + 1} type.`;
+      }
+      const typeIds = configuredSelections.map((selection) => String(selection.typeId)).filter(Boolean);
+      if (new Set(typeIds).size !== typeIds.length) {
+        return "Each selected Resource B must have a different resource type.";
+      }
     }
-    if (step >= 5) {
+    if (step >= 4) {
       const sentence = String(wizard.conditionSentence || "").trim();
       if (sentence && sentence !== String(wizard.lastAppliedSentence || "").trim()) {
         return "Run the AI condition parser successfully before creating the rule.";
@@ -636,8 +786,7 @@ export default function Rules() {
       for (const [idx, c] of wizard.conditions.entries()) {
         if (!c.field) return `Choose a field for condition ${idx + 1}.`;
         if (!c.op) return `Choose an operator for condition ${idx + 1}.`;
-        if (wizard.target === "pair" && c.compare === "field") {
-          if (!wizard.typeBId) return "Choose Resource B type.";
+        if (c.compare === "field") {
           if (!c.refField) return `Choose a reference field for condition ${idx + 1}.`;
         } else {
           const isEmptyValue =
@@ -653,7 +802,7 @@ export default function Rules() {
       const contradiction = detectContradictions(buildWizardClauses());
       if (contradiction) return contradiction;
     }
-    if (step >= 6) {
+    if (step >= 5) {
       if (!wizard.name.trim()) return "Rule name is required.";
       if (!Number.isFinite(Number(wizard.sort_order))) return "Sort order must be a number.";
       if (!Number.isFinite(Number(wizard.weight))) return "Weight must be a number.";
@@ -665,32 +814,36 @@ export default function Rules() {
   }
 
   function nextWizardStep(current) {
-    if (wizard.target === "single" && current === 3) return 5;
-    return Math.min(7, current + 1);
+    return Math.min(6, current + 1);
   }
 
   function prevWizardStep(current) {
-    if (wizard.target === "single" && current === 5) return 3;
     return Math.max(1, current - 1);
   }
 
   function buildWizardPayload() {
     const clauses = buildWizardClauses();
+    const bSelections = getConfiguredWizardBSelections();
     const scopeClauseA =
       wizard.scopeAMode === "resource" && wizard.resourceAId
         ? { field: "resource.id", op: "==", value: Number(wizard.resourceAId) }
         : wizard.typeAId
         ? { field: "resource.type_id", op: "==", value: Number(wizard.typeAId) }
         : null;
-    const scopeClauseB =
-      wizard.target === "pair" && wizard.scopeBMode === "resource" && wizard.resourceBId && wizard.typeBId
-        ? {
-            field: `resources_by_type_id.${wizard.typeBId}.id`,
-            op: "==",
-            value: Number(wizard.resourceBId),
-          }
-        : null;
-    const scopedClauses = [scopeClauseA, scopeClauseB, ...clauses].filter(Boolean);
+    const scopeClausesB = bSelections.length
+      ? bSelections
+          .map((selection) =>
+            selection.scopeMode === "resource" && selection.resourceId && selection.typeId
+              ? {
+                  field: `resources_by_type_id.${selection.typeId}.id`,
+                  op: "==",
+                  value: Number(selection.resourceId),
+                }
+              : null
+          )
+          .filter(Boolean)
+      : [];
+    const scopedClauses = [scopeClauseA, ...scopeClausesB, ...clauses].filter(Boolean);
     const condition = { all: scopedClauses };
     const action =
       wizard.actionEffect === "score"
@@ -700,7 +853,7 @@ export default function Rules() {
     return {
       name: wizard.name.trim(),
       description: wizard.description ?? "",
-      target_type: wizard.target === "pair" ? "pair" : "resource",
+      target_type: bSelections.length ? "pair" : "resource",
       is_hard: wizard.actionEffect === "forbid",
       is_active: !!wizard.is_active,
       weight: wizard.actionEffect === "forbid" ? 0 : Number(wizard.weight) || 0,
@@ -711,30 +864,32 @@ export default function Rules() {
   }
 
   function buildWizardSummary() {
+    const bSelections = getConfiguredWizardBSelections();
     const typeAName = wizard.scopeAMode === "resource"
       ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
       : schemaTypeById.get(String(wizard.typeAId))?.name || "Type A";
-    const typeBName = wizard.scopeBMode === "resource"
-      ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
-      : schemaTypeById.get(String(wizard.typeBId))?.name || "Type B";
+    const bLabelForTypeId = (typeId) => {
+      const selection = bSelections.find((item) => String(item.typeId) === String(typeId));
+      if (!selection) return "Resource B";
+      return selection.scopeMode === "resource"
+        ? resourceNameById.get(String(selection.resourceId)) || "Resource B"
+        : schemaTypeById.get(String(selection.typeId))?.name || "Resource B";
+    };
     const actionText = wizard.actionEffect === "forbid" ? "Block" : `Score ${Number(wizard.scoreValue) || 0}`;
     const parts = buildWizardClauses().map((clause) => {
       if (!clause) return "";
       const fieldStr = String(clause.field || "");
       const isResource = fieldStr.startsWith("resource.");
-      const isARef = fieldStr.includes(`resources_by_type_id.${wizard.typeAId}.`);
-      const leftType = isResource ? typeAName : isARef ? typeAName : typeBName;
+      const leftTypeMatch = fieldStr.match(/^resources_by_type_id\.(\d+)\./);
+      const leftType = isResource ? typeAName : bLabelForTypeId(leftTypeMatch?.[1]);
       const leftField = isResource
         ? fieldLabelFromField(fieldStr.replace(/^resource\./, ""))
         : fieldLabelFromField(fieldStr.split(".").slice(2).join("."));
       if (clause.value && typeof clause.value === "object" && "ref" in clause.value) {
         const refStr = String(clause.value.ref || "");
         const refIsResource = refStr.startsWith("resource.");
-        const refType = refIsResource
-          ? typeAName
-          : refStr.includes(`resources_by_type_id.${wizard.typeAId}.`)
-          ? typeAName
-          : typeBName;
+        const refTypeMatch = refStr.match(/^resources_by_type_id\.(\d+)\./);
+        const refType = refIsResource ? typeAName : bLabelForTypeId(refTypeMatch?.[1]);
         const refField = refIsResource
           ? fieldLabelFromField(refStr.replace(/^resource\./, ""))
           : fieldLabelFromField(refStr.split(".").slice(2).join("."));
@@ -747,7 +902,7 @@ export default function Rules() {
   }
 
   async function createWizardRule() {
-    const err = validateWizardStep(7);
+    const err = validateWizardStep(6);
     if (err) {
       setWizardError(err);
       return;
@@ -782,18 +937,22 @@ export default function Rules() {
         : getFieldOptionsForType(schemaTypes, wizard.typeAId),
     [resources, schemaTypes, wizard.resourceAId, wizard.scopeAMode, wizard.typeAId]
   );
+  const wizardBSelections = getWizardBSelections(wizard);
   const wizardFieldsB = useMemo(
-    () =>
-      wizard.scopeBMode === "resource"
-        ? getResourceFieldOptions(
-            resources.find((r) => String(r.id) === String(wizard.resourceBId)) ?? null
-          )
-        : getFieldOptionsForType(schemaTypes, wizard.typeBId),
-    [resources, schemaTypes, wizard.resourceBId, wizard.scopeBMode, wizard.typeBId]
+    () => intersectFieldOptions(
+      wizardBSelections.map((selection) =>
+        selection.scopeMode === "resource"
+          ? getResourceFieldOptions(
+              resources.find((r) => String(r.id) === String(selection.resourceId)) ?? null
+            )
+          : getFieldOptionsForType(schemaTypes, selection.typeId)
+      )
+    ),
+    [resources, schemaTypes, wizardBSelections]
   );
 
-  const wizardSummary = useMemo(() => buildWizardSummary(), [wizard, schemaTypeById]);
-  const wizardPayload = useMemo(() => buildWizardPayload(), [wizard]);
+  const wizardSummary = buildWizardSummary();
+  const wizardPayload = buildWizardPayload();
 
   function ensureDefaultFieldA(next) {
     const updated = { ...next };
@@ -825,7 +984,7 @@ export default function Rules() {
         ...prev,
         comparisons: [
           ...prev.comparisons,
-          { bMode: "resource", resourceBId: "", typeBId: "", fieldA: prev.fieldA || "", op: "<", fieldB: "" },
+          { compareMode: "field", side: "A", bMode: "resource", resourceBId: "", typeBId: "", fieldA: prev.fieldA || "", op: "<", fieldB: "", value: "" },
         ],
       };
       return ensureDefaultFieldA(next);
@@ -868,36 +1027,83 @@ export default function Rules() {
       if (!form.comparisons.length) return alert("Add at least one resource to compare.");
       target_type = "pair";
       const clauses = [aScopeClause];
+      const scopedBResourceKeys = new Set();
 
       for (const [idx, comp] of form.comparisons.entries()) {
-        if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
+        const addSpecificBScopeIfNeeded = (typeIdB, resourceBId) => {
+          const scopeKey = `${typeIdB}:${resourceBId}`;
+          if (scopedBResourceKeys.has(scopeKey)) return;
+          scopedBResourceKeys.add(scopeKey);
+          clauses.push({
+            field: `resources_by_type_id.${typeIdB}.id`,
+            op: "==",
+            value: Number(resourceBId),
+          });
+        };
+
+        if (comp.compareMode === "field") {
+          if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
+          if (!comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
+
+          if (comp.bMode === "resource") {
+            if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
+            const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
+            if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
+
+            const typeIdB = Number(resourceB.type_id);
+            addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
+            clauses.push({
+              field: `resource.${comp.fieldA}`,
+              op: comp.op,
+              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+            });
+          } else {
+            if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+            const typeIdB = Number(comp.typeBId);
+            clauses.push({
+              field: `resource.${comp.fieldA}`,
+              op: comp.op,
+              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+            });
+          }
+          continue;
+        }
+
+        if (comp.side === "A") {
+          if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
+          if (comp.value === "") return alert(`Enter a value for row ${idx + 1}`);
+          clauses.push({
+            field: `resource.${comp.fieldA}`,
+            op: comp.op,
+            value: parseInputValue(comp.value, comp.op),
+          });
+          continue;
+        }
+
         if (!comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
+        if (comp.value === "") return alert(`Enter a value for row ${idx + 1}`);
 
         if (comp.bMode === "resource") {
           if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
           const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
           if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
-
           const typeIdB = Number(resourceB.type_id);
+          addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
           clauses.push({
-            field: `resources_by_type_id.${typeIdB}.id`,
-            op: "==",
-            value: Number(comp.resourceBId),
-          });
-          clauses.push({
-            field: `resource.${comp.fieldA}`,
+            field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
             op: comp.op,
-            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+            value: parseInputValue(comp.value, comp.op),
           });
-        } else {
-          if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
-          const typeIdB = Number(comp.typeBId);
-          clauses.push({
-            field: `resource.${comp.fieldA}`,
-            op: comp.op,
-            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-          });
+          continue;
         }
+
+        if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+        const typeIdB = Number(comp.typeBId);
+        clauses.push({
+          field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
+          op: comp.op,
+          value: parseInputValue(comp.value, comp.op),
+        });
       }
 
       condition = { all: clauses };
@@ -983,6 +1189,18 @@ export default function Rules() {
       return `If ${aName} is compared to other resources → ${action}.`;
     }
     const parts = form.comparisons.map((c) => {
+      if (c.compareMode === "value") {
+        if (c.side === "A") {
+          return `${aName}.${fieldLabel(c.fieldA || form.fieldA)} ${c.op} ${c.value || "?"}`;
+        }
+        if (c.bMode === "type") {
+          const typeLabel = typeOptions.find((t) => String(t.type_id) === String(c.typeBId))?.type_name || "Type";
+          return `${typeLabel}.${fieldLabel(c.fieldB)} ${c.op} ${c.value || "?"}`;
+        }
+        const bName = resourceNameById.get(String(c.resourceBId)) || "Resource B";
+        return `${bName}.${fieldLabel(c.fieldB)} ${c.op} ${c.value || "?"}`;
+      }
+
       const left = fieldLabel(c.fieldA || form.fieldA);
       if (c.bMode === "type") {
         const typeLabel = typeOptions.find((t) => String(t.type_id) === String(c.typeBId))?.type_name || "Type";
@@ -1163,7 +1381,7 @@ export default function Rules() {
           </div>
         ) : (
           <div className="mb-4">
-            <div className="text-sm font-medium mb-2">Comparisons (A vs multiple B)</div>
+            <div className="text-sm font-medium mb-2">Conditions (A, B, or A vs B)</div>
             <div className="space-y-3">
               {form.comparisons.map((comp, idx) => {
                 const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId)) ?? null;
@@ -1171,13 +1389,33 @@ export default function Rules() {
                   ? getTypeFieldOptions(comp.typeBId)
                   : getResourceFieldOptions(resourceB);
                 return (
-                  <div key={`comp-${idx}`} className="grid grid-cols-6 gap-3 items-end">
+                  <div key={`comp-${idx}`} className="grid grid-cols-8 gap-3 items-end">
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Condition</label>
+                      <select
+                        className="w-full p-2 border rounded bg-white"
+                        value={comp.compareMode}
+                        onChange={(e) =>
+                          updateComparison(idx, {
+                            compareMode: e.target.value,
+                            side: "A",
+                            value: "",
+                            fieldB: "",
+                          })
+                        }
+                      >
+                        <option value="field">A vs B</option>
+                        <option value="value">Field vs value</option>
+                      </select>
+                    </div>
+
                     <div>
                       <label className="block text-xs font-medium mb-1">B Source</label>
                       <select
                         className="w-full p-2 border rounded bg-white"
                         value={comp.bMode}
                         onChange={(e) => updateComparison(idx, { bMode: e.target.value, resourceBId: "", typeBId: "", fieldB: "" })}
+                        disabled={comp.compareMode === "value" && comp.side === "A"}
                       >
                         <option value="resource">Specific resource</option>
                         <option value="type">Resource type</option>
@@ -1191,6 +1429,7 @@ export default function Rules() {
                           className="w-full p-2 border rounded bg-white"
                           value={comp.typeBId}
                           onChange={(e) => updateComparison(idx, { typeBId: e.target.value, fieldB: "" })}
+                          disabled={comp.compareMode === "value" && comp.side === "A"}
                         >
                           <option value="">Choose type…</option>
                           {typeOptions.map((t) => (
@@ -1204,6 +1443,7 @@ export default function Rules() {
                           className="w-full p-2 border rounded bg-white"
                           value={comp.resourceBId}
                           onChange={(e) => updateComparison(idx, { resourceBId: e.target.value, fieldB: "" })}
+                          disabled={comp.compareMode === "value" && comp.side === "A"}
                         >
                           <option value="">Choose resource…</option>
                           {resourceOptions.map((r) => (
@@ -1216,18 +1456,31 @@ export default function Rules() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium mb-1">Field (A)</label>
-                      <select
-                        className="w-full p-2 border rounded bg-white"
-                        value={comp.fieldA}
-                        onChange={(e) => updateComparison(idx, { fieldA: e.target.value })}
-                        disabled={form.aMode === "type" ? !form.typeAId : !form.resourceAId}
-                      >
-                        <option value="">Choose field…</option>
-                        {fieldsA.map((f) => (
-                          <option key={f.value} value={f.value}>{f.label}</option>
-                        ))}
-                      </select>
+                      <label className="block text-xs font-medium mb-1">
+                        {comp.compareMode === "value" ? "Side" : "Field (A)"}
+                      </label>
+                      {comp.compareMode === "value" ? (
+                        <select
+                          className="w-full p-2 border rounded bg-white"
+                          value={comp.side}
+                          onChange={(e) => updateComparison(idx, { side: e.target.value, value: "", fieldB: "" })}
+                        >
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                        </select>
+                      ) : (
+                        <select
+                          className="w-full p-2 border rounded bg-white"
+                          value={comp.fieldA}
+                          onChange={(e) => updateComparison(idx, { fieldA: e.target.value })}
+                          disabled={form.aMode === "type" ? !form.typeAId : !form.resourceAId}
+                        >
+                          <option value="">Choose field…</option>
+                          {fieldsA.map((f) => (
+                            <option key={f.value} value={f.value}>{f.label}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
 
                     <div>
@@ -1244,18 +1497,83 @@ export default function Rules() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium mb-1">Field (B)</label>
+                      <label className="block text-xs font-medium mb-1">
+                        {comp.compareMode === "value"
+                          ? comp.side === "A"
+                            ? "Field (A)"
+                            : "Field (B)"
+                          : "Field (B)"}
+                      </label>
                       <select
                         className="w-full p-2 border rounded bg-white"
-                        value={comp.fieldB}
-                        onChange={(e) => updateComparison(idx, { fieldB: e.target.value })}
-                        disabled={comp.bMode === "type" ? !comp.typeBId : !comp.resourceBId}
+                        value={comp.compareMode === "value" && comp.side === "A" ? comp.fieldA : comp.fieldB}
+                        onChange={(e) =>
+                          updateComparison(
+                            idx,
+                            comp.compareMode === "value" && comp.side === "A"
+                              ? { fieldA: e.target.value }
+                              : { fieldB: e.target.value }
+                          )
+                        }
+                        disabled={
+                          comp.compareMode === "value" && comp.side === "A"
+                            ? form.aMode === "type"
+                              ? !form.typeAId
+                              : !form.resourceAId
+                            : comp.bMode === "type"
+                            ? !comp.typeBId
+                            : !comp.resourceBId
+                        }
                       >
                         <option value="">Choose field…</option>
-                        {fieldsB.map((f) => (
+                        {(comp.compareMode === "value" && comp.side === "A" ? fieldsA : fieldsB).map((f) => (
                           <option key={f.value} value={f.value}>{f.label}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {comp.compareMode === "value" ? "Value" : "Value"}
+                      </label>
+                      {comp.compareMode === "value" ? (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            className="w-full p-2 border rounded"
+                            value={comp.value}
+                            onChange={(e) => updateComparison(idx, { value: e.target.value })}
+                            placeholder={comp.op === "in" ? "Example: A,B,C" : "Example: true / 10 / yes"}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                              onClick={() => updateComparison(idx, { value: "true" })}
+                            >
+                              True
+                            </button>
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                              onClick={() => updateComparison(idx, { value: "false" })}
+                            >
+                              False
+                            </button>
+                            <button
+                              type="button"
+                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                              onClick={() => updateComparison(idx, { value: "" })}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="w-full p-2 text-xs text-gray-400">
+                          -
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1276,10 +1594,10 @@ export default function Rules() {
               onClick={addComparison}
               className="mt-3 px-3 py-2 border rounded hover:bg-gray-50"
             >
-              + Add Resource
+              + Add Condition
             </button>
             <div className="text-xs text-gray-500 mt-1">
-              Tip: choose "Resource type" to apply the rule to any resource of that type.
+              Tip: use "A vs B" for cross-resource checks, and "Field vs value" for fixed requirements on A or B.
             </div>
           </div>
         )}
@@ -1458,7 +1776,7 @@ export default function Rules() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-xl font-bold">Rule Wizard Chat</h2>
-                <div className="text-xs text-gray-500">Step {wizardStep} of 7</div>
+                <div className="text-xs text-gray-500">Step {wizardStep} of 6</div>
               </div>
               <button onClick={closeWizard} className="px-3 py-2 border rounded">
                 Close
@@ -1469,12 +1787,11 @@ export default function Rules() {
               <div className="flex">
                 <div className="bg-gray-100 px-4 py-3 rounded-2xl text-sm max-w-[75%]">
                   {wizardStep === 1 && "Hi! Let’s build a rule together. First, what should this rule do?"}
-                  {wizardStep === 2 && "Should this rule target a single resource or a pair (A + B)?"}
-                  {wizardStep === 3 && "Should Resource A be one specific resource or all resources of a type?"}
-                  {wizardStep === 4 && "Should Resource B be one specific resource or all resources of a type?"}
-                  {wizardStep === 5 && "Describe your conditions in plain English, and I’ll create the JSON."}
-                  {wizardStep === 6 && "Give your rule a name and settings."}
-                  {wizardStep === 7 && "Review everything and create the rule."}
+                  {wizardStep === 2 && "Should Resource A be one specific resource or all resources of a type?"}
+                  {wizardStep === 3 && "Optionally add Resource B items. If you leave this empty, the rule will apply only to Resource A."}
+                  {wizardStep === 4 && "Describe your conditions in plain English, and I’ll create the JSON."}
+                  {wizardStep === 5 && "Give your rule a name and settings."}
+                  {wizardStep === 6 && "Review everything and create the rule."}
                 </div>
               </div>
               {wizardStep > 1 && (
@@ -1506,26 +1823,6 @@ export default function Rules() {
             )}
 
             {wizardStep === 2 && (
-              <div className="flex flex-col items-end gap-3">
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 flex gap-3">
-                  <button
-                    className={`px-4 py-2 border rounded ${wizard.target === "single" ? "bg-gray-900 text-white" : "bg-white"}`}
-                    onClick={() => updateWizard({ target: "single" })}
-                  >
-                    Single
-                  </button>
-                  <button
-                    className={`px-4 py-2 border rounded ${wizard.target === "pair" ? "bg-gray-900 text-white" : "bg-white"}`}
-                    onClick={() => updateWizard({ target: "pair" })}
-                  >
-                    Pair
-                  </button>
-                </div>
-                
-              </div>
-            )}
-
-            {wizardStep === 3 && (
               <div className="flex justify-end">
                 <div className="bg-white border border-gray-200 rounded-2xl p-4 w-full max-w-[75%] space-y-2">
                   <div className="text-xs text-gray-500">
@@ -1586,65 +1883,90 @@ export default function Rules() {
               </div>
             )}
 
-            {wizardStep === 4 && wizard.target === "pair" && (
+            {wizardStep === 3 && (
               <div className="flex justify-end">
                 <div className="bg-white border border-gray-200 rounded-2xl p-4 w-full max-w-[75%] space-y-2">
                   <div className="text-xs text-gray-500">
-                    Resource B is the second resource checked together with Resource A.
+                    Resource B items are the other resources checked together with Resource A.
                   </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      className={`px-4 py-2 border rounded ${wizard.scopeBMode === "type" ? "bg-gray-900 text-white" : "bg-white"}`}
-                      onClick={() => updateWizard({ scopeBMode: "type" })}
-                    >
-                      All resources of a type
-                    </button>
-                    <button
-                      type="button"
-                      className={`px-4 py-2 border rounded ${wizard.scopeBMode === "resource" ? "bg-gray-900 text-white" : "bg-white"}`}
-                      onClick={() => updateWizard({ scopeBMode: "resource" })}
-                    >
-                      One specific resource
-                    </button>
-                  </div>
-                  {wizard.scopeBMode === "type" ? (
-                    <select
-                      className="w-full p-2 border rounded bg-white"
-                      value={wizard.typeBId}
-                      onChange={(e) => updateWizard({ typeBId: e.target.value })}
-                    >
-                      <option value="">Choose type…</option>
-                      {schemaTypes.map((t) => (
-                        <option key={t.type_id} value={t.type_id}>
-                          {t.name} (id={t.type_id})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <select
-                      className="w-full p-2 border rounded bg-white"
-                      value={wizard.resourceBId}
-                      onChange={(e) => updateWizard({ resourceBId: e.target.value })}
-                    >
-                      <option value="">Choose resource…</option>
-                      {resourceOptions.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name} (id={r.id}) {r.type_name ? `- ${r.type_name}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {wizard.scopeBMode === "resource" && wizard.resourceBId && (
-                    <div className="text-xs text-gray-500">
-                      Type: {schemaTypeById.get(String(wizard.typeBId))?.name || "Unknown type"}
+                  {wizardBSelections.map((selection, idx) => (
+                    <div key={selection.id} className="rounded-xl border border-gray-200 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm font-medium text-gray-800">Resource B{idx + 1}</div>
+                        <button
+                          type="button"
+                          className="px-3 py-2 border rounded hover:bg-gray-50"
+                          onClick={() => removeWizardBSelection(idx)}
+                          disabled={idx === 0 && wizardBSelections.length === 1}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          className={`px-4 py-2 border rounded ${selection.scopeMode === "type" ? "bg-gray-900 text-white" : "bg-white"}`}
+                          onClick={() => updateWizardBSelection(idx, { scopeMode: "type" })}
+                        >
+                          All resources of a type
+                        </button>
+                        <button
+                          type="button"
+                          className={`px-4 py-2 border rounded ${selection.scopeMode === "resource" ? "bg-gray-900 text-white" : "bg-white"}`}
+                          onClick={() => updateWizardBSelection(idx, { scopeMode: "resource" })}
+                        >
+                          One specific resource
+                        </button>
+                      </div>
+                      {selection.scopeMode === "type" ? (
+                        <select
+                          className="w-full p-2 border rounded bg-white"
+                          value={selection.typeId}
+                          onChange={(e) => updateWizardBSelection(idx, { typeId: e.target.value })}
+                        >
+                          <option value="">Choose type…</option>
+                          {schemaTypes.map((t) => (
+                            <option key={t.type_id} value={t.type_id}>
+                              {t.name} (id={t.type_id})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          className="w-full p-2 border rounded bg-white"
+                          value={selection.resourceId}
+                          onChange={(e) => updateWizardBSelection(idx, { resourceId: e.target.value })}
+                        >
+                          <option value="">Choose resource…</option>
+                          {resourceOptions.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name} (id={r.id}) {r.type_name ? `- ${r.type_name}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {selection.scopeMode === "resource" && selection.resourceId && (
+                        <div className="text-xs text-gray-500">
+                          Type: {schemaTypeById.get(String(selection.typeId))?.name || "Unknown type"}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
+                  <button
+                    type="button"
+                    className="px-3 py-2 border rounded hover:bg-gray-50"
+                    onClick={addWizardBSelection}
+                  >
+                    + Add another Resource B
+                  </button>
+                  <div className="text-xs text-gray-500">
+                    The same B-side rule will be applied to every selected Resource B. Each B must have a different resource type.
+                  </div>
                 </div>
               </div>
             )}
 
-            {wizardStep === 5 && (
+            {wizardStep === 4 && (
               <div className="space-y-4">
                 <div className="flex justify-end">
                   <div className="bg-white border border-gray-200 rounded-2xl p-4 w-full max-w-[85%] space-y-3">
@@ -1710,19 +2032,11 @@ export default function Rules() {
                   <div className="bg-gray-100 px-4 py-3 rounded-2xl text-xs text-gray-600 max-w-[75%]">
                     <div className="font-medium text-gray-700 mb-1">Fields I can use</div>
                     <div>Resource A: {wizardFieldsA.map((f) => f.label).join(", ") || "None selected"}</div>
-                    {wizard.target === "pair" && (
-                      <div>Resource B: {wizardFieldsB.map((f) => f.label).join(", ") || "None selected"}</div>
+                    {getConfiguredWizardBSelections().length > 0 && (
+                      <div>Resource B: {wizardFieldsB.map((f) => f.label).join(", ") || "No shared fields across the selected B resources"}</div>
                     )}
                   </div>
                 </div>
-
-                {wizard.target === "pair" && !wizard.typeBId && (
-                  <div className="flex">
-                    <div className="bg-amber-50 border border-amber-200 px-4 py-3 rounded-2xl text-xs text-amber-700 max-w-[75%]">
-                      To use Side B, go back and choose a Resource B type in Step 4.
-                    </div>
-                  </div>
-                )}
 
                 <details className="bg-white border border-gray-200 rounded-2xl p-3">
                   <summary className="text-sm font-medium cursor-pointer">Advanced: edit conditions manually</summary>
@@ -1731,8 +2045,11 @@ export default function Rules() {
                       Use this only if you want to tweak the generated conditions.
                     </div>
                     {wizard.conditions.map((cond, idx) => {
+                  const hasConfiguredB = getConfiguredWizardBSelections().length > 0;
                   const sideFields = cond.side === "B" ? wizardFieldsB : wizardFieldsA;
-                  const refFields = cond.side === "B" ? wizardFieldsA : wizardFieldsB;
+                  const refFields = hasConfiguredB
+                    ? (cond.side === "B" ? wizardFieldsA : wizardFieldsB)
+                    : sideFields;
                   return (
                     <div key={cond.id} className="grid grid-cols-7 gap-3 items-end">
                       <div>
@@ -1741,16 +2058,18 @@ export default function Rules() {
                           className="w-full p-2 border rounded bg-white"
                           value={cond.side}
                           onChange={(e) => updateWizardCondition(idx, { side: e.target.value })}
-                          disabled={wizard.target === "single"}
+                          disabled={getConfiguredWizardBSelections().length === 0}
                         >
                           <option value="A">A</option>
-                          {wizard.target === "pair" && wizard.typeBId && <option value="B">B</option>}
+                          {getConfiguredWizardBSelections().length > 0 && <option value="B">B</option>}
                         </select>
                         <div className="text-[11px] text-gray-500 mt-1">
                           {cond.side === "B"
-                            ? `B = ${wizard.scopeBMode === "resource"
-                                ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
-                                : schemaTypeById.get(String(wizard.typeBId))?.name || "Resource B"} (the other resource)`
+                            ? `B = all selected Resource B items (${wizardBSelections.map((selection, selectionIdx) =>
+                                selection.scopeMode === "resource"
+                                  ? resourceNameById.get(String(selection.resourceId)) || `B${selectionIdx + 1}`
+                                  : schemaTypeById.get(String(selection.typeId))?.name || `B${selectionIdx + 1}`
+                              ).join(", ") || "none selected"})`
                             : `A = ${wizard.scopeAMode === "resource"
                                 ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
                                 : schemaTypeById.get(String(wizard.typeAId))?.name || "Resource A"} (main resource)`}
@@ -1790,14 +2109,13 @@ export default function Rules() {
                           className="w-full p-2 border rounded bg-white"
                           value={cond.compare}
                           onChange={(e) => updateWizardCondition(idx, { compare: e.target.value })}
-                          disabled={wizard.target !== "pair"}
                         >
                           <option value="value">Value</option>
-                          <option value="field">Field (other side)</option>
+                          <option value="field">Field</option>
                         </select>
                       </div>
 
-                      {cond.compare === "field" && wizard.target === "pair" ? (
+                      {cond.compare === "field" ? (
                         <div className="col-span-2">
                           <label className="block text-xs font-medium mb-1">Ref field</label>
                           <select
@@ -1810,6 +2128,9 @@ export default function Rules() {
                               <option key={f.value} value={f.value}>{f.label}</option>
                             ))}
                           </select>
+                          <div className="text-[11px] text-gray-500 mt-1">
+                            {hasConfiguredB ? "Reference field is taken from the other side." : "Reference field is taken from the same resource."}
+                          </div>
                         </div>
                       ) : (
                         <div className="col-span-2">
@@ -1868,7 +2189,7 @@ export default function Rules() {
               </div>
             )}
 
-            {wizardStep === 6 && (
+            {wizardStep === 5 && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -1938,7 +2259,7 @@ export default function Rules() {
               </div>
             )}
 
-            {wizardStep === 7 && (
+            {wizardStep === 6 && (
               <div className="space-y-4">
                 <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm">
                   <div className="font-semibold mb-1">Summary understood</div>
@@ -1968,7 +2289,7 @@ export default function Rules() {
               </button>
 
               <div className="flex gap-2">
-                {wizardStep < 7 && (
+                {wizardStep < 6 && (
                   <button
                     onClick={() => {
                       const err = validateWizardStep(wizardStep);
@@ -1985,7 +2306,7 @@ export default function Rules() {
                   </button>
                 )}
 
-                {wizardStep === 7 && (
+                {wizardStep === 6 && (
                   <button
                     onClick={createWizardRule}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

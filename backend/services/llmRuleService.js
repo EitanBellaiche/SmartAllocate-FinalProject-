@@ -101,7 +101,20 @@ function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
     }
 
     if (compare === "field") {
-      if (target !== "pair") throw new Error(`Clause ${idx + 1}: field comparison requires pair target`);
+      if (target !== "pair") {
+        if (side !== "A") throw new Error(`Clause ${idx + 1}: side B not allowed for single target`);
+        if (!allowedFieldsA.has(refField)) {
+          throw new Error(`Clause ${idx + 1}: refField not allowed for Resource A`);
+        }
+        return {
+          side,
+          field,
+          op,
+          compare,
+          value,
+          refField,
+        };
+      }
 
       const refIsA = allowedFieldsA.has(refField);
       const refIsB = allowedFieldsB.has(refField);
@@ -148,10 +161,11 @@ function buildPrompt({ sentence, target, typeAName, typeBName, fieldsA, fieldsB 
   const lines = [
     "You are a rule parser. Convert the user sentence into structured rule clauses.",
     "Use only the provided field lists.",
-    "If the sentence implies comparing A to B, use compare=field and set refField.",
+    "If the sentence implies comparing one field to another, use compare=field and set refField.",
     "Field naming: use raw field names like 'metadata.capacity' or 'metadata.students_number' (no 'resource.' prefixes).",
-    "If side='A' then field must be from A list and refField must be from B list.",
-    "If side='B' then field must be from B list and refField must be from A list.",
+    "For single-target rules, side must be 'A' and refField must also be from the A list.",
+    "For pair-target rules, if side='A' then field must be from A list and refField must be from B list.",
+    "For pair-target rules, if side='B' then field must be from B list and refField must be from A list.",
     "If the sentence implies a boolean like 'no computers', set value=false.",
     "Split multiple conditions connected by 'and' into separate clauses.",
     "If the sentence is unclear or missing info, respond with status='clarify' and add 1-3 short questions.",

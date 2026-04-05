@@ -286,12 +286,13 @@ export default function Resources() {
 
   const normalizedNameFilter = nameFilter.trim().toLowerCase();
   const hasNameFilter = normalizedNameFilter.length > 0;
+  const hasTypeFilter = String(typeFilter).trim().length > 0;
+  const hasActiveFilter = hasNameFilter || hasTypeFilter;
 
   const filteredResources = sortResourcesAlphabetically(resources).filter((resource) => {
-    if (!hasNameFilter) return false;
-
     const matchesType = !typeFilter || String(resource.type_id) === typeFilter;
-    const matchesName = String(resource.name || "").toLowerCase().includes(normalizedNameFilter);
+    const matchesName =
+      !hasNameFilter || String(resource.name || "").toLowerCase().includes(normalizedNameFilter);
 
     return matchesType && matchesName;
   });
@@ -358,7 +359,7 @@ export default function Resources() {
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <SummaryPill
               label="Matched Results"
-              value={hasNameFilter ? filteredResources.length : 0}
+              value={hasActiveFilter ? filteredResources.length : 0}
               tone="blue"
             />
             <SummaryPill label="Selected Filter" value={selectedTypeName} tone="slate" />
@@ -368,11 +369,11 @@ export default function Resources() {
       </section>
 
       <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6">
-        {!hasNameFilter ? (
+        {!hasActiveFilter ? (
           <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-14 text-center">
-            <div className="text-lg font-semibold text-slate-800">Search to reveal resources</div>
+            <div className="text-lg font-semibold text-slate-800">Choose a type or search to reveal resources</div>
             <div className="mt-2 text-sm text-slate-500">
-              Start typing a resource name to keep this view clean and focused.
+              Select a resource type, search by name, or combine both filters.
             </div>
           </div>
         ) : filteredResources.length === 0 ? (
