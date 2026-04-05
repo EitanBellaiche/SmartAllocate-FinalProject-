@@ -1889,7 +1889,7 @@ export default function Rules() {
         </div>
 
         <div className="grid gap-4">
-          {rules.map((rule) => (
+          {rules.map((rule, idx) => (
             <article
               key={rule.id}
               className="rounded-[22px] border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
@@ -1898,7 +1898,7 @@ export default function Rules() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                      Rule #{rule.id}
+                      Rule #{idx + 1}
                     </span>
                     <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white">
                       {rule.target_type}

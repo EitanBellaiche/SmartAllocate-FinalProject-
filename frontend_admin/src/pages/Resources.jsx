@@ -25,6 +25,10 @@ function normalizeCustomFieldValue(value, fieldType) {
   return String(value ?? "");
 }
 
+function getFieldDisplayName(field) {
+  return field?.label || field?.name || "";
+}
+
 function SummaryPill({ label, value, tone = "slate" }) {
   const tones = {
     blue: "border-blue-200 bg-blue-50 text-blue-700",
@@ -476,7 +480,7 @@ export default function Resources() {
                 {selectedType.fields.map((field, index) => (
                   <div key={index} className="mb-3">
                     <label className="mb-1 block text-sm font-medium">
-                      {field.name} ({field.type})
+                      {getFieldDisplayName(field)} ({field.type})
                     </label>
 
                     {field.type === "boolean" ? (
@@ -639,7 +643,7 @@ export default function Resources() {
                 {editSelectedType.fields.map((field, index) => (
                   <div key={index} className="mb-3">
                     <label className="mb-1 block text-sm font-medium">
-                      {field.name} ({field.type})
+                      {getFieldDisplayName(field)} ({field.type})
                     </label>
 
                     {field.type === "boolean" ? (

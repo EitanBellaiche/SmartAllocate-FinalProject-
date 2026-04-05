@@ -443,3 +443,171 @@ WHERE t.exam_id IS NOT NULL AND t.classroom_id IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM rules WHERE name = 'Computerized exam requires computer lab' AND organization_id = 'shenkar'
   );
+
+-- 21) Prefer Fernic classrooms for software and electrical engineering courses
+WITH t AS (
+  SELECT
+    (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1) AS classroom_id,
+    (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1) AS course_id
+)
+INSERT INTO rules (name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, organization_id)
+SELECT
+  'Prefer Fernic classrooms for engineering courses',
+  'Add score when software engineering or electrical engineering courses are assigned to Fernic classrooms',
+  'pair',
+  false,
+  true,
+  7,
+  27,
+  jsonb_build_object(
+    'all', jsonb_build_array(
+      jsonb_build_object('field','resource.type_id','op','==','value', t.classroom_id),
+      jsonb_build_object('field','resource.metadata.building','op','==','value', 'Fernic'),
+      jsonb_build_object(
+        'any', jsonb_build_array(
+          jsonb_build_object(
+            'field', CONCAT('resources_by_type_id.', t.course_id, '.metadata.software_engineering'),
+            'op','==',
+            'value', true
+          ),
+          jsonb_build_object(
+            'field', CONCAT('resources_by_type_id.', t.course_id, '.metadata.electrical_engineering'),
+            'op','==',
+            'value', true
+          )
+        )
+      )
+    )
+  ),
+  jsonb_build_object('effect','score','delta',7),
+  'shenkar'
+FROM t
+WHERE t.course_id IS NOT NULL
+  AND t.classroom_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM rules WHERE name = 'Prefer Fernic classrooms for engineering courses' AND organization_id = 'shenkar'
+  );
+
+-- 22) Prefer Mitchel and Workshops classrooms for design courses
+WITH t AS (
+  SELECT
+    (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1) AS classroom_id,
+    (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1) AS course_id
+)
+INSERT INTO rules (name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, organization_id)
+SELECT
+  'Prefer Mitchel and Workshops classrooms for design courses',
+  'Add score when design courses are assigned to classrooms in Mitchel or Workshops',
+  'pair',
+  false,
+  true,
+  7,
+  28,
+  jsonb_build_object(
+    'all', jsonb_build_array(
+      jsonb_build_object('field','resource.type_id','op','==','value', t.classroom_id),
+      jsonb_build_object(
+        'any', jsonb_build_array(
+          jsonb_build_object('field','resource.metadata.building','op','==','value', 'Mitchel'),
+          jsonb_build_object('field','resource.metadata.building','op','==','value', 'Workshops')
+        )
+      ),
+      jsonb_build_object(
+        'field', CONCAT('resources_by_type_id.', t.course_id, '.metadata.design'),
+        'op','==',
+        'value', true
+      )
+    )
+  ),
+  jsonb_build_object('effect','score','delta',7),
+  'shenkar'
+FROM t
+WHERE t.course_id IS NOT NULL
+  AND t.classroom_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM rules WHERE name = 'Prefer Mitchel and Workshops classrooms for design courses' AND organization_id = 'shenkar'
+  );
+
+-- 23) Discourage Fernic classrooms for design courses
+WITH t AS (
+  SELECT
+    (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1) AS classroom_id,
+    (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1) AS course_id
+)
+INSERT INTO rules (name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, organization_id)
+SELECT
+  'Discourage Fernic classrooms for design courses',
+  'Reduce score when design courses are assigned to Fernic classrooms',
+  'pair',
+  false,
+  true,
+  -4,
+  29,
+  jsonb_build_object(
+    'all', jsonb_build_array(
+      jsonb_build_object('field','resource.type_id','op','==','value', t.classroom_id),
+      jsonb_build_object('field','resource.metadata.building','op','==','value', 'Fernic'),
+      jsonb_build_object(
+        'field', CONCAT('resources_by_type_id.', t.course_id, '.metadata.design'),
+        'op','==',
+        'value', true
+      )
+    )
+  ),
+  jsonb_build_object('effect','score','delta',-4),
+  'shenkar'
+FROM t
+WHERE t.course_id IS NOT NULL
+  AND t.classroom_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM rules WHERE name = 'Discourage Fernic classrooms for design courses' AND organization_id = 'shenkar'
+  );
+
+-- 24) Discourage Mitchel and Workshops classrooms for engineering courses
+WITH t AS (
+  SELECT
+    (SELECT id FROM resource_types WHERE name = 'Classroom' AND organization_id = 'shenkar' LIMIT 1) AS classroom_id,
+    (SELECT id FROM resource_types WHERE name = 'Courses' AND organization_id = 'shenkar' LIMIT 1) AS course_id
+)
+INSERT INTO rules (name, description, target_type, is_hard, is_active, weight, sort_order, condition, action, organization_id)
+SELECT
+  'Discourage Mitchel and Workshops classrooms for engineering courses',
+  'Reduce score when software engineering or electrical engineering courses are assigned to classrooms in Mitchel or Workshops',
+  'pair',
+  false,
+  true,
+  -4,
+  30,
+  jsonb_build_object(
+    'all', jsonb_build_array(
+      jsonb_build_object('field','resource.type_id','op','==','value', t.classroom_id),
+      jsonb_build_object(
+        'any', jsonb_build_array(
+          jsonb_build_object('field','resource.metadata.building','op','==','value', 'Mitchel'),
+          jsonb_build_object('field','resource.metadata.building','op','==','value', 'Workshops')
+        )
+      ),
+      jsonb_build_object(
+        'any', jsonb_build_array(
+          jsonb_build_object(
+            'field', CONCAT('resources_by_type_id.', t.course_id, '.metadata.software_engineering'),
+            'op','==',
+            'value', true
+          ),
+          jsonb_build_object(
+            'field', CONCAT('resources_by_type_id.', t.course_id, '.metadata.electrical_engineering'),
+            'op','==',
+            'value', true
+          )
+        )
+      )
+    )
+  ),
+  jsonb_build_object('effect','score','delta',-4),
+  'shenkar'
+FROM t
+WHERE t.course_id IS NOT NULL
+  AND t.classroom_id IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM rules WHERE name = 'Discourage Mitchel and Workshops classrooms for engineering courses' AND organization_id = 'shenkar'
+  );

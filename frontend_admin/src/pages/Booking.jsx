@@ -20,6 +20,10 @@ export default function Booking() {
   const [editingBooking, setEditingBooking] = useState(null);
   const [selectedTypeIds, setSelectedTypeIds] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
+  const [resourceTypeQuery, setResourceTypeQuery] = useState("");
+  const [resourceQuery, setResourceQuery] = useState("");
+  const [resourceFilterTypeId, setResourceFilterTypeId] = useState("");
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -41,6 +45,9 @@ export default function Booking() {
   const [submitting, setSubmitting] = useState(false);
   const [updatingBooking, setUpdatingBooking] = useState(false);
   const [message, setMessage] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [violationDetails, setViolationDetails] = useState([]);
+  const [alertDetails, setAlertDetails] = useState([]);
   const [mode, setMode] = useState("booking");
 
   const weekdayOptions = [
@@ -56,7 +63,7 @@ export default function Booking() {
   const timeOptions = useMemo(() => {
     const options = [];
     for (let h = 0; h < 24; h += 1) {
-      for (let m = 0; m < 60; m += 5) {
+      for (let m = 0; m < 60; m += 30) {
         const hh = String(h).padStart(2, "0");
         const mm = String(m).padStart(2, "0");
         options.push(`${hh}:${mm}`);
@@ -65,14 +72,35 @@ export default function Booking() {
     return options;
   }, []);
 
-  const effectiveResourceIds = useMemo(() => {
-    const byType = resources
-      .filter((resource) =>
+  const selectedCandidateCount = useMemo(
+    () =>
+      resources.filter((resource) =>
         selectedTypeIds.some((typeId) => String(typeId) === String(resource.type_id))
-      )
-      .map((resource) => resource.id);
-    return Array.from(new Set([...selectedResources, ...byType]));
-  }, [resources, selectedResources, selectedTypeIds]);
+      ).length,
+    [resources, selectedTypeIds]
+  );
+
+  const filteredResourceTypes = useMemo(() => {
+    const query = resourceTypeQuery.trim().toLowerCase();
+    return resourceTypes.filter((type) => {
+      if (!query) return true;
+      return String(type.name || "").toLowerCase().includes(query);
+    });
+  }, [resourceTypes, resourceTypeQuery]);
+
+  const filteredResources = useMemo(() => {
+    const query = resourceQuery.trim().toLowerCase();
+    return resources.filter((resource) => {
+      const matchesQuery =
+        !query ||
+        String(resource.name || "").toLowerCase().includes(query) ||
+        String(resource.type_name || "").toLowerCase().includes(query);
+      const matchesType =
+        !resourceFilterTypeId || String(resource.type_id) === String(resourceFilterTypeId);
+      const matchesSelected = !showSelectedOnly || selectedResources.includes(resource.id);
+      return matchesQuery && matchesType && matchesSelected;
+    });
+  }, [resources, resourceQuery, resourceFilterTypeId, showSelectedOnly, selectedResources]);
 
   useEffect(() => {
     loadResources();
@@ -184,7 +212,39 @@ export default function Booking() {
     return Array.from(new Set(items));
   }
 
-  function normalizeTo5Minutes(value) {
+  function formatViolationMessage(violations) {
+    const names = Array.from(
+      new Set(violations.map((violation) => violation?.name).filter(Boolean))
+    );
+    return `Rule blocked: ${names.join(", ") || "Unknown rule"}`;
+  }
+
+  function extractFailureDetails(errLike) {
+    return {
+      violations: Array.isArray(errLike?.data?.violations) ? errLike.data.violations : [],
+      suggestions: Array.isArray(errLike?.data?.suggestions) ? errLike.data.suggestions : [],
+      violationDetails: Array.isArray(errLike?.data?.violation_details)
+        ? errLike.data.violation_details
+        : [],
+      alertDetails: Array.isArray(errLike?.data?.alert_details) ? errLike.data.alert_details : [],
+    };
+  }
+
+  function applySuggestion(suggestion) {
+    const nextResourceIds = Array.isArray(suggestion?.resource_ids)
+      ? suggestion.resource_ids
+      : [];
+    if (nextResourceIds.length > 0) {
+      setSelectedResources(nextResourceIds);
+    }
+    setSelectedTypeIds([]);
+    if (suggestion?.date) setDate(suggestion.date);
+    if (suggestion?.start_time) setStartTime(suggestion.start_time);
+    if (suggestion?.end_time) setEndTime(suggestion.end_time);
+    setMessage(`Alternative loaded: ${suggestion?.summary || "suggested resources selected"}`);
+  }
+
+  function normalizeTo30Minutes(value) {
     if (!value || typeof value !== "string") return value;
     const parts = value.split(":");
     if (parts.length !== 2) return value;
@@ -192,14 +252,14 @@ export default function Booking() {
     const m = Number(parts[1]);
     if (!Number.isFinite(h) || !Number.isFinite(m)) return value;
     const total = h * 60 + m;
-    const rounded = Math.round(total / 5) * 5;
+    const rounded = Math.round(total / 30) * 30;
     const nextH = Math.floor(rounded / 60) % 24;
     const nextM = rounded % 60;
     return `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
   }
 
   async function updateResourceAssignments(responsibleId, userIds) {
-    const targetResources = resources.filter((resource) => effectiveResourceIds.includes(resource.id));
+    const targetResources = resources.filter((resource) => selectedResources.includes(resource.id));
     if (targetResources.length === 0) return;
 
     await Promise.all(
@@ -221,12 +281,12 @@ export default function Booking() {
   }
 
   async function submitBooking() {
-    if (!startTime || !endTime || effectiveResourceIds.length === 0) {
+    if (!startTime || !endTime || (selectedResources.length === 0 && selectedTypeIds.length === 0)) {
       setMessage("Please select time and at least one resource.");
       return;
     }
-    if (normalizeTo5Minutes(startTime) !== startTime || normalizeTo5Minutes(endTime) !== endTime) {
-      setMessage("Times must be in 5-minute increments.");
+    if (normalizeTo30Minutes(startTime) !== startTime || normalizeTo30Minutes(endTime) !== endTime) {
+      setMessage("Times must be in 30-minute increments.");
       return;
     }
     if (startTime >= endTime) {
@@ -249,10 +309,14 @@ export default function Booking() {
 
     setSubmitting(true);
     setMessage("");
+    setSuggestions([]);
+    setViolationDetails([]);
+    setAlertDetails([]);
 
     try {
       const basePayload = {
-        resources: effectiveResourceIds,
+        resources: selectedResources,
+        resource_type_ids: selectedTypeIds,
         start_time: startTime,
         end_time: endTime,
       };
@@ -297,18 +361,29 @@ export default function Booking() {
         const failures = results.filter((result) => result.status === "rejected");
         if (failures.length > 0) {
           const violations = failures
-            .map((failure) => failure?.reason?.data?.violations || [])
+            .map((failure) => extractFailureDetails(failure?.reason).violations)
+            .flat();
+          const nextSuggestions = failures
+            .map((failure) => extractFailureDetails(failure?.reason).suggestions)
+            .flat();
+          const nextViolationDetails = failures
+            .map((failure) => extractFailureDetails(failure?.reason).violationDetails)
+            .flat();
+          const nextAlertDetails = failures
+            .map((failure) => extractFailureDetails(failure?.reason).alertDetails)
             .flat();
           if (violations.length > 0) {
-            const names = violations
-              .map((violation) => violation?.name)
-              .filter(Boolean)
-              .join(", ");
-            setMessage(`Rule blocked: ${names || "Unknown rule"}`);
+            setMessage(formatViolationMessage(violations));
+            setSuggestions(nextSuggestions);
+            setViolationDetails(nextViolationDetails);
+            setAlertDetails(nextAlertDetails);
           } else {
             setMessage(
               `Created ${results.length - failures.length} bookings; ${failures.length} failed.`
             );
+            setSuggestions(nextSuggestions);
+            setViolationDetails(nextViolationDetails);
+            setAlertDetails(nextAlertDetails);
           }
           setSubmitting(false);
           return;
@@ -316,6 +391,9 @@ export default function Booking() {
       }
 
       setMessage("Booking created successfully!");
+      setSuggestions([]);
+      setViolationDetails([]);
+      setAlertDetails([]);
       setSelectedResources([]);
       setSelectedTypeIds([]);
       setDate("");
@@ -332,15 +410,18 @@ export default function Booking() {
       setWeekdays([]);
       await loadResources();
     } catch (err) {
-      const violations = Array.isArray(err?.data?.violations) ? err.data.violations : [];
+      const { violations, suggestions: nextSuggestions, violationDetails: nextViolationDetails, alertDetails: nextAlertDetails } =
+        extractFailureDetails(err);
       if (violations.length > 0) {
-        const names = violations
-          .map((violation) => violation?.name)
-          .filter(Boolean)
-          .join(", ");
-        setMessage(`Rule blocked: ${names || "Unknown rule"}`);
+        setMessage(formatViolationMessage(violations));
+        setSuggestions(nextSuggestions);
+        setViolationDetails(nextViolationDetails);
+        setAlertDetails(nextAlertDetails);
       } else {
         setMessage(err?.message || "Failed to create booking.");
+        setSuggestions(nextSuggestions);
+        setViolationDetails(nextViolationDetails);
+        setAlertDetails(nextAlertDetails);
       }
       console.error(err);
     }
@@ -470,6 +551,118 @@ export default function Booking() {
             {message && (
               <div className="mb-6 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm text-white shadow-lg">
                 {message}
+              </div>
+            )}
+
+            {(violationDetails.length > 0 || alertDetails.length > 0) && (
+              <div className="mb-6 rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  Why it was blocked
+                </div>
+                <div className="mt-3 space-y-3">
+                  {violationDetails.map((item, index) => (
+                    <div
+                      key={`${item.name || "violation"}-${item.resource_name || "none"}-${index}`}
+                      className="rounded-2xl border border-amber-200 bg-white px-4 py-4"
+                    >
+                      <div className="text-sm font-semibold text-slate-900">{item.name || "Blocked rule"}</div>
+                      {item.description && (
+                        <div className="mt-1 text-sm text-slate-600">{item.description}</div>
+                      )}
+                      {(item.resource_name || item.resource_type) && (
+                        <div className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                          {item.resource_name ? `Resource: ${item.resource_name}` : ""}
+                          {item.resource_name && item.resource_type ? " â€¢ " : ""}
+                          {item.resource_type ? `Type: ${item.resource_type}` : ""}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {alertDetails.map((item, index) => (
+                    <div
+                      key={`${item.name || "alert"}-${item.resource_name || "none"}-${index}`}
+                      className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4"
+                    >
+                      <div className="text-sm font-semibold text-slate-900">{item.name || "Alert"}</div>
+                      {item.description && (
+                        <div className="mt-1 text-sm text-slate-600">{item.description}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {suggestions.length > 0 && (
+              <div className="mb-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  Suggested alternatives
+                </div>
+                <div className="mt-3 space-y-3">
+                  {suggestions.map((suggestion, index) => (
+                    <div
+                      key={`${suggestion.summary || "suggestion"}-${index}`}
+                      className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
+                            {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
+                          </span>
+                          {Number.isFinite(Number(suggestion?.score)) && (
+                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+                              Score {Number(suggestion.score)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {suggestion.summary || "Alternative"}
+                        </div>
+                        {suggestion.why && (
+                          <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                        )}
+                        {suggestion.type === "timeslot" && (
+                          <div className="mt-1 text-sm text-slate-600">
+                            Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
+                          </div>
+                        )}
+                        {suggestion.type === "timeslot" &&
+                          Number.isFinite(Number(suggestion.distance_from_original)) && (
+                            <div className="mt-1 text-sm text-slate-500">
+                              Distance from original time: {Number(suggestion.distance_from_original)} minutes
+                            </div>
+                          )}
+                        <div className="mt-1 text-sm text-slate-600">
+                          {Array.isArray(suggestion.resources)
+                            ? suggestion.resources.map((resource) => resource.name).join(", ")
+                            : ""}
+                        </div>
+                        {Array.isArray(suggestion?.rule_summary?.soft_matches) &&
+                          suggestion.rule_summary.soft_matches.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {suggestion.rule_summary.soft_matches.slice(0, 4).map((match, matchIndex) => (
+                                <span
+                                  key={`${suggestion.summary || "suggestion"}-match-${match.id || matchIndex}`}
+                                  className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
+                                >
+                                  {match.name}
+                                  {Number.isFinite(Number(match.delta)) ? ` (${Number(match.delta) > 0 ? "+" : ""}${Number(match.delta)})` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestion(suggestion)}
+                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                      >
+                        Use suggestion
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -668,7 +861,7 @@ export default function Booking() {
                                     );
                                   }}
                                 >
-                                  {user.full_name || "User"} · {user.national_id || `No ${labels.userId}`} · {user.email}
+                                  {user.full_name || "User"} Â· {user.national_id || `No ${labels.userId}`} Â· {user.email}
                                 </button>
                               ))}
                             </div>
@@ -759,8 +952,15 @@ export default function Booking() {
                         <div className="mb-3 text-sm font-semibold text-slate-900">
                           Whole resource types
                         </div>
+                        <input
+                          type="text"
+                          className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                          value={resourceTypeQuery}
+                          onChange={(e) => setResourceTypeQuery(e.target.value)}
+                          placeholder="Search resource types..."
+                        />
                         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                          {resourceTypes.map((type) => (
+                          {filteredResourceTypes.map((type) => (
                             <label
                               key={type.id}
                               className="flex items-center gap-3 rounded-xl border border-transparent bg-white px-3 py-3 text-sm text-slate-700 shadow-sm transition hover:border-slate-200"
@@ -774,7 +974,7 @@ export default function Booking() {
                               <span>{type.name}</span>
                             </label>
                           ))}
-                          {resourceTypes.length === 0 && (
+                          {filteredResourceTypes.length === 0 && (
                             <div className="text-sm text-slate-500">No resource types found.</div>
                           )}
                         </div>
@@ -784,8 +984,40 @@ export default function Booking() {
                         <div className="mb-3 text-sm font-semibold text-slate-900">
                           Specific resources
                         </div>
+                        <div className="mb-3 grid gap-3">
+                          <input
+                            type="text"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                            value={resourceQuery}
+                            onChange={(e) => setResourceQuery(e.target.value)}
+                            placeholder="Search resources..."
+                          />
+                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                            <select
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                              value={resourceFilterTypeId}
+                              onChange={(e) => setResourceFilterTypeId(e.target.value)}
+                            >
+                              <option value="">All resource types</option>
+                              {resourceTypes.map((type) => (
+                                <option key={type.id} value={type.id}>
+                                  {type.name}
+                                </option>
+                              ))}
+                            </select>
+                            <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={showSelectedOnly}
+                                onChange={(e) => setShowSelectedOnly(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span>Selected only</span>
+                            </label>
+                          </div>
+                        </div>
                         <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                          {resources.map((resource) => (
+                          {filteredResources.map((resource) => (
                             <label
                               key={resource.id}
                               className="flex items-center gap-3 rounded-xl border border-transparent bg-white px-3 py-3 text-sm text-slate-700 shadow-sm transition hover:border-slate-200"
@@ -796,10 +1028,13 @@ export default function Booking() {
                                 onChange={() => toggleResource(resource.id)}
                                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                               />
-                              <span>{resource.name}</span>
+                              <div className="flex flex-col">
+                                <span>{resource.name}</span>
+                                <span className="text-xs text-slate-400">{resource.type_name || "Unknown type"}</span>
+                              </div>
                             </label>
                           ))}
-                          {resources.length === 0 && (
+                          {filteredResources.length === 0 && (
                             <div className="text-sm text-slate-500">No resources found.</div>
                           )}
                         </div>
@@ -807,8 +1042,8 @@ export default function Booking() {
                     </div>
 
                     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
-                      {effectiveResourceIds.length > 0
-                        ? `${effectiveResourceIds.length} unique resources will be included in this booking.`
+                      {selectedResources.length > 0 || selectedTypeIds.length > 0
+                        ? `${selectedResources.length} fixed resources selected. ${selectedTypeIds.length} resource types selected for automatic matching (${selectedCandidateCount} candidates available).`
                         : "No resources selected yet."}
                     </div>
 
@@ -880,7 +1115,7 @@ export default function Booking() {
                                   className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
                                 >
                                   {resource.name}
-                                  {resource.type_name ? ` · ${resource.type_name}` : ""}
+                                  {resource.type_name ? ` Â· ${resource.type_name}` : ""}
                                 </span>
                               ))}
                             </div>
@@ -986,7 +1221,7 @@ export default function Booking() {
                           />
                           <span>
                             {resource.name}
-                            {resource.type_name ? ` · ${resource.type_name}` : ""}
+                            {resource.type_name ? ` Â· ${resource.type_name}` : ""}
                           </span>
                         </label>
                       ))}

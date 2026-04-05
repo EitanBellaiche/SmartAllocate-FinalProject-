@@ -97,6 +97,563 @@ function getPrimaryResourceRows(rows) {
   return primary.length > 0 ? primary : rows;
 }
 
+function uniqueNumericIds(values) {
+  if (!Array.isArray(values)) return [];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+    )
+  );
+}
+
+function timeToMinutes(value) {
+  const [h, m] = String(value || "")
+    .split(":")
+    .map((part) => Number(part));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function minutesToTime(totalMinutes) {
+  const normalized = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function describeViolation(violation, resources = []) {
+  const resourceId = Number(violation?.resource_id);
+  const matchedResource = resources.find((resource) => Number(resource.id) === resourceId);
+  return {
+    id: violation?.id ?? null,
+    name: violation?.name || "Unknown rule",
+    description: violation?.description || "",
+    target_type: violation?.target_type || "",
+    resource_id: Number.isFinite(resourceId) ? resourceId : null,
+    resource_name: matchedResource?.name || null,
+    resource_type: matchedResource?.type_name || null,
+  };
+}
+
+function describeAlerts(alerts = [], resources = []) {
+  return alerts.map((alert) => describeViolation(alert, resources));
+}
+
+async function hasResourceConflict(client, resourceIds, date, startTime, endTime, orgId) {
+  if (!resourceIds.length) return false;
+  const params = [resourceIds, date, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT b.id
+    FROM booking_resources br
+    JOIN bookings b ON b.id = br.booking_id
+    JOIN resources r ON r.id = br.resource_id
+    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+    WHERE br.resource_id = ANY($1)
+    AND b.date = $2
+    AND bc.booking_id IS NULL
+    ${orgWhere}
+    AND (
+      ($3 >= b.start_time AND $3 < b.end_time) OR
+      ($4 > b.start_time AND $4 <= b.end_time) OR
+      ($3 <= b.start_time AND $4 >= b.end_time)
+    )
+    LIMIT 1
+    `,
+    params
+  );
+  return rows.length > 0;
+}
+
+async function loadResourceRowsByIds(client, resourceIds, orgId) {
+  if (!resourceIds.length) return [];
+  const params = [resourceIds];
+  let where = "WHERE r.id = ANY($1)";
+  if (orgId) {
+    params.push(orgId);
+    where = "WHERE r.id = ANY($1) AND r.organization_id = $2";
+  }
+  const { rows } = await client.query(
+    `
+    SELECT r.*, rt.name AS type_name, rt.roles AS type_roles, rt.fields AS type_fields
+    FROM resources r
+    JOIN resource_types rt ON rt.id = r.type_id
+    ${where}
+    `,
+    params
+  );
+  return rows;
+}
+
+async function loadCandidateRowsByTypeIds(client, typeIds, orgId, bookingDate, startTime, endTime, excludedResourceIds) {
+  if (!typeIds.length) return [];
+  const params = [typeIds, bookingDate, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  let exclusionWhere = "";
+  if (excludedResourceIds.length > 0) {
+    params.push(excludedResourceIds);
+    exclusionWhere = `AND r.id <> ALL($${params.length})`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT r.*, rt.name AS type_name, rt.roles AS type_roles, rt.fields AS type_fields
+    FROM resources r
+    JOIN resource_types rt ON rt.id = r.type_id
+    WHERE r.type_id = ANY($1)
+      AND COALESCE(r.active, true) = true
+      ${orgWhere}
+      ${exclusionWhere}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM booking_resources br
+        JOIN bookings b ON b.id = br.booking_id
+        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+        WHERE br.resource_id = r.id
+          AND b.date = $2
+          AND bc.booking_id IS NULL
+          AND (
+            ($3 >= b.start_time AND $3 < b.end_time) OR
+            ($4 > b.start_time AND $4 <= b.end_time) OR
+            ($3 <= b.start_time AND $4 >= b.end_time)
+          )
+      )
+    ORDER BY r.type_id ASC, LOWER(r.name) ASC, r.id ASC
+    `,
+    params
+  );
+  return rows;
+}
+
+function pickBestResourceCombination({ fixedResources, candidatePools, rules, booking, roles }) {
+  if (!candidatePools.length) {
+    const evaluation = evaluateRules({ rules, booking, resources: fixedResources, roles });
+    return evaluation.hardViolations.length > 0
+      ? { best: null, bestBlocked: evaluation }
+      : { best: { resources: [], evaluation } };
+  }
+
+  const preparedPools = candidatePools.map((pool) => {
+    const scored = pool.candidates
+      .map((candidate) => {
+        const evaluation = evaluateRules({
+          rules,
+          booking,
+          resources: [...fixedResources, candidate],
+          roles,
+        });
+        return { candidate, evaluation };
+      })
+      .filter((entry) => entry.evaluation.hardViolations.length === 0)
+      .sort((a, b) => {
+        if (b.evaluation.score !== a.evaluation.score) {
+          return b.evaluation.score - a.evaluation.score;
+        }
+        return Number(a.candidate.id) - Number(b.candidate.id);
+      })
+      .slice(0, 25)
+      .map((entry) => entry.candidate);
+
+    return {
+      ...pool,
+      candidates: scored.length > 0 ? scored : pool.candidates.slice(0, 25),
+    };
+  });
+
+  let best = null;
+  let bestBlocked = null;
+
+  const search = (index, chosen) => {
+    if (index >= preparedPools.length) {
+      const resources = [...fixedResources, ...chosen];
+      const evaluation = evaluateRules({ rules, booking, resources, roles });
+      if (evaluation.hardViolations.length > 0) {
+        if (!bestBlocked || evaluation.hardViolations.length < bestBlocked.hardViolations.length) {
+          bestBlocked = evaluation;
+        }
+        return;
+      }
+      if (
+        !best ||
+        evaluation.score > best.evaluation.score ||
+        (evaluation.score === best.evaluation.score &&
+          resources.map((resource) => Number(resource.id)).join(",") <
+            best.resources.map((resource) => Number(resource.id)).join(","))
+      ) {
+        best = { resources: [...chosen], evaluation };
+      }
+      return;
+    }
+
+    for (const candidate of preparedPools[index].candidates) {
+      search(index + 1, [...chosen, candidate]);
+    }
+  };
+
+  search(0, []);
+  return { best, bestBlocked };
+}
+
+async function buildAlternativeSuggestions({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  resources,
+  rules,
+  booking,
+  roles,
+  limit = 3,
+}) {
+  if (!Array.isArray(resources) || resources.length === 0) return [];
+
+  const suggestions = [];
+  const seenKeys = new Set();
+
+  for (let index = 0; index < resources.length; index += 1) {
+    const original = resources[index];
+    if (!original?.type_id) continue;
+    if (["Courses", "Exam"].includes(String(original.type_name || ""))) continue;
+
+    const excludedIds = resources
+      .map((resource) => Number(resource.id))
+      .filter((id) => Number.isFinite(id) && id !== Number(original.id));
+
+    const candidates = await loadCandidateRowsByTypeIds(
+      client,
+      [Number(original.type_id)],
+      orgId,
+      bookingDate,
+      startTime,
+      endTime,
+      excludedIds
+    );
+
+    for (const candidate of candidates) {
+      if (Number(candidate.id) === Number(original.id)) continue;
+
+      const nextResources = resources.map((resource, resourceIndex) =>
+        resourceIndex === index ? candidate : resource
+      );
+      const resourceIds = nextResources
+        .map((resource) => Number(resource.id))
+        .filter((id) => Number.isFinite(id));
+      const combinationKey = resourceIds.slice().sort((a, b) => a - b).join(",");
+      if (!combinationKey || seenKeys.has(combinationKey)) continue;
+
+      if (await hasResourceConflict(client, resourceIds, bookingDate, startTime, endTime, orgId)) {
+        continue;
+      }
+
+      const evaluation = evaluateRules({
+        rules,
+        booking,
+        resources: nextResources,
+        roles,
+      });
+      if (evaluation.hardViolations.length > 0) continue;
+
+      suggestions.push({
+        score: evaluation.score,
+        resource_ids: resourceIds,
+        summary: `${original.name} -> ${candidate.name}`,
+        why: `Replaces ${original.name} with ${candidate.name} to keep the same slot while improving the rule match.`,
+        replaced_resource: {
+          id: Number(original.id),
+          name: original.name,
+          type_id: Number(original.type_id),
+          type_name: original.type_name || "",
+        },
+        suggested_resource: {
+          id: Number(candidate.id),
+          name: candidate.name,
+          type_id: Number(candidate.type_id),
+          type_name: candidate.type_name || "",
+        },
+        resources: nextResources.map((resource) => ({
+          id: Number(resource.id),
+          name: resource.name,
+          type_id: Number(resource.type_id),
+          type_name: resource.type_name || "",
+        })),
+        rule_summary: {
+          score: evaluation.score,
+          soft_matches: (evaluation.softMatches || []).map((match) => ({
+            id: match?.id ?? null,
+            name: match?.name || "",
+            description: match?.description || "",
+            delta: Number(match?.delta || 0),
+            resource_id: match?.resource_id ?? null,
+          })),
+        },
+      });
+      seenKeys.add(combinationKey);
+    }
+  }
+
+  return suggestions
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.summary.localeCompare(b.summary);
+    })
+    .slice(0, limit);
+}
+
+async function findUserConflict(client, userId, date, startTime, endTime, orgId) {
+  if (!userId) return null;
+  const params = [String(userId), date, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT b.id, b.date, b.start_time, b.end_time
+    FROM bookings b
+    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+    LEFT JOIN booking_resources br ON br.booking_id = b.id
+    LEFT JOIN resources r ON r.id = br.resource_id
+    WHERE b.user_id::text = $1
+    AND b.date = $2
+    AND bc.booking_id IS NULL
+    ${orgWhere}
+    AND (
+      ($3 >= b.start_time AND $3 < b.end_time) OR
+      ($4 > b.start_time AND $4 <= b.end_time) OR
+      ($3 <= b.start_time AND $4 >= b.end_time)
+    )
+    LIMIT 1
+    `,
+    params
+  );
+  return rows[0] || null;
+}
+
+async function buildTimeSlotSuggestions({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  fixedResources,
+  candidateTypeIds,
+  rules,
+  roles,
+  limit = 3,
+}) {
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+    return [];
+  }
+
+  const duration = endMinutes - startMinutes;
+  const slots = [];
+  const preferredOffsets = [-120, -90, -60, -30, 30, 60, 90, 120, -150, 150, -180, 180];
+  const seenSlots = new Set();
+  for (const offset of preferredOffsets) {
+    const candidateStart = startMinutes + offset;
+    const candidateEnd = candidateStart + duration;
+    if (candidateStart < 0 || candidateEnd > 24 * 60) continue;
+    if (candidateStart === startMinutes && candidateEnd === endMinutes) continue;
+    const key = `${candidateStart}-${candidateEnd}`;
+    if (seenSlots.has(key)) continue;
+    seenSlots.add(key);
+    slots.push({
+      start_time: minutesToTime(candidateStart),
+      end_time: minutesToTime(candidateEnd),
+      distance: Math.abs(offset),
+    });
+  }
+
+  const suggestions = [];
+
+  for (const slot of slots) {
+    if (userId) {
+      const userConflict = await findUserConflict(
+        client,
+        userId,
+        bookingDate,
+        slot.start_time,
+        slot.end_time,
+        orgId
+      );
+      if (userConflict) continue;
+    }
+
+    let resolvedResourceRows = [...fixedResources];
+    let resolvedResourceIds = resolvedResourceRows
+      .map((resource) => Number(resource.id))
+      .filter((id) => Number.isFinite(id));
+
+    if (
+      resolvedResourceIds.length > 0 &&
+      (await hasResourceConflict(client, resolvedResourceIds, bookingDate, slot.start_time, slot.end_time, orgId))
+    ) {
+      continue;
+    }
+
+    if (candidateTypeIds.length > 0) {
+      const candidateRows = await loadCandidateRowsByTypeIds(
+        client,
+        candidateTypeIds,
+        orgId,
+        bookingDate,
+        slot.start_time,
+        slot.end_time,
+        resolvedResourceIds
+      );
+      const candidatePools = candidateTypeIds.map((typeId) => ({
+        typeId,
+        candidates: candidateRows.filter((resource) => Number(resource.type_id) === Number(typeId)),
+      }));
+      if (candidatePools.some((pool) => pool.candidates.length === 0)) continue;
+
+      const { best } = pickBestResourceCombination({
+        fixedResources: resolvedResourceRows,
+        candidatePools,
+        rules,
+        booking: {
+          date: bookingDate,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          user_id: userId,
+        },
+        roles,
+      });
+      if (!best) continue;
+
+      resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
+      resolvedResourceIds = resolvedResourceRows
+        .map((resource) => Number(resource.id))
+        .filter((id) => Number.isFinite(id));
+
+      if (
+        await hasResourceConflict(client, resolvedResourceIds, bookingDate, slot.start_time, slot.end_time, orgId)
+      ) {
+        continue;
+      }
+    }
+
+    const evaluation = evaluateRules({
+      rules,
+      booking: {
+        date: bookingDate,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        user_id: userId,
+      },
+      resources: resolvedResourceRows,
+      roles,
+    });
+    if (evaluation.hardViolations.length > 0) continue;
+
+    suggestions.push({
+      type: "timeslot",
+      score: evaluation.score,
+      distance_from_original: slot.distance ?? Math.abs((timeToMinutes(slot.start_time) ?? 0) - startMinutes),
+      date: bookingDate,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      resource_ids: resolvedResourceIds,
+      summary: `${bookingDate} ${slot.start_time}-${slot.end_time}`,
+      why: "Keeps the same booking need but moves it to a time slot with a better valid rule match.",
+      resources: resolvedResourceRows.map((resource) => ({
+        id: Number(resource.id),
+        name: resource.name,
+        type_id: Number(resource.type_id),
+        type_name: resource.type_name || "",
+      })),
+      rule_summary: {
+        score: evaluation.score,
+        soft_matches: (evaluation.softMatches || []).map((match) => ({
+          id: match?.id ?? null,
+          name: match?.name || "",
+          description: match?.description || "",
+          delta: Number(match?.delta || 0),
+          resource_id: match?.resource_id ?? null,
+        })),
+      },
+    });
+  }
+
+  return suggestions
+    .sort((a, b) => {
+      const aDistance = Number(a.distance_from_original ?? 9999);
+      const bDistance = Number(b.distance_from_original ?? 9999);
+      if (aDistance !== bDistance) return aDistance - bDistance;
+      if (b.score !== a.score) return b.score - a.score;
+      const aStart = timeToMinutes(a.start_time) ?? 0;
+      const bStart = timeToMinutes(b.start_time) ?? 0;
+      return aStart - bStart;
+    })
+    .slice(0, limit);
+}
+
+async function buildFailureSuggestions({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  resources,
+  candidateTypeIds,
+  rules,
+  roles,
+}) {
+  const [resourceSuggestions, timeSuggestions] = await Promise.all([
+    buildAlternativeSuggestions({
+      client,
+      orgId,
+      bookingDate,
+      startTime,
+      endTime,
+      resources,
+      rules,
+      booking: {
+        date: bookingDate,
+        start_time: startTime,
+        end_time: endTime,
+        user_id: userId,
+      },
+      roles,
+    }),
+    buildTimeSlotSuggestions({
+      client,
+      orgId,
+      bookingDate,
+      startTime,
+      endTime,
+      userId,
+      fixedResources: resources,
+      candidateTypeIds,
+      rules,
+      roles,
+    }),
+  ]);
+
+  return [...resourceSuggestions, ...timeSuggestions]
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.summary || "").localeCompare(String(b.summary || ""));
+    })
+    .slice(0, 5);
+}
+
 router.use(async (req, res, next) => {
   try {
     await ensureTables();
@@ -678,6 +1235,7 @@ router.post("/:id/reschedule", async (req, res) => {
 router.post("/", async (req, res) => {
   const {
     resources,
+    resource_type_ids,
     roles,
     date,
     start_time,
@@ -687,8 +1245,11 @@ router.post("/", async (req, res) => {
   } = req.body;
   const orgId = getOrgId(req);
 
-  if (!resources || resources.length === 0) {
-    return res.status(400).json({ error: "No resources provided" });
+  const explicitResourceIds = uniqueNumericIds(resources);
+  const candidateTypeIds = uniqueNumericIds(resource_type_ids);
+
+  if (explicitResourceIds.length === 0 && candidateTypeIds.length === 0) {
+    return res.status(400).json({ error: "No resources or resource types provided" });
   }
 
   const client = await pool.connect();
@@ -761,28 +1322,14 @@ router.post("/", async (req, res) => {
     await client.query("BEGIN");
 
     const roleMap = roles && typeof roles === "object" ? roles : {};
-    const responsibleResources = resources.filter((rid) => {
+    const responsibleResources = explicitResourceIds.filter((rid) => {
       const roleValue = String(roleMap?.[rid] || "").toLowerCase();
       return roleValue === "responsible";
     });
     /* 2. Load resources + rules for evaluation */
-    const resourceParams = [resources];
-    let resourceWhere = "WHERE r.id = ANY($1)";
-    if (orgId) {
-      resourceParams.push(orgId);
-      resourceWhere = "WHERE r.id = ANY($1) AND r.organization_id = $2";
-    }
-    const { rows: resourceRows } = await client.query(
-      `
-      SELECT r.*, rt.name AS type_name, rt.roles AS type_roles, rt.fields AS type_fields
-      FROM resources r
-      JOIN resource_types rt ON rt.id = r.type_id
-      ${resourceWhere}
-      `,
-      resourceParams
-    );
+    const resourceRows = await loadResourceRowsByIds(client, explicitResourceIds, orgId);
 
-    if (resourceRows.length !== resources.length) {
+    if (resourceRows.length !== explicitResourceIds.length) {
       await client.query("ROLLBACK");
       return res.status(400).json({ error: "One or more resources not found" });
     }
@@ -877,6 +1424,138 @@ router.post("/", async (req, res) => {
         }
       }
 
+      let resolvedResourceRows = [...resourceRows];
+      let resolvedResourceIds = resolvedResourceRows.map((resource) => Number(resource.id));
+
+      if (
+        resolvedResourceIds.length > 0 &&
+        (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId))
+      ) {
+        const suggestions = await buildFailureSuggestions({
+          client,
+          orgId,
+          bookingDate,
+          startTime: start_time,
+          endTime: end_time,
+          userId: user_id,
+          resources: resolvedResourceRows,
+          candidateTypeIds,
+          rules: ruleRows,
+          roles: roleMap,
+        });
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "Selected resources conflict with an existing booking",
+          date: bookingDate,
+          violation_details: [
+            {
+              name: "Resource conflict",
+              description: "At least one of the selected resources is already booked in the selected time slot.",
+              resource_name: null,
+            },
+          ],
+          suggestions,
+        });
+      }
+
+      if (candidateTypeIds.length > 0) {
+        const candidateRows = await loadCandidateRowsByTypeIds(
+          client,
+          candidateTypeIds,
+          orgId,
+          bookingDate,
+          start_time,
+          end_time,
+          resolvedResourceIds
+        );
+
+        const candidatePools = candidateTypeIds.map((typeId) => ({
+          typeId,
+          candidates: candidateRows.filter((resource) => Number(resource.type_id) === Number(typeId)),
+        }));
+
+        const emptyPool = candidatePools.find((pool) => pool.candidates.length === 0);
+        if (emptyPool) {
+          await client.query("ROLLBACK");
+          return res.status(422).json({
+            error: "No available resources found for one of the selected types",
+            date: bookingDate,
+            missing_type_id: emptyPool.typeId,
+          });
+        }
+
+        const { best, bestBlocked } = pickBestResourceCombination({
+          fixedResources: resolvedResourceRows,
+          candidatePools,
+          rules: ruleRows,
+          booking: {
+            date: bookingDate,
+            start_time,
+            end_time,
+            user_id,
+          },
+          roles: roleMap,
+        });
+
+        if (!best) {
+          const suggestions = await buildFailureSuggestions({
+            client,
+            orgId,
+            bookingDate,
+            startTime: start_time,
+            endTime: end_time,
+            userId: user_id,
+            resources: resolvedResourceRows,
+            candidateTypeIds,
+            rules: ruleRows,
+            roles: roleMap,
+          });
+          await client.query("ROLLBACK");
+          return res.status(422).json({
+            error: "No matching resources satisfy the active rules",
+            date: bookingDate,
+            violations: bestBlocked?.hardViolations || [],
+            alerts: bestBlocked?.alerts || [],
+            violation_details: (bestBlocked?.hardViolations || []).map((item) =>
+              describeViolation(item, resolvedResourceRows)
+            ),
+            alert_details: describeAlerts(bestBlocked?.alerts || [], resolvedResourceRows),
+            suggestions,
+          });
+        }
+
+        resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
+        resolvedResourceIds = resolvedResourceRows.map((resource) => Number(resource.id));
+
+        if (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)) {
+          const suggestions = await buildFailureSuggestions({
+            client,
+            orgId,
+            bookingDate,
+            startTime: start_time,
+            endTime: end_time,
+            userId: user_id,
+            resources: resolvedResourceRows,
+            candidateTypeIds,
+            rules: ruleRows,
+            roles: roleMap,
+          });
+          await client.query("ROLLBACK");
+          return res.status(409).json({
+            error: "Selected resources conflict with an existing booking",
+            date: bookingDate,
+            violation_details: [
+              {
+                name: "Resource conflict",
+                description: "One of the automatically selected resources is already booked in the selected time slot.",
+                resource_name: null,
+              },
+            ],
+            suggestions,
+          });
+        }
+      }
+
       const ruleEval = evaluateRules({
         rules: ruleRows,
         booking: {
@@ -885,18 +1564,35 @@ router.post("/", async (req, res) => {
           end_time,
           user_id,
         },
-        resources: resourceRows,
-        roles,
+        resources: resolvedResourceRows,
+        roles: roleMap,
       });
       lastRuleEval = ruleEval;
 
       if (ruleEval.hardViolations.length > 0) {
+        const suggestions = await buildFailureSuggestions({
+          client,
+          orgId,
+          bookingDate,
+          startTime: start_time,
+          endTime: end_time,
+          userId: user_id,
+          resources: resolvedResourceRows,
+          candidateTypeIds,
+          rules: ruleRows,
+          roles: roleMap,
+        });
         await client.query("ROLLBACK");
         return res.status(422).json({
           error: "Rule violations",
           date: bookingDate,
           violations: ruleEval.hardViolations,
           alerts: ruleEval.alerts,
+          violation_details: ruleEval.hardViolations.map((item) =>
+            describeViolation(item, resolvedResourceRows)
+          ),
+          alert_details: describeAlerts(ruleEval.alerts, resolvedResourceRows),
+          suggestions,
         });
       }
 
@@ -913,13 +1609,13 @@ router.post("/", async (req, res) => {
       const booking = bookingResult.rows[0];
 
       /* 4. Insert into booking_resources */
-      for (let r of resources) {
+      for (const r of resolvedResourceIds) {
         await client.query(
           `
           INSERT INTO booking_resources (booking_id, resource_id, role)
           VALUES ($1, $2, $3)
         `,
-          [booking.id, r, roles?.[r] || null]
+          [booking.id, r, roleMap?.[r] || null]
         );
       }
 

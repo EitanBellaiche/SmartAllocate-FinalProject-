@@ -18,6 +18,11 @@ const EMPTY_EDIT_MODAL = {
   roles: {},
 };
 
+const EMPTY_DAY_MODAL = {
+  open: false,
+  date: "",
+};
+
 export default function Availability() {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
@@ -26,6 +31,7 @@ export default function Availability() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedResource, setSelectedResource] = useState("");
   const [editModal, setEditModal] = useState(EMPTY_EDIT_MODAL);
+  const [dayModal, setDayModal] = useState(EMPTY_DAY_MODAL);
   const [modalMessage, setModalMessage] = useState("");
 
   useEffect(() => {
@@ -109,6 +115,17 @@ export default function Availability() {
     setModalMessage("");
   }
 
+  function openDayModal(slotInfo) {
+    const rawDate = slotInfo?.start || slotInfo;
+    const nextDate = moment(rawDate).format("YYYY-MM-DD");
+    if (!nextDate || nextDate === "Invalid date") return;
+    setDayModal({ open: true, date: nextDate });
+  }
+
+  function closeDayModal() {
+    setDayModal(EMPTY_DAY_MODAL);
+  }
+
   function toggleResource(id) {
     setEditModal((prev) => {
       const selected = prev.selectedResources.includes(id);
@@ -185,6 +202,30 @@ export default function Availability() {
       .filter(Boolean);
   }, [editModal.selectedResources, resources]);
 
+  const selectedDayBookings = useMemo(() => {
+    if (!dayModal.open || !dayModal.date) return [];
+
+    return bookings
+      .filter((booking) => moment(booking.date).format("YYYY-MM-DD") === dayModal.date)
+      .map((booking) => {
+        const bookingResources = Array.isArray(booking.resources) ? booking.resources : [];
+        const filteredResources = selectedResource
+          ? bookingResources.filter((resource) => String(resource.id) === String(selectedResource))
+          : bookingResources;
+
+        return {
+          ...booking,
+          filteredResources,
+        };
+      })
+      .filter((booking) => booking.filteredResources.length > 0 || !selectedResource)
+      .sort((a, b) => {
+        const startCompare = String(a.start_time || "").localeCompare(String(b.start_time || ""));
+        if (startCompare !== 0) return startCompare;
+        return Number(a.id) - Number(b.id);
+      });
+  }, [bookings, dayModal, selectedResource]);
+
   const calendarEventStyle = {
     backgroundColor: "#2563eb",
     color: "#ffffff",
@@ -252,6 +293,7 @@ export default function Availability() {
               date={currentDate}
               onNavigate={(date) => setCurrentDate(date)}
               onSelectEvent={openEditModal}
+              onSelectSlot={openDayModal}
               startAccessor="start"
               endAccessor="end"
               views={["month", "week", "day", "agenda"]}
@@ -259,6 +301,7 @@ export default function Availability() {
               style={{ height: 640 }}
               toolbar
               popup
+              selectable
               eventPropGetter={() => ({
                 style: calendarEventStyle,
               })}
@@ -266,6 +309,81 @@ export default function Availability() {
           </div>
         </div>
       </section>
+
+      {dayModal.open && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
+          <div className="relative z-40 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <div className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                  Daily Schedule
+                </div>
+                <h3 className="mt-3 text-2xl font-semibold text-slate-900">
+                  {moment(dayModal.date).format("DD.MM.YYYY")}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  All bookings for the selected date, sorted by start time.
+                </p>
+              </div>
+              <button
+                onClick={closeDayModal}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-slate-700"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {selectedDayBookings.map((booking) => {
+                const dayResources = booking.filteredResources || [];
+                return (
+                  <button
+                    key={booking.id}
+                    type="button"
+                    onClick={() =>
+                      openEditModal({
+                        booking_id: booking.id,
+                      })
+                    }
+                    className="block w-full rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="text-lg font-semibold text-slate-900">
+                          {String(booking.start_time || "").slice(0, 5)} - {String(booking.end_time || "").slice(0, 5)}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          User: {booking.user_id || "Not assigned"}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {dayResources.map((resource) => (
+                            <span
+                              key={`${booking.id}-${resource.id}`}
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                            >
+                              {resource.name}
+                              {resource.type_name ? ` • ${resource.type_name}` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        Booking #{booking.id}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {selectedDayBookings.length === 0 && (
+                <div className="rounded-[22px] border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                  No bookings found for this date.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
