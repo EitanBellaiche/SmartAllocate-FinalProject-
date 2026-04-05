@@ -3,6 +3,7 @@ import pool from "../db.js";
 import { evaluateRules } from "../rulesEngine.js";
 
 const router = express.Router();
+const DEFAULT_AUTO_WINDOW = { start_time: "08:00", end_time: "20:00" };
 
 async function ensureAvailabilityTables(client) {
   await client.query(`
@@ -227,6 +228,16 @@ function buildCandidateSlots(availability, durationMinutes) {
   });
 }
 
+function buildFallbackAvailability() {
+  return Array.from({ length: 7 }, (_, dayOfWeek) => ({
+    day_of_week: dayOfWeek,
+    start_time: DEFAULT_AUTO_WINDOW.start_time,
+    end_time: DEFAULT_AUTO_WINDOW.end_time,
+    start_date: null,
+    end_date: null,
+  }));
+}
+
 async function pickLockedSlot({
   availability,
   availabilityOverrides,
@@ -298,17 +309,19 @@ async function pickLockedSlot({
 
     let conflictReason = null;
     for (const dayKey of occurrences) {
-      const responsibleConflict = await findUserConflict(
-        client,
-        responsibleId,
-        dayKey,
-        candidate.start_time,
-        candidate.end_time,
-        orgId
-      );
-      if (responsibleConflict) {
-        conflictReason = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
-        break;
+      if (responsibleId) {
+        const responsibleConflict = await findUserConflict(
+          client,
+          responsibleId,
+          dayKey,
+          candidate.start_time,
+          candidate.end_time,
+          orgId
+        );
+        if (responsibleConflict) {
+          conflictReason = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
+          break;
+        }
       }
 
       let userConflict = null;
@@ -471,6 +484,126 @@ async function hasResourceConflict(client, resourceIds, date, startTime, endTime
   return rows.length > 0;
 }
 
+async function loadCandidateRowsByTypeIds(
+  client,
+  typeIds,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  excludedResourceIds
+) {
+  if (!typeIds.length) return [];
+  const params = [typeIds, bookingDate, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  let exclusionWhere = "";
+  if (excludedResourceIds.length > 0) {
+    params.push(excludedResourceIds);
+    exclusionWhere = `AND r.id <> ALL($${params.length})`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT r.*, rt.name AS type_name
+    FROM resources r
+    JOIN resource_types rt ON rt.id = r.type_id
+    WHERE r.type_id = ANY($1)
+      AND COALESCE(r.active, true) = true
+      ${orgWhere}
+      ${exclusionWhere}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM booking_resources br
+        JOIN bookings b ON b.id = br.booking_id
+        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+        WHERE br.resource_id = r.id
+          AND b.date = $2
+          AND bc.booking_id IS NULL
+          AND (
+            ($3 >= b.start_time AND $3 < b.end_time) OR
+            ($4 > b.start_time AND $4 <= b.end_time) OR
+            ($3 <= b.start_time AND $4 >= b.end_time)
+          )
+      )
+    ORDER BY r.type_id ASC, LOWER(r.name) ASC, r.id ASC
+    `,
+    params
+  );
+  return rows;
+}
+
+function pickBestResourceCombination({ fixedResources, candidatePools, rules, booking, roles }) {
+  if (!candidatePools.length) {
+    const evaluation = evaluateRules({ rules, booking, resources: fixedResources, roles });
+    return evaluation.hardViolations.length > 0
+      ? { best: null, bestBlocked: evaluation }
+      : { best: { resources: [], evaluation } };
+  }
+
+  const preparedPools = candidatePools.map((pool) => {
+    const scored = pool.candidates
+      .map((candidate) => {
+        const evaluation = evaluateRules({
+          rules,
+          booking,
+          resources: [...fixedResources, candidate],
+          roles,
+        });
+        return { candidate, evaluation };
+      })
+      .filter((entry) => entry.evaluation.hardViolations.length === 0)
+      .sort((a, b) => {
+        if (b.evaluation.score !== a.evaluation.score) {
+          return b.evaluation.score - a.evaluation.score;
+        }
+        return Number(a.candidate.id) - Number(b.candidate.id);
+      })
+      .slice(0, 25)
+      .map((entry) => entry.candidate);
+
+    return {
+      ...pool,
+      candidates: scored.length > 0 ? scored : pool.candidates.slice(0, 25),
+    };
+  });
+
+  let best = null;
+  let bestBlocked = null;
+
+  const search = (index, chosen) => {
+    if (index >= preparedPools.length) {
+      const resources = [...fixedResources, ...chosen];
+      const evaluation = evaluateRules({ rules, booking, resources, roles });
+      if (evaluation.hardViolations.length > 0) {
+        if (!bestBlocked || evaluation.hardViolations.length < bestBlocked.hardViolations.length) {
+          bestBlocked = evaluation;
+        }
+        return;
+      }
+      if (
+        !best ||
+        evaluation.score > best.evaluation.score ||
+        (evaluation.score === best.evaluation.score &&
+          resources.map((resource) => Number(resource.id)).join(",") <
+            best.resources.map((resource) => Number(resource.id)).join(","))
+      ) {
+        best = { resources: [...chosen], evaluation };
+      }
+      return;
+    }
+
+    for (const candidate of preparedPools[index].candidates) {
+      search(index + 1, [...chosen, candidate]);
+    }
+  };
+
+  search(0, []);
+  return { best, bestBlocked };
+}
+
 async function hasExactBooking(client, userId, resourceIds, date, startTime, endTime, orgId) {
   if (!userId || resourceIds.length === 0) return false;
   const params = [userId, date, startTime, endTime, resourceIds, resourceIds.length];
@@ -568,6 +701,9 @@ router.post("/", async (req, res) => {
       const resourceIds = Array.isArray(group?.resource_ids)
         ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
         : [];
+      const typeIds = Array.isArray(group?.type_ids)
+        ? group.type_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+        : [];
       const responsibleId = String(group?.responsible_user_id || "").trim();
       const rawUserIds = Array.isArray(group?.user_ids) ? group.user_ids : [];
       const userIds = rawUserIds.map((id) => String(id).trim()).filter(Boolean);
@@ -579,12 +715,8 @@ router.post("/", async (req, res) => {
         ? weeklyHours
         : 3) * 60);
 
-      if (resourceIds.length === 0) {
-        skipped.push({ group_id: group?.group_id || null, reason: "No resources selected" });
-        continue;
-      }
-      if (!responsibleId) {
-        skipped.push({ group_id: group?.group_id || null, reason: "Missing responsible user" });
+      if (resourceIds.length === 0 && typeIds.length === 0) {
+        skipped.push({ group_id: group?.group_id || null, reason: "No resources or resource types selected" });
         continue;
       }
       if (durationMinutes <= 0) {
@@ -592,55 +724,67 @@ router.post("/", async (req, res) => {
         continue;
       }
 
-      const resourceParams = [resourceIds];
-      let resourceWhere = "WHERE r.id = ANY($1)";
-      if (orgId) {
-        resourceParams.push(orgId);
-        resourceWhere += ` AND r.organization_id = $${resourceParams.length}`;
-      }
-      const { rows: resourceRows } = await client.query(
-        `
-        SELECT r.*, rt.name AS type_name
-        FROM resources r
-        JOIN resource_types rt ON rt.id = r.type_id
-        ${resourceWhere}
-        `,
-        resourceParams
-      );
+      let resourceRows = [];
+      if (resourceIds.length > 0) {
+        const resourceParams = [resourceIds];
+        let resourceWhere = "WHERE r.id = ANY($1)";
+        if (orgId) {
+          resourceParams.push(orgId);
+          resourceWhere += ` AND r.organization_id = $${resourceParams.length}`;
+        }
+        const resourceResult = await client.query(
+          `
+          SELECT r.*, rt.name AS type_name
+          FROM resources r
+          JOIN resource_types rt ON rt.id = r.type_id
+          ${resourceWhere}
+          `,
+          resourceParams
+        );
+        resourceRows = resourceResult.rows;
 
-      if (resourceRows.length !== resourceIds.length) {
-        skipped.push({ group_id: group?.group_id || null, reason: "Missing resources" });
-        continue;
+        if (resourceRows.length !== resourceIds.length) {
+          skipped.push({ group_id: group?.group_id || null, reason: "Missing resources" });
+          continue;
+        }
       }
 
-      const availParams = [responsibleId];
-      let availWhere = "WHERE user_id = $1";
-      if (orgId) {
-        availParams.push(orgId);
-        availWhere += ` AND organization_id = $${availParams.length}`;
-      }
-      const { rows: availability } = await client.query(
-        `
-        SELECT *
-        FROM user_availability
-        ${availWhere}
-        ORDER BY day_of_week, start_time
-        `,
-        availParams
-      );
-      const { rows: availabilityOverrides } = await client.query(
-        `
-        SELECT *
-        FROM user_availability_overrides
-        ${availWhere}
-        ORDER BY date, start_time NULLS FIRST
-        `,
-        availParams
-      );
+      let availability = [];
+      let availabilityOverrides = [];
+      if (responsibleId) {
+        const availParams = [responsibleId];
+        let availWhere = "WHERE user_id = $1";
+        if (orgId) {
+          availParams.push(orgId);
+          availWhere += ` AND organization_id = $${availParams.length}`;
+        }
+        const availabilityResult = await client.query(
+          `
+          SELECT *
+          FROM user_availability
+          ${availWhere}
+          ORDER BY day_of_week, start_time
+          `,
+          availParams
+        );
+        const overridesResult = await client.query(
+          `
+          SELECT *
+          FROM user_availability_overrides
+          ${availWhere}
+          ORDER BY date, start_time NULLS FIRST
+          `,
+          availParams
+        );
+        availability = availabilityResult.rows;
+        availabilityOverrides = overridesResult.rows;
 
-      if (availability.length === 0 && availabilityOverrides.length === 0) {
-        skipped.push({ group_id: group?.group_id || null, reason: "No availability for responsible" });
-        continue;
+        if (availability.length === 0 && availabilityOverrides.length === 0) {
+          skipped.push({ group_id: group?.group_id || null, reason: "No availability for responsible" });
+          continue;
+        }
+      } else {
+        availability = buildFallbackAvailability();
       }
 
       const groupScheduled = [];
@@ -675,7 +819,7 @@ router.post("/", async (req, res) => {
 
       for (let cursor = new Date(startDate); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
         const weekStart = getWeekStart(cursor);
-        if (await weekAlreadyScheduled(client, resourceIds, weekStart, new Date(weekStart.getTime() + 6 * 86400000), orgId)) {
+        if (resourceIds.length > 0 && typeIds.length === 0 && await weekAlreadyScheduled(client, resourceIds, weekStart, new Date(weekStart.getTime() + 6 * 86400000), orgId)) {
           lastFailure = "Already scheduled this week";
           continue;
         }
@@ -730,18 +874,20 @@ router.post("/", async (req, res) => {
               }
 
               attemptedSlots += 1;
-              const responsibleConflict = await findUserConflict(
-                client,
-                responsibleId,
-                dayKey,
-                startTime,
-                endTime,
-                orgId
-              );
-              if (responsibleConflict) {
-                weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
-                responsibleConflicts += 1;
-                continue;
+              if (responsibleId) {
+                const responsibleConflict = await findUserConflict(
+                  client,
+                  responsibleId,
+                  dayKey,
+                  startTime,
+                  endTime,
+                  orgId
+                );
+                if (responsibleConflict) {
+                  weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
+                  responsibleConflicts += 1;
+                  continue;
+                }
               }
 
               let userConflict = null;
@@ -764,9 +910,57 @@ router.post("/", async (req, res) => {
                 continue;
               }
 
+              let resolvedResourceRows = [...resourceRows];
+              let resolvedResourceIds = resolvedResourceRows
+                .map((resource) => Number(resource.id))
+                .filter((id) => Number.isFinite(id));
+
+              if (typeIds.length > 0) {
+                const candidateRows = await loadCandidateRowsByTypeIds(
+                  client,
+                  typeIds,
+                  orgId,
+                  dayKey,
+                  startTime,
+                  endTime,
+                  resolvedResourceIds
+                );
+                const candidatePools = typeIds.map((typeId) => ({
+                  typeId,
+                  candidates: candidateRows.filter((resource) => Number(resource.type_id) === Number(typeId)),
+                }));
+                const emptyPool = candidatePools.find((pool) => pool.candidates.length === 0);
+                if (emptyPool) {
+                  weekFailure = `No available resource for type ${emptyPool.typeId}`;
+                  resourceConflicts += 1;
+                  continue;
+                }
+                const { best } = pickBestResourceCombination({
+                  fixedResources: resolvedResourceRows,
+                  candidatePools,
+                  rules: ruleRows,
+                  booking: {
+                    date: dayKey,
+                    start_time: startTime,
+                    end_time: endTime,
+                    user_id: responsibleId,
+                  },
+                  roles: {},
+                });
+                if (!best) {
+                  weekFailure = `No matching resources satisfy the active rules at ${dayKey} ${startTime}-${endTime}`;
+                  ruleConflicts += 1;
+                  continue;
+                }
+                resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
+                resolvedResourceIds = resolvedResourceRows
+                  .map((resource) => Number(resource.id))
+                  .filter((id) => Number.isFinite(id));
+              }
+
               const resourceConflict = await hasResourceConflict(
                 client,
-                resourceIds,
+                resolvedResourceIds,
                 dayKey,
                 startTime,
                 endTime,
@@ -786,7 +980,7 @@ router.post("/", async (req, res) => {
                   end_time: endTime,
                   user_id: responsibleId,
                 },
-                resources: resourceRows,
+                resources: resolvedResourceRows,
                 roles: {},
               });
               if (ruleEval.hardViolations.length > 0) {
@@ -797,18 +991,20 @@ router.post("/", async (req, res) => {
                 continue;
               }
 
-              const alreadyExists = await hasExactBooking(
-                client,
-                responsibleId,
-                resourceIds,
-                dayKey,
-                startTime,
-                endTime,
-                orgId
-              );
-              if (alreadyExists) {
-                scheduledThisWeek = true;
-                break;
+              if (responsibleId) {
+                const alreadyExists = await hasExactBooking(
+                  client,
+                  responsibleId,
+                  resolvedResourceIds,
+                  dayKey,
+                  startTime,
+                  endTime,
+                  orgId
+                );
+                if (alreadyExists) {
+                  scheduledThisWeek = true;
+                  break;
+                }
               }
 
               const bookingResult = await client.query(
@@ -817,11 +1013,11 @@ router.post("/", async (req, res) => {
                 VALUES ($1, $2, $3, $4)
                 RETURNING *
                 `,
-                [responsibleId, dayKey, startTime, endTime]
+                [responsibleId || null, dayKey, startTime, endTime]
               );
               const booking = bookingResult.rows[0];
 
-              for (const resourceId of resourceIds) {
+              for (const resourceId of resolvedResourceIds) {
                 await client.query(
                   `
                   INSERT INTO booking_resources (booking_id, resource_id, role)
@@ -835,7 +1031,7 @@ router.post("/", async (req, res) => {
                 const userExists = await hasExactBooking(
                   client,
                   userId,
-                  resourceIds,
+                  resolvedResourceIds,
                   dayKey,
                   startTime,
                   endTime,
@@ -853,7 +1049,7 @@ router.post("/", async (req, res) => {
                   [userId, dayKey, startTime, endTime]
                 );
                 const userBooking = userBookingResult.rows[0];
-                for (const resourceId of resourceIds) {
+                for (const resourceId of resolvedResourceIds) {
                   await client.query(
                     `
                     INSERT INTO booking_resources (booking_id, resource_id, role)
@@ -870,6 +1066,7 @@ router.post("/", async (req, res) => {
                 date: dayKey,
                 start_time: startTime,
                 end_time: endTime,
+                resource_ids: resolvedResourceIds,
               });
               if (!lockedSlot) {
                 lockedSlot = {

@@ -47,8 +47,10 @@ export default function AutoScheduler({ embedded = false }) {
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
+  const [resourceTypeQuery, setResourceTypeQuery] = useState("");
   const [resourceQuery, setResourceQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [resourceFilterTypeId, setResourceFilterTypeId] = useState("");
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [rangeStart, setRangeStart] = useState(() => toDateValue(new Date()));
   const [rangeEnd, setRangeEnd] = useState(() =>
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
@@ -167,26 +169,28 @@ export default function AutoScheduler({ embedded = false }) {
     }, {});
   }, [resources]);
 
-  const typeOptions = useMemo(() => {
-    const set = new Set();
-    resourceTypes.forEach((t) => {
-      const key = String(t?.name || "").trim().toLowerCase();
-      if (key) set.add(key);
+  const filteredResourceTypes = useMemo(() => {
+    const query = resourceTypeQuery.trim().toLowerCase();
+    return resourceTypes.filter((type) => {
+      if (!query) return true;
+      return String(type.name || "").toLowerCase().includes(query);
     });
-    return ["all", ...Array.from(set)];
-  }, [resourceTypes]);
+  }, [resourceTypes, resourceTypeQuery]);
 
   const filteredResources = useMemo(() => {
-    const q = resourceQuery.trim().toLowerCase();
-    const typeKey = String(typeFilter || "").trim().toLowerCase();
-    return resources.filter((r) => {
-      const type = resourceTypes.find((t) => t.id === r.type_id);
-      const typeName = String(type?.name || r.type_name || "").toLowerCase();
-      const matchesQuery = !q || `${r.name} ${typeName}`.toLowerCase().includes(q);
-      const matchesType = typeKey === "all" || typeName === typeKey;
-      return matchesQuery && matchesType;
+    const query = resourceQuery.trim().toLowerCase();
+    return resources.filter((resource) => {
+      const matchesQuery =
+        !query ||
+        String(resource.name || "").toLowerCase().includes(query) ||
+        String(resource.type_name || "").toLowerCase().includes(query);
+      const matchesType =
+        !resourceFilterTypeId || String(resource.type_id) === String(resourceFilterTypeId);
+      const matchesSelected =
+        !showSelectedOnly || selection.resourceIds.includes(resource.id);
+      return matchesQuery && matchesType && matchesSelected;
     });
-  }, [resources, resourceTypes, resourceQuery, typeFilter]);
+  }, [resources, resourceQuery, resourceFilterTypeId, showSelectedOnly, selection.resourceIds]);
 
   function toggleResource(resourceId) {
     setSelection((prev) => {
@@ -208,28 +212,15 @@ export default function AutoScheduler({ embedded = false }) {
     });
   }
 
-  const effectiveResourceIds = useMemo(() => {
-    const fromTypes = resources
-      .filter((resource) =>
-        selection.typeIds.some((typeId) => String(typeId) === String(resource.type_id))
-      )
-      .map((resource) => resource.id);
-    return Array.from(new Set([...(selection.resourceIds || []), ...fromTypes]));
-  }, [resources, selection.resourceIds, selection.typeIds]);
-
   function addGroup() {
-    if (effectiveResourceIds.length === 0) {
+    if (selection.resourceIds.length === 0 && selection.typeIds.length === 0) {
       setMessage("Select at least one resource or resource type for the allocation.");
-      return;
-    }
-    if (!selection.responsibleId.trim()) {
-      setMessage("Responsible user ID is required.");
       return;
     }
     const group = {
       group_id: buildGroupId(),
       type_ids: selection.typeIds.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
-      resource_ids: effectiveResourceIds,
+      resource_ids: selection.resourceIds,
       responsible_user_id: selection.responsibleId.trim(),
       user_ids: parseIds(selection.userIds),
       weekly_hours: Number(selection.weeklyHours) || DEFAULT_WEEKLY_HOURS,
@@ -411,31 +402,18 @@ export default function AutoScheduler({ embedded = false }) {
         <div className="mb-4 text-sm text-slate-600">
           You can combine specific resources and whole resource types in the same allocation.
         </div>
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
-            placeholder="Search resources..."
-            value={resourceQuery}
-            onChange={(e) => setResourceQuery(e.target.value)}
-          />
-          <select
-            className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-          >
-            {typeOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt === "all" ? "All types" : opt}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <div className="mb-2 text-base font-semibold text-slate-900">Whole resource types</div>
             <div className="max-h-48 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              {resourceTypes.map((type) => (
+              <input
+                type="text"
+                className="mb-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                value={resourceTypeQuery}
+                onChange={(e) => setResourceTypeQuery(e.target.value)}
+                placeholder="Search resource types..."
+              />
+              {filteredResourceTypes.map((type) => (
                 <label key={type.id} className="mb-2 flex items-center gap-2 rounded-xl bg-white px-3 py-3 text-sm text-slate-700 shadow-sm">
                   <input
                     type="checkbox"
@@ -445,7 +423,7 @@ export default function AutoScheduler({ embedded = false }) {
                   <span>{type.name}</span>
                 </label>
               ))}
-              {resourceTypes.length === 0 && (
+              {filteredResourceTypes.length === 0 && (
                 <div className="text-xs text-slate-500">No resource types found.</div>
               )}
             </div>
@@ -453,6 +431,38 @@ export default function AutoScheduler({ embedded = false }) {
           <div>
             <div className="mb-2 text-base font-semibold text-slate-900">Specific resources</div>
             <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mb-3 grid gap-3">
+                <input
+                  type="text"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                  placeholder="Search resources..."
+                  value={resourceQuery}
+                  onChange={(e) => setResourceQuery(e.target.value)}
+                />
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <select
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                    value={resourceFilterTypeId}
+                    onChange={(e) => setResourceFilterTypeId(e.target.value)}
+                  >
+                    <option value="">All resource types</option>
+                    {resourceTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={showSelectedOnly}
+                      onChange={(e) => setShowSelectedOnly(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Selected only</span>
+                  </label>
+                </div>
+              </div>
               {filteredResources.map((resource) => {
                 const type = resourceTypes.find((t) => t.id === resource.type_id);
                 const typeName = type?.name || resource.type_name || "Resource";
@@ -473,12 +483,20 @@ export default function AutoScheduler({ embedded = false }) {
               )}
             </div>
           </div>
-          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+          <div className="grid gap-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:col-span-2">
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Responsible user</label>
+              <h3 className="text-xl font-semibold text-slate-900">People assignment</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Keep this optional. Pick a responsible user only when this allocation should be tied to one, and optionally add additional user IDs.
+              </p>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
+                Responsible user (optional)
+              </label>
               <input
                 type="text"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
                 value={responsibleQuery}
                 onChange={(e) => {
                   setResponsibleQuery(e.target.value);
@@ -488,18 +506,18 @@ export default function AutoScheduler({ embedded = false }) {
                 placeholder="Search by name, email, or ID"
               />
               {responsibleLoading && (
-                <div className="mt-2 text-xs text-slate-500">Loading users...</div>
+                <div className="mt-2 text-sm text-slate-500">Loading users...</div>
               )}
               {responsibleError && (
-                <div className="mt-2 text-xs text-red-600">{responsibleError}</div>
+                <div className="mt-2 text-sm text-red-600">{responsibleError}</div>
               )}
               {responsibleOptions.length > 0 && (
-                <div className="mt-2 max-h-40 overflow-auto rounded-2xl border border-slate-200 bg-white p-2">
+                <div className="mt-3 max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                   {responsibleOptions.map((user) => (
                     <button
                       key={user.id}
                       type="button"
-                      className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      className="w-full rounded-xl px-3 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                       onClick={() => {
                         const nextId = String(user.national_id || user.id || "").trim();
                         setResponsibleUser(user);
@@ -514,60 +532,72 @@ export default function AutoScheduler({ embedded = false }) {
                   ))}
                 </div>
               )}
-              <div className="mt-2 text-xs text-slate-600">
+              <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">
                 Selected: {responsibleUser?.national_id || selection.responsibleId || "None"}
               </div>
-              {responsibleUser && (
-                <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-xs text-slate-700">
-                  <div className="mb-2 font-semibold text-slate-900">Responsible availability</div>
-                  {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
-                    <div>No availability defined yet.</div>
-                  ) : (
-                    <>
-                      {responsibleAvailability.map((slot) => (
-                        <div key={slot.id}>
-                          {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}{" "}
-                          {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
-                          {slot.start_date || slot.end_date
-                            ? ` | ${formatIsraelDateRange(slot.start_date, slot.end_date)}`
-                            : ""}
-                        </div>
-                      ))}
-                      {responsibleOverrides.length > 0 && (
-                        <div className="mt-2 text-slate-500">
-                      Overrides:
-                      {responsibleOverrides.map((slot) => (
-                        <div key={slot.id}>
-                          {formatIsraelDate(slot.date)} | {slot.is_available ? "Available" : "Blocked"}
-                          {slot.start_time && slot.end_time
-                            ? ` | ${formatIsraelTime(slot.start_time)}-${formatIsraelTime(slot.end_time)}`
-                            : ""}
-                        </div>
-                      ))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
             </div>
+
+            {responsibleUser && (
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-slate-700">
+                <div className="mb-2 font-semibold text-slate-900">Responsible availability</div>
+                {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
+                  <div>No availability defined yet.</div>
+                ) : (
+                  <>
+                    {responsibleAvailability.length > 0 && (
+                      <div className="space-y-1">
+                        {responsibleAvailability.map((slot) => (
+                          <div key={slot.id}>
+                            {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}{" "}
+                            {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                            {slot.start_date || slot.end_date
+                              ? ` | ${formatIsraelDateRange(slot.start_date, slot.end_date)}`
+                              : ""}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {responsibleOverrides.length > 0 && (
+                      <div className="mt-3 border-t border-emerald-100 pt-3 text-xs text-slate-500">
+                        Overrides:
+                        {responsibleOverrides.map((slot) => (
+                          <div key={slot.id}>
+                            {formatIsraelDate(slot.date)} | {slot.is_available ? "Available" : "Blocked"}
+                            {slot.start_time && slot.end_time
+                              ? ` | ${formatIsraelTime(slot.start_time)}-${formatIsraelTime(slot.end_time)}`
+                              : ""}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Assigned user IDs</label>
-              <input
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
+                Assigned user IDs
+              </label>
+              <textarea
+                rows={3}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
                 value={selection.userIds}
                 onChange={(e) =>
                   setSelection((prev) => ({ ...prev, userIds: e.target.value }))
                 }
-                placeholder="123, 456"
+                placeholder="e.g. 12345, 67890"
               />
             </div>
+
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Hours per week</label>
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
+                Hours per week
+              </label>
               <input
                 type="number"
                 min="1"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
                 value={selection.weeklyHours}
                 onChange={(e) =>
                   setSelection((prev) => ({ ...prev, weeklyHours: e.target.value }))
@@ -582,8 +612,8 @@ export default function AutoScheduler({ embedded = false }) {
               Add allocation
             </button>
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-600">
-              {effectiveResourceIds.length > 0
-                ? `${effectiveResourceIds.length} unique resources will be included in this allocation.`
+              {selection.resourceIds.length > 0 || selection.typeIds.length > 0
+                ? `${selection.resourceIds.length} fixed resources selected. ${selection.typeIds.length} resource types selected for automatic matching.`
                 : "No resources selected yet."}
             </div>
           </div>
@@ -603,7 +633,7 @@ export default function AutoScheduler({ embedded = false }) {
                     .map((typeId) => resourceTypes.find((type) => Number(type.id) === Number(typeId))?.name || `Type ${typeId}`)
                     .join(", ")
                 : "";
-              const resourceNames = group.resource_ids
+              const resourceNames = (group.resource_ids || [])
                 .map((id) => resourceById[id]?.name || `Resource ${id}`)
                 .join(", ");
               const title = typeNames

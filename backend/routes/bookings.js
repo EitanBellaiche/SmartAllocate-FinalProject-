@@ -141,9 +141,14 @@ function describeAlerts(alerts = [], resources = []) {
   return alerts.map((alert) => describeViolation(alert, resources));
 }
 
-async function hasResourceConflict(client, resourceIds, date, startTime, endTime, orgId) {
+async function hasResourceConflict(client, resourceIds, date, startTime, endTime, orgId, excludeBookingId = null) {
   if (!resourceIds.length) return false;
   const params = [resourceIds, date, startTime, endTime];
+  let excludeWhere = "";
+  if (Number.isFinite(Number(excludeBookingId))) {
+    params.push(Number(excludeBookingId));
+    excludeWhere = `AND b.id <> $${params.length}`;
+  }
   let orgWhere = "";
   if (orgId) {
     params.push(orgId);
@@ -159,6 +164,7 @@ async function hasResourceConflict(client, resourceIds, date, startTime, endTime
     WHERE br.resource_id = ANY($1)
     AND b.date = $2
     AND bc.booking_id IS NULL
+    ${excludeWhere}
     ${orgWhere}
     AND (
       ($3 >= b.start_time AND $3 < b.end_time) OR
@@ -170,6 +176,89 @@ async function hasResourceConflict(client, resourceIds, date, startTime, endTime
     params
   );
   return rows.length > 0;
+}
+
+async function loadConflictingBookings(client, resourceIds, date, startTime, endTime, orgId) {
+  if (!resourceIds.length) return [];
+  const params = [resourceIds, date, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT
+      b.id,
+      b.user_id,
+      b.date,
+      b.start_time,
+      b.end_time,
+      br.role,
+      r.id AS resource_id,
+      r.name AS resource_name,
+      r.type_id,
+      rt.name AS type_name
+    FROM booking_resources br
+    JOIN bookings b ON b.id = br.booking_id
+    JOIN resources r ON r.id = br.resource_id
+    JOIN resource_types rt ON rt.id = r.type_id
+    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+    WHERE br.resource_id = ANY($1)
+    AND b.date = $2
+    AND bc.booking_id IS NULL
+    ${orgWhere}
+    AND (
+      ($3 >= b.start_time AND $3 < b.end_time) OR
+      ($4 > b.start_time AND $4 <= b.end_time) OR
+      ($3 <= b.start_time AND $4 >= b.end_time)
+    )
+    ORDER BY b.id ASC, r.id ASC
+    `,
+    params
+  );
+
+  const grouped = new Map();
+  for (const row of rows) {
+    if (!grouped.has(row.id)) {
+      grouped.set(row.id, {
+        id: Number(row.id),
+        user_id: row.user_id ? String(row.user_id) : null,
+        date: row.date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        resources: [],
+      });
+    }
+    grouped.get(row.id).resources.push({
+      id: Number(row.resource_id),
+      name: row.resource_name,
+      type_id: Number(row.type_id),
+      type_name: row.type_name || "",
+      role: row.role || null,
+    });
+  }
+
+  return Array.from(grouped.values());
+}
+
+function summarizeBookingForConflict(booking) {
+  return {
+    id: Number(booking.id),
+    user_id: booking.user_id ? String(booking.user_id) : null,
+    date: booking.date,
+    start_time: booking.start_time,
+    end_time: booking.end_time,
+    resources: Array.isArray(booking.resources)
+      ? booking.resources.map((resource) => ({
+          id: Number(resource.id),
+          name: resource.name,
+          type_id: Number(resource.type_id),
+          type_name: resource.type_name || "",
+          role: resource.role || null,
+        }))
+      : [],
+  };
 }
 
 async function loadResourceRowsByIds(client, resourceIds, orgId) {
@@ -652,6 +741,157 @@ async function buildFailureSuggestions({
       return String(a.summary || "").localeCompare(String(b.summary || ""));
     })
     .slice(0, 5);
+}
+
+async function buildConflictResolution({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  resolvedResourceRows,
+  candidateTypeIds,
+  rules,
+  roles,
+}) {
+  const conflictingBookings = await loadConflictingBookings(
+    client,
+    resolvedResourceRows.map((resource) => Number(resource.id)).filter((id) => Number.isFinite(id)),
+    bookingDate,
+    startTime,
+    endTime,
+    orgId
+  );
+
+  const moveNewSuggestions = await buildFailureSuggestions({
+    client,
+    orgId,
+    bookingDate,
+    startTime,
+    endTime,
+    userId,
+    resources: resolvedResourceRows,
+    candidateTypeIds,
+    rules,
+    roles,
+  });
+
+  let moveExisting = null;
+  if (conflictingBookings.length === 1) {
+    const existing = conflictingBookings[0];
+    const existingResourceRows = await loadResourceRowsByIds(
+      client,
+      existing.resources.map((resource) => Number(resource.id)),
+      orgId
+    );
+    const suggestions = await buildFailureSuggestions({
+      client,
+      orgId,
+      bookingDate: existing.date,
+      startTime: existing.start_time,
+      endTime: existing.end_time,
+      userId: existing.user_id,
+      resources: existingResourceRows,
+      candidateTypeIds: [],
+      rules,
+      roles: {},
+    });
+    moveExisting = {
+      booking: summarizeBookingForConflict(existing),
+      suggestions,
+      can_auto_reassign: suggestions.length > 0,
+    };
+  }
+
+  return {
+    conflicting_bookings: conflictingBookings.map(summarizeBookingForConflict),
+    move_new_suggestions: moveNewSuggestions,
+    move_existing: moveExisting,
+  };
+}
+
+async function reassignBookingWithSuggestion(client, bookingId, suggestion, orgId) {
+  const nextResourceIds = uniqueNumericIds(suggestion?.resource_ids);
+  const nextDate = String(suggestion?.date || "").trim();
+  const nextStart = String(suggestion?.start_time || "").trim();
+  const nextEnd = String(suggestion?.end_time || "").trim();
+  if (!nextResourceIds.length || !nextDate || !nextStart || !nextEnd) {
+    throw new Error("Missing reassignment details");
+  }
+
+  const { rows: bookingRows } = await client.query(
+    `
+    SELECT id, user_id
+    FROM bookings
+    WHERE id = $1
+    `,
+    [bookingId]
+  );
+  if (!bookingRows.length) {
+    throw new Error("Conflicting booking not found");
+  }
+  const booking = bookingRows[0];
+
+  if (booking.user_id) {
+    const conflict = await findUserConflict(
+      client,
+      booking.user_id,
+      nextDate,
+      nextStart,
+      nextEnd,
+      orgId
+    );
+    if (conflict && Number(conflict.id) !== Number(bookingId)) {
+      throw new Error("Displaced booking has no valid user slot");
+    }
+  }
+
+  const resourceConflict = await hasResourceConflict(
+    client,
+    nextResourceIds,
+    nextDate,
+    nextStart,
+    nextEnd,
+    orgId,
+    bookingId
+  );
+  if (resourceConflict) {
+    throw new Error("Displaced booking has no valid resource slot");
+  }
+
+  await client.query(
+    `
+    UPDATE bookings
+    SET date = $1, start_time = $2, end_time = $3
+    WHERE id = $4
+    `,
+    [nextDate, nextStart, nextEnd, bookingId]
+  );
+
+  await client.query(`DELETE FROM booking_resources WHERE booking_id = $1`, [bookingId]);
+  for (const resourceId of nextResourceIds) {
+    await client.query(
+      `
+      INSERT INTO booking_resources (booking_id, resource_id, role)
+      VALUES ($1, $2, $3)
+      `,
+      [bookingId, resourceId, null]
+    );
+  }
+}
+
+function suggestionsMatch(left, right) {
+  if (!left || !right) return false;
+  const leftIds = uniqueNumericIds(left.resource_ids).sort((a, b) => a - b);
+  const rightIds = uniqueNumericIds(right.resource_ids).sort((a, b) => a - b);
+  if (leftIds.length !== rightIds.length) return false;
+  if (leftIds.some((id, index) => id !== rightIds[index])) return false;
+  return (
+    String(left.date || "") === String(right.date || "") &&
+    String(left.start_time || "") === String(right.start_time || "") &&
+    String(left.end_time || "") === String(right.end_time || "")
+  );
 }
 
 router.use(async (req, res, next) => {
@@ -1242,6 +1482,9 @@ router.post("/", async (req, res) => {
     end_time,
     user_id,
     recurrence,
+    resolution_strategy,
+    conflict_booking_id,
+    resolution_suggestion,
   } = req.body;
   const orgId = getOrgId(req);
 
@@ -1431,18 +1674,40 @@ router.post("/", async (req, res) => {
         resolvedResourceIds.length > 0 &&
         (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId))
       ) {
-        const suggestions = await buildFailureSuggestions({
+        const conflictResolution = await buildConflictResolution({
           client,
           orgId,
           bookingDate,
           startTime: start_time,
           endTime: end_time,
           userId: user_id,
-          resources: resolvedResourceRows,
+          resolvedResourceRows,
           candidateTypeIds,
           rules: ruleRows,
           roles: roleMap,
         });
+        const targetConflictId = Number(conflict_booking_id);
+        if (
+          resolution_strategy === "move_existing" &&
+          Number.isFinite(targetConflictId) &&
+          conflictResolution?.move_existing?.can_auto_reassign &&
+          Number(conflictResolution.move_existing.booking?.id) === targetConflictId
+        ) {
+          const selectedSuggestion =
+            conflictResolution.move_existing.suggestions.find((item) =>
+              suggestionsMatch(item, resolution_suggestion)
+            ) || conflictResolution.move_existing.suggestions[0];
+          await reassignBookingWithSuggestion(
+            client,
+            targetConflictId,
+            selectedSuggestion,
+            orgId
+          );
+        }
+
+        if (
+          await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)
+        ) {
         await client.query("ROLLBACK");
         return res.status(409).json({
           error: "Selected resources conflict with an existing booking",
@@ -1454,8 +1719,10 @@ router.post("/", async (req, res) => {
               resource_name: null,
             },
           ],
-          suggestions,
+          suggestions: conflictResolution.move_new_suggestions,
+          conflict_resolution: conflictResolution,
         });
+        }
       }
 
       if (candidateTypeIds.length > 0) {
@@ -1528,18 +1795,38 @@ router.post("/", async (req, res) => {
         resolvedResourceIds = resolvedResourceRows.map((resource) => Number(resource.id));
 
         if (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)) {
-          const suggestions = await buildFailureSuggestions({
+          const conflictResolution = await buildConflictResolution({
             client,
             orgId,
             bookingDate,
             startTime: start_time,
             endTime: end_time,
             userId: user_id,
-            resources: resolvedResourceRows,
+            resolvedResourceRows,
             candidateTypeIds,
             rules: ruleRows,
             roles: roleMap,
           });
+          const targetConflictId = Number(conflict_booking_id);
+          if (
+            resolution_strategy === "move_existing" &&
+            Number.isFinite(targetConflictId) &&
+            conflictResolution?.move_existing?.can_auto_reassign &&
+            Number(conflictResolution.move_existing.booking?.id) === targetConflictId
+          ) {
+            const selectedSuggestion =
+              conflictResolution.move_existing.suggestions.find((item) =>
+                suggestionsMatch(item, resolution_suggestion)
+              ) || conflictResolution.move_existing.suggestions[0];
+            await reassignBookingWithSuggestion(
+              client,
+              targetConflictId,
+              selectedSuggestion,
+              orgId
+            );
+          }
+
+          if (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)) {
           await client.query("ROLLBACK");
           return res.status(409).json({
             error: "Selected resources conflict with an existing booking",
@@ -1551,8 +1838,10 @@ router.post("/", async (req, res) => {
                 resource_name: null,
               },
             ],
-            suggestions,
+            suggestions: conflictResolution.move_new_suggestions,
+            conflict_resolution: conflictResolution,
           });
+          }
         }
       }
 

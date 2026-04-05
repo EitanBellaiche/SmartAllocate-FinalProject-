@@ -48,6 +48,8 @@ export default function Booking() {
   const [suggestions, setSuggestions] = useState([]);
   const [violationDetails, setViolationDetails] = useState([]);
   const [alertDetails, setAlertDetails] = useState([]);
+  const [conflictResolution, setConflictResolution] = useState(null);
+  const [conflictStrategy, setConflictStrategy] = useState("");
   const [mode, setMode] = useState("booking");
 
   const weekdayOptions = [
@@ -227,6 +229,7 @@ export default function Booking() {
         ? errLike.data.violation_details
         : [],
       alertDetails: Array.isArray(errLike?.data?.alert_details) ? errLike.data.alert_details : [],
+      conflictResolution: errLike?.data?.conflict_resolution || null,
     };
   }
 
@@ -241,6 +244,11 @@ export default function Booking() {
     if (suggestion?.date) setDate(suggestion.date);
     if (suggestion?.start_time) setStartTime(suggestion.start_time);
     if (suggestion?.end_time) setEndTime(suggestion.end_time);
+    setConflictResolution(null);
+    setConflictStrategy("");
+    setSuggestions([]);
+    setViolationDetails([]);
+    setAlertDetails([]);
     setMessage(`Alternative loaded: ${suggestion?.summary || "suggested resources selected"}`);
   }
 
@@ -280,6 +288,44 @@ export default function Booking() {
     );
   }
 
+  function resetBookingForm() {
+    setSuggestions([]);
+    setViolationDetails([]);
+    setAlertDetails([]);
+    setConflictResolution(null);
+    setConflictStrategy("");
+    setSelectedResources([]);
+    setSelectedTypeIds([]);
+    setDate("");
+    setStartTime("");
+    setEndTime("");
+    setAssignUsers(false);
+    setResponsibleQuery("");
+    setResponsibleOptions([]);
+    setResponsibleUser(null);
+    setUserIdsInput("");
+    setRecurring(false);
+    setRangeStart("");
+    setRangeEnd("");
+    setWeekdays([]);
+  }
+
+  async function moveExistingBookingAndRetry(basePayload, targetUserId, conflictData, suggestion) {
+    const targetBookingId = Number(conflictData?.move_existing?.booking?.id);
+    if (!Number.isFinite(targetBookingId)) {
+      setMessage("Could not identify the conflicting booking.");
+      return false;
+    }
+    await apiPost("/bookings", {
+      ...basePayload,
+      user_id: targetUserId ? String(targetUserId).trim() : undefined,
+      resolution_strategy: "move_existing",
+      conflict_booking_id: targetBookingId,
+      resolution_suggestion: suggestion,
+    });
+    return true;
+  }
+
   async function submitBooking() {
     if (!startTime || !endTime || (selectedResources.length === 0 && selectedTypeIds.length === 0)) {
       setMessage("Please select time and at least one resource.");
@@ -312,25 +358,27 @@ export default function Booking() {
     setSuggestions([]);
     setViolationDetails([]);
     setAlertDetails([]);
+    setConflictResolution(null);
+    setConflictStrategy("");
+
+    const basePayload = {
+      resources: selectedResources,
+      resource_type_ids: selectedTypeIds,
+      start_time: startTime,
+      end_time: endTime,
+    };
+
+    if (recurring) {
+      basePayload.recurrence = {
+        start_date: rangeStart,
+        end_date: rangeEnd,
+        days_of_week: weekdays,
+      };
+    } else {
+      basePayload.date = date;
+    }
 
     try {
-      const basePayload = {
-        resources: selectedResources,
-        resource_type_ids: selectedTypeIds,
-        start_time: startTime,
-        end_time: endTime,
-      };
-
-      if (recurring) {
-        basePayload.recurrence = {
-          start_date: rangeStart,
-          end_date: rangeEnd,
-          days_of_week: weekdays,
-        };
-      } else {
-        basePayload.date = date;
-      }
-
       const userIds = assignUsers ? parseUserIds(userIdsInput) : [];
       const responsibleId = String(responsibleUser?.national_id || "").trim();
       const targetIds = assignUsers
@@ -372,11 +420,16 @@ export default function Booking() {
           const nextAlertDetails = failures
             .map((failure) => extractFailureDetails(failure?.reason).alertDetails)
             .flat();
+          const nextConflictResolution =
+            failures
+              .map((failure) => extractFailureDetails(failure?.reason).conflictResolution)
+              .find(Boolean) || null;
           if (violations.length > 0) {
             setMessage(formatViolationMessage(violations));
             setSuggestions(nextSuggestions);
             setViolationDetails(nextViolationDetails);
             setAlertDetails(nextAlertDetails);
+            setConflictResolution(nextConflictResolution);
           } else {
             setMessage(
               `Created ${results.length - failures.length} bookings; ${failures.length} failed.`
@@ -384,6 +437,7 @@ export default function Booking() {
             setSuggestions(nextSuggestions);
             setViolationDetails(nextViolationDetails);
             setAlertDetails(nextAlertDetails);
+            setConflictResolution(nextConflictResolution);
           }
           setSubmitting(false);
           return;
@@ -391,37 +445,29 @@ export default function Booking() {
       }
 
       setMessage("Booking created successfully!");
-      setSuggestions([]);
-      setViolationDetails([]);
-      setAlertDetails([]);
-      setSelectedResources([]);
-      setSelectedTypeIds([]);
-      setDate("");
-      setStartTime("");
-      setEndTime("");
-      setAssignUsers(false);
-      setResponsibleQuery("");
-      setResponsibleOptions([]);
-      setResponsibleUser(null);
-      setUserIdsInput("");
-      setRecurring(false);
-      setRangeStart("");
-      setRangeEnd("");
-      setWeekdays([]);
+      resetBookingForm();
       await loadResources();
     } catch (err) {
-      const { violations, suggestions: nextSuggestions, violationDetails: nextViolationDetails, alertDetails: nextAlertDetails } =
+      const {
+        violations,
+        suggestions: nextSuggestions,
+        violationDetails: nextViolationDetails,
+        alertDetails: nextAlertDetails,
+        conflictResolution: nextConflictResolution,
+      } =
         extractFailureDetails(err);
       if (violations.length > 0) {
         setMessage(formatViolationMessage(violations));
         setSuggestions(nextSuggestions);
         setViolationDetails(nextViolationDetails);
         setAlertDetails(nextAlertDetails);
+        setConflictResolution(nextConflictResolution);
       } else {
         setMessage(err?.message || "Failed to create booking.");
         setSuggestions(nextSuggestions);
         setViolationDetails(nextViolationDetails);
         setAlertDetails(nextAlertDetails);
+        setConflictResolution(nextConflictResolution);
       }
       console.error(err);
     }
@@ -594,7 +640,252 @@ export default function Booking() {
               </div>
             )}
 
-            {suggestions.length > 0 && (
+            {conflictResolution && (
+              <div className="mb-6 rounded-[24px] border border-violet-200 bg-violet-50 px-4 py-4 shadow-sm">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-700">
+                  Slot Conflict
+                </div>
+                <div className="mt-2 text-sm text-slate-700">
+                  The selected date and time are already occupied. First choose what should stay in this slot, then pick a replacement slot for the other booking.
+                </div>
+                {Array.isArray(conflictResolution?.conflicting_bookings) &&
+                  conflictResolution.conflicting_bookings.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {conflictResolution.conflicting_bookings.map((booking) => (
+                        <div
+                          key={`conflict-booking-${booking.id}`}
+                          className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-slate-700"
+                        >
+                          <div className="font-semibold text-slate-900">
+                            Existing booking #{booking.id}
+                          </div>
+                          <div className="mt-1 text-slate-600">
+                            {booking.date} {booking.start_time} - {booking.end_time}
+                          </div>
+                          <div className="mt-1">
+                            {Array.isArray(booking.resources)
+                              ? booking.resources.map((resource) => resource.name).join(", ")
+                              : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConflictStrategy("move_new")}
+                    className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                      conflictStrategy === "move_new"
+                        ? "border-violet-600 bg-violet-600 text-white"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    Keep existing here
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!conflictResolution?.move_existing?.can_auto_reassign}
+                    onClick={() => setConflictStrategy("move_existing")}
+                    className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                      conflictStrategy === "move_existing"
+                        ? "bg-violet-700 text-white"
+                        : "bg-violet-600 text-white hover:bg-violet-700"
+                    } disabled:cursor-not-allowed disabled:bg-slate-400`}
+                  >
+                    Keep new here and move existing
+                  </button>
+                </div>
+                {conflictResolution?.move_existing && !conflictResolution.move_existing.can_auto_reassign && (
+                  <div className="mt-3 text-sm text-amber-700">
+                    No safe automatic alternative was found for the existing booking, so it cannot be moved right now.
+                  </div>
+                )}
+                {!conflictStrategy && (
+                  <div className="mt-3 text-sm text-slate-600">
+                    Select one option above to see the relevant alternatives.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {conflictResolution && conflictStrategy === "move_new" && suggestions.length > 0 && (
+              <div className="mb-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  Alternatives For The New Booking
+                </div>
+                <div className="mt-2 text-sm text-slate-600">
+                  The current booking stays in this slot. Choose where to move the new booking.
+                </div>
+                <div className="mt-3 space-y-3">
+                  {suggestions.map((suggestion, index) => (
+                    <div
+                      key={`${suggestion.summary || "suggestion"}-${index}`}
+                      className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
+                            {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
+                          </span>
+                          {Number.isFinite(Number(suggestion?.score)) && (
+                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+                              Score {Number(suggestion.score)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {suggestion.summary || "Alternative"}
+                        </div>
+                        {suggestion.why && (
+                          <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                        )}
+                        {suggestion.type === "timeslot" && (
+                          <div className="mt-1 text-sm text-slate-600">
+                            Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
+                          </div>
+                        )}
+                        {suggestion.type === "timeslot" &&
+                          Number.isFinite(Number(suggestion.distance_from_original)) && (
+                            <div className="mt-1 text-sm text-slate-500">
+                              Distance from original time: {Number(suggestion.distance_from_original)} minutes
+                            </div>
+                          )}
+                        <div className="mt-1 text-sm text-slate-600">
+                          {Array.isArray(suggestion.resources)
+                            ? suggestion.resources.map((resource) => resource.name).join(", ")
+                            : ""}
+                        </div>
+                        {Array.isArray(suggestion?.rule_summary?.soft_matches) &&
+                          suggestion.rule_summary.soft_matches.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {suggestion.rule_summary.soft_matches.slice(0, 4).map((match, matchIndex) => (
+                                <span
+                                  key={`${suggestion.summary || "suggestion"}-match-${match.id || matchIndex}`}
+                                  className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
+                                >
+                                  {match.name}
+                                  {Number.isFinite(Number(match.delta)) ? ` (${Number(match.delta) > 0 ? "+" : ""}${Number(match.delta)})` : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestion(suggestion)}
+                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                      >
+                        Use suggestion
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {conflictResolution &&
+              conflictStrategy === "move_existing" &&
+              Array.isArray(conflictResolution?.move_existing?.suggestions) &&
+              conflictResolution.move_existing.suggestions.length > 0 && (
+                <div className="mb-6 rounded-[24px] border border-sky-200 bg-sky-50 px-4 py-4 shadow-sm">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-700">
+                    Alternatives For The Existing Booking
+                  </div>
+                  <div className="mt-2 text-sm text-slate-600">
+                    Your new booking stays in the requested slot. Choose where to move booking #
+                    {conflictResolution?.move_existing?.booking?.id}.
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    {conflictResolution.move_existing.suggestions.map((suggestion, index) => (
+                      <div
+                        key={`${suggestion.summary || "move-existing"}-${index}`}
+                        className="flex flex-col gap-3 rounded-2xl border border-sky-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-800">
+                              {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
+                            </span>
+                            {Number.isFinite(Number(suggestion?.score)) && (
+                              <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
+                                Score {Number(suggestion.score)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {suggestion.summary || "Alternative"}
+                          </div>
+                          {suggestion.why && (
+                            <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                          )}
+                          <div className="mt-1 text-sm text-slate-600">
+                            Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            {Array.isArray(suggestion.resources)
+                              ? suggestion.resources.map((resource) => resource.name).join(", ")
+                              : ""}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={async () => {
+                            setSubmitting(true);
+                            try {
+                              const targetUserId = assignUsers
+                                ? String(responsibleUser?.national_id || "").trim() || null
+                                : null;
+                              const basePayload = {
+                                resources: selectedResources,
+                                resource_type_ids: selectedTypeIds,
+                                start_time: startTime,
+                                end_time: endTime,
+                                ...(recurring
+                                  ? {
+                                      recurrence: {
+                                        start_date: rangeStart,
+                                        end_date: rangeEnd,
+                                        days_of_week: weekdays,
+                                      },
+                                    }
+                                  : { date }),
+                              };
+                              const ok = await moveExistingBookingAndRetry(
+                                basePayload,
+                                targetUserId,
+                                conflictResolution,
+                                suggestion
+                              );
+                              if (ok) {
+                                setMessage("New booking kept in place. The existing booking was moved to the selected alternative.");
+                                resetBookingForm();
+                                await loadResources();
+                              }
+                            } catch (moveErr) {
+                              const details = extractFailureDetails(moveErr);
+                              setSuggestions(details.suggestions);
+                              setViolationDetails(details.violationDetails);
+                              setAlertDetails(details.alertDetails);
+                              setConflictResolution(details.conflictResolution);
+                              setConflictStrategy("move_existing");
+                              setMessage(moveErr?.message || "Failed to move the existing booking.");
+                            } finally {
+                              setSubmitting(false);
+                            }
+                          }}
+                          className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        >
+                          Move existing here
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            {!conflictResolution && suggestions.length > 0 && (
               <div className="mb-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
                   Suggested alternatives
