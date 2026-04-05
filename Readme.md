@@ -39,7 +39,7 @@ Admin Dashboard
 	•	Monitor system decisions and allocations
 
 
-🏗️ Architecture
+Architecture
 
 Frontend
 	•	React (multiple interfaces: admin, users)
