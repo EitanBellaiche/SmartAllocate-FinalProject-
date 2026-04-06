@@ -23,11 +23,13 @@ async function ensureUsersTable() {
       email TEXT,
       role TEXT,
       national_id TEXT,
+      department TEXT,
       organization_id TEXT,
       password TEXT
     )
   `);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS national_id TEXT`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id TEXT`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT`);
   tableReady = true;
@@ -53,7 +55,7 @@ router.get("/lookup", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, full_name, email, role, national_id, organization_id
+      SELECT id, full_name, email, role, national_id, department, organization_id
       FROM users
       WHERE national_id = $1 OR id::text = $1
       LIMIT 1
@@ -81,7 +83,7 @@ router.post("/login", async (req, res) => {
   try {
     const result = await pool.query(
       `
-      SELECT id, full_name, email, role, national_id, organization_id, password
+      SELECT id, full_name, email, role, national_id, department, organization_id, password
       FROM users
       WHERE national_id = $1
       LIMIT 1
@@ -108,7 +110,7 @@ router.post("/login", async (req, res) => {
 // GET all users
 router.get("/", async (req, res) => {
   try {
-    const { role, q } = req.query;
+    const { role, q, department } = req.query;
     const orgId = getOrgId(req);
     const params = [];
     const conditions = [];
@@ -121,6 +123,10 @@ router.get("/", async (req, res) => {
       params.push(orgId);
       conditions.push(`organization_id = $${params.length}`);
     }
+    if (department) {
+      params.push(String(department));
+      conditions.push(`department = $${params.length}`);
+    }
     const search = String(q || "").trim();
     if (search) {
       params.push(`%${search.toLowerCase()}%`);
@@ -132,7 +138,7 @@ router.get("/", async (req, res) => {
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     const result = await pool.query(
       `
-      SELECT id, full_name, email, role, national_id, organization_id
+      SELECT id, full_name, email, role, national_id, department, organization_id
       FROM users
       ${where}
       ORDER BY id
@@ -147,12 +153,20 @@ router.get("/", async (req, res) => {
 
 // CREATE new user
 router.post("/", async (req, res) => {
-  const { full_name, email, role, national_id, organization_id, password } = req.body;
+  const { full_name, email, role, national_id, department, organization_id, password } = req.body;
 
   try {
     const result = await pool.query(
-      "INSERT INTO users (full_name, email, role, national_id, organization_id, password) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-      [full_name, email, role, national_id || null, organization_id || null, password || null]
+      "INSERT INTO users (full_name, email, role, national_id, department, organization_id, password) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+      [
+        full_name,
+        email,
+        role,
+        national_id || null,
+        department || null,
+        organization_id || null,
+        password || null,
+      ]
     );
     res.json(result.rows[0]);
   } catch (err) {

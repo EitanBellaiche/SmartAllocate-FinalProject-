@@ -141,6 +141,237 @@ function describeAlerts(alerts = [], resources = []) {
   return alerts.map((alert) => describeViolation(alert, resources));
 }
 
+function describeRuleTrace(trace) {
+  return {
+    id: trace?.id ?? null,
+    name: trace?.name || "Unnamed rule",
+    description: trace?.description || "",
+    target_type: trace?.target_type || "",
+    resource_id: Number.isFinite(Number(trace?.resource_id)) ? Number(trace.resource_id) : null,
+    effect: trace?.effect || "score",
+    status: trace?.status || "not_matched",
+    matched: Boolean(trace?.matched),
+    delta: Number.isFinite(Number(trace?.matched ? trace?.delta : 0))
+      ? Number(trace.matched ? trace.delta : 0)
+      : 0,
+    potential_delta: Number.isFinite(Number(trace?.delta)) ? Number(trace.delta) : 0,
+  };
+}
+
+function describeResourceConflict(resource, bookingDate, startTime, endTime) {
+  return {
+    id: null,
+    name: "Resource conflict",
+    description: `${resource?.name || "This resource"} is already booked on ${bookingDate} at ${startTime}-${endTime}.`,
+    target_type: "resource",
+    resource_id: Number.isFinite(Number(resource?.id)) ? Number(resource.id) : null,
+    resource_name: resource?.name || null,
+    resource_type: resource?.type_name || null,
+  };
+}
+
+async function loadExplainableCandidateRowsByTypeIds(client, typeIds, orgId, excludedResourceIds = []) {
+  if (!typeIds.length) return [];
+  const params = [typeIds];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  let exclusionWhere = "";
+  if (excludedResourceIds.length > 0) {
+    params.push(excludedResourceIds);
+    exclusionWhere = `AND r.id <> ALL($${params.length})`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT r.*, rt.name AS type_name, rt.roles AS type_roles, rt.fields AS type_fields
+    FROM resources r
+    JOIN resource_types rt ON rt.id = r.type_id
+    WHERE r.type_id = ANY($1)
+      AND COALESCE(r.active, true) = true
+      ${orgWhere}
+      ${exclusionWhere}
+    ORDER BY r.type_id ASC, LOWER(r.name) ASC, r.id ASC
+    `,
+    params
+  );
+  return rows;
+}
+
+async function buildCandidateEvaluationDetails({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  resources,
+  candidateTypeIds,
+  rules,
+  roles,
+  selectedResourceIds = [],
+  selectedEvaluation = null,
+}) {
+  const normalizedTypeIds = uniqueNumericIds(candidateTypeIds);
+  if (normalizedTypeIds.length === 0) return null;
+
+  const selectedIdSet = new Set(
+    uniqueNumericIds(selectedResourceIds).map((id) => Number(id))
+  );
+  const allResources = Array.isArray(resources) ? resources : [];
+  const explainableRows = await loadExplainableCandidateRowsByTypeIds(
+    client,
+    normalizedTypeIds,
+    orgId,
+    []
+  );
+
+  const candidateGroups = [];
+  const alternatives = [];
+
+  for (const typeId of normalizedTypeIds) {
+    const selectedForType = allResources.find(
+      (resource) =>
+        Number(resource?.type_id) === Number(typeId) && selectedIdSet.has(Number(resource?.id))
+    );
+    const comparisonBase = selectedForType
+      ? allResources.filter((resource) => Number(resource?.id) !== Number(selectedForType.id))
+      : allResources.filter((resource) => Number(resource?.type_id) !== Number(typeId));
+    const comparisonBaseIds = comparisonBase
+      .map((resource) => Number(resource?.id))
+      .filter((id) => Number.isFinite(id));
+    const candidatesForType = explainableRows.filter((resource) => {
+      if (Number(resource?.type_id) !== Number(typeId)) return false;
+      return !comparisonBaseIds.includes(Number(resource?.id));
+    });
+
+    const evaluatedCandidates = [];
+    for (const candidate of candidatesForType) {
+      const candidateId = Number(candidate?.id);
+      const candidateResources = [...comparisonBase, candidate];
+      const evaluation = evaluateRules({
+        rules,
+        booking: {
+          date: bookingDate,
+          start_time: startTime,
+          end_time: endTime,
+          user_id: userId || null,
+        },
+        resources: candidateResources,
+        roles,
+      });
+      const hasConflict = await hasResourceConflict(
+        client,
+        [candidateId],
+        bookingDate,
+        startTime,
+        endTime,
+        orgId
+      );
+      const blockingReasons = [
+        ...(hasConflict ? [describeResourceConflict(candidate, bookingDate, startTime, endTime)] : []),
+        ...evaluation.hardViolations.map((item) => describeViolation(item, candidateResources)),
+      ];
+      const candidateState = hasConflict || evaluation.hardViolations.length > 0
+        ? "blocked"
+        : selectedIdSet.has(candidateId)
+          ? "selected"
+          : "valid";
+      const scoreBreakdown = (evaluation.ruleTraces || [])
+        .filter((trace) => trace?.effect === "score")
+        .map((trace) => describeRuleTrace(trace));
+      const alertBreakdown = describeAlerts(evaluation.alerts || [], candidateResources);
+      const candidateDetails = {
+        resource_id: candidateId,
+        name: candidate?.name || "Unnamed resource",
+        type_id: Number(candidate?.type_id),
+        type_name: candidate?.type_name || "",
+        state: candidateState,
+        is_selected: selectedIdSet.has(candidateId),
+        final_score: Number(evaluation.score || 0),
+        blocking_reasons: blockingReasons,
+        alerts: alertBreakdown,
+        score_breakdown: scoreBreakdown,
+      };
+
+      evaluatedCandidates.push(candidateDetails);
+      if (candidateState === "valid") {
+        alternatives.push(candidateDetails);
+      }
+    }
+
+    evaluatedCandidates.sort((left, right) => {
+      if (left.is_selected !== right.is_selected) return left.is_selected ? -1 : 1;
+      if (left.state !== right.state) {
+        const order = { selected: 0, valid: 1, blocked: 2 };
+        return (order[left.state] ?? 99) - (order[right.state] ?? 99);
+      }
+      if (right.final_score !== left.final_score) return right.final_score - left.final_score;
+      return String(left.name || "").localeCompare(String(right.name || ""));
+    });
+
+    const validCandidates = evaluatedCandidates.filter((candidate) => candidate.state !== "blocked");
+    const selectedCandidate = evaluatedCandidates.find((candidate) => candidate.is_selected) || null;
+    const hasPerfectMatch = validCandidates.some(
+      (candidate) => !candidate.score_breakdown.some((item) => Number(item.delta) < 0)
+    );
+
+    candidateGroups.push({
+      type_id: Number(typeId),
+      type_name:
+        selectedForType?.type_name ||
+        candidatesForType[0]?.type_name ||
+        `Type ${typeId}`,
+      selected_resource_id: selectedCandidate?.resource_id ?? null,
+      best_valid_score:
+        validCandidates.length > 0
+          ? Math.max(...validCandidates.map((candidate) => Number(candidate.final_score || 0)))
+          : null,
+      has_perfect_match: hasPerfectMatch,
+      candidates: evaluatedCandidates,
+    });
+  }
+
+  const selectedSummary = candidateGroups
+    .map((group) => group.candidates.find((candidate) => candidate.is_selected))
+    .filter(Boolean)
+    .map((candidate) => ({
+      resource_id: candidate.resource_id,
+      name: candidate.name,
+      type_id: candidate.type_id,
+      type_name: candidate.type_name,
+      final_score: candidate.final_score,
+    }));
+
+  return {
+    summary: {
+      selected_resource_ids: Array.from(selectedIdSet),
+      selected_score: Number.isFinite(Number(selectedEvaluation?.score))
+        ? Number(selectedEvaluation.score)
+        : null,
+      total_candidates: candidateGroups.reduce((sum, group) => sum + group.candidates.length, 0),
+      valid_candidates: candidateGroups.reduce(
+        (sum, group) => sum + group.candidates.filter((candidate) => candidate.state !== "blocked").length,
+        0
+      ),
+      blocked_candidates: candidateGroups.reduce(
+        (sum, group) => sum + group.candidates.filter((candidate) => candidate.state === "blocked").length,
+        0
+      ),
+      has_perfect_match: candidateGroups.every((group) => group.has_perfect_match),
+      selected_resources: selectedSummary,
+    },
+    candidate_groups: candidateGroups,
+    alternatives: alternatives
+      .sort((left, right) => {
+        if (right.final_score !== left.final_score) return right.final_score - left.final_score;
+        return String(left.name || "").localeCompare(String(right.name || ""));
+      })
+      .slice(0, 6),
+  };
+}
+
 async function hasResourceConflict(client, resourceIds, date, startTime, endTime, orgId, excludeBookingId = null) {
   if (!resourceIds.length) return false;
   const params = [resourceIds, date, startTime, endTime];
@@ -990,6 +1221,71 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.post("/preview", async (req, res) => {
+  const {
+    resources,
+    resource_type_ids,
+    roles,
+    date,
+    start_time,
+    end_time,
+    user_id,
+  } = req.body || {};
+  const orgId = getOrgId(req);
+  const explicitResourceIds = uniqueNumericIds(resources);
+  const candidateTypeIds = uniqueNumericIds(resource_type_ids);
+  const bookingDate = String(date || "").trim();
+
+  if (!bookingDate || !start_time || !end_time) {
+    return res.status(400).json({ error: "Date, start_time, and end_time are required" });
+  }
+  if (explicitResourceIds.length === 0 && candidateTypeIds.length === 0) {
+    return res.status(400).json({ error: "No resources or resource types provided" });
+  }
+
+  const client = await pool.connect();
+  try {
+    const roleMap = roles && typeof roles === "object" ? roles : {};
+    const resourceRows = await loadResourceRowsByIds(client, explicitResourceIds, orgId);
+    if (resourceRows.length !== explicitResourceIds.length) {
+      return res.status(400).json({ error: "One or more resources not found" });
+    }
+
+    const ruleParams = [];
+    let ruleWhere = "WHERE is_active = true";
+    if (orgId) {
+      ruleParams.push(orgId);
+      ruleWhere += ` AND organization_id = $${ruleParams.length}`;
+    }
+    const { rows: ruleRows } = await client.query(
+      `SELECT * FROM rules ${ruleWhere} ORDER BY sort_order ASC, id ASC`,
+      ruleParams
+    );
+
+    const previewEvaluation = await buildCandidateEvaluationDetails({
+      client,
+      orgId,
+      bookingDate,
+      startTime: start_time,
+      endTime: end_time,
+      userId: user_id,
+      resources: resourceRows,
+      candidateTypeIds,
+      rules: ruleRows,
+      roles: roleMap,
+    });
+
+    res.json({
+      resource_evaluation: previewEvaluation,
+    });
+  } catch (err) {
+    console.error("Booking preview error:", err);
+    res.status(500).json({ error: "Booking preview failed" });
+  } finally {
+    client.release();
+  }
+});
+
 router.post("/:id/cancel", async (req, res) => {
   const id = Number(req.params.id);
   const reason = String(req.body?.reason || "").trim();
@@ -1590,6 +1886,7 @@ router.post("/", async (req, res) => {
 
     const createdBookings = [];
     let lastRuleEval = null;
+    let lastCandidateEvaluation = null;
     for (const bookingDate of bookingDates) {
       /* 1. Prevent overlapping bookings for the same user */
       if (user_id) {
@@ -1743,11 +2040,24 @@ router.post("/", async (req, res) => {
 
         const emptyPool = candidatePools.find((pool) => pool.candidates.length === 0);
         if (emptyPool) {
+          const resourceEvaluation = await buildCandidateEvaluationDetails({
+            client,
+            orgId,
+            bookingDate,
+            startTime: start_time,
+            endTime: end_time,
+            userId: user_id,
+            resources: resolvedResourceRows,
+            candidateTypeIds,
+            rules: ruleRows,
+            roles: roleMap,
+          });
           await client.query("ROLLBACK");
           return res.status(422).json({
             error: "No available resources found for one of the selected types",
             date: bookingDate,
             missing_type_id: emptyPool.typeId,
+            resource_evaluation: resourceEvaluation,
           });
         }
 
@@ -1777,6 +2087,18 @@ router.post("/", async (req, res) => {
             rules: ruleRows,
             roles: roleMap,
           });
+          const resourceEvaluation = await buildCandidateEvaluationDetails({
+            client,
+            orgId,
+            bookingDate,
+            startTime: start_time,
+            endTime: end_time,
+            userId: user_id,
+            resources: resolvedResourceRows,
+            candidateTypeIds,
+            rules: ruleRows,
+            roles: roleMap,
+          });
           await client.query("ROLLBACK");
           return res.status(422).json({
             error: "No matching resources satisfy the active rules",
@@ -1788,11 +2110,26 @@ router.post("/", async (req, res) => {
             ),
             alert_details: describeAlerts(bestBlocked?.alerts || [], resolvedResourceRows),
             suggestions,
+            resource_evaluation: resourceEvaluation,
           });
         }
 
         resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
         resolvedResourceIds = resolvedResourceRows.map((resource) => Number(resource.id));
+        lastCandidateEvaluation = await buildCandidateEvaluationDetails({
+          client,
+          orgId,
+          bookingDate,
+          startTime: start_time,
+          endTime: end_time,
+          userId: user_id,
+          resources: resolvedResourceRows,
+          candidateTypeIds,
+          rules: ruleRows,
+          roles: roleMap,
+          selectedResourceIds: best.resources.map((resource) => Number(resource.id)),
+          selectedEvaluation: best.evaluation,
+        });
 
         if (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)) {
           const conflictResolution = await buildConflictResolution({
@@ -1840,6 +2177,7 @@ router.post("/", async (req, res) => {
             ],
             suggestions: conflictResolution.move_new_suggestions,
             conflict_resolution: conflictResolution,
+            resource_evaluation: lastCandidateEvaluation,
           });
           }
         }
@@ -1871,6 +2209,27 @@ router.post("/", async (req, res) => {
           rules: ruleRows,
           roles: roleMap,
         });
+        const resourceEvaluation =
+          lastCandidateEvaluation ||
+          (await buildCandidateEvaluationDetails({
+            client,
+            orgId,
+            bookingDate,
+            startTime: start_time,
+            endTime: end_time,
+            userId: user_id,
+            resources: resolvedResourceRows,
+            candidateTypeIds,
+            rules: ruleRows,
+            roles: roleMap,
+            selectedResourceIds: resolvedResourceRows
+              .filter((resource) =>
+                candidateTypeIds.some((typeId) => Number(resource?.type_id) === Number(typeId))
+              )
+              .map((resource) => Number(resource.id))
+              .filter((id) => Number.isFinite(id)),
+            selectedEvaluation: ruleEval,
+          }));
         await client.query("ROLLBACK");
         return res.status(422).json({
           error: "Rule violations",
@@ -1882,6 +2241,7 @@ router.post("/", async (req, res) => {
           ),
           alert_details: describeAlerts(ruleEval.alerts, resolvedResourceRows),
           suggestions,
+          resource_evaluation: resourceEvaluation,
         });
       }
 
@@ -1917,6 +2277,7 @@ router.post("/", async (req, res) => {
       message: "Booking created",
       bookings: createdBookings,
       count: createdBookings.length,
+      resource_evaluation: lastCandidateEvaluation,
       rule_summary: {
         score: lastRuleEval?.score ?? null,
         soft_matches: lastRuleEval?.softMatches || [],

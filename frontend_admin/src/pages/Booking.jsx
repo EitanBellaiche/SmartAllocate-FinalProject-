@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
+import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
 import { getOrgLabels } from "../orgConfig";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 import AutoScheduler from "./AutoScheduler";
@@ -48,6 +49,8 @@ export default function Booking() {
   const [suggestions, setSuggestions] = useState([]);
   const [violationDetails, setViolationDetails] = useState([]);
   const [alertDetails, setAlertDetails] = useState([]);
+  const [resourceEvaluation, setResourceEvaluation] = useState(null);
+  const [resourceEvaluationLoading, setResourceEvaluationLoading] = useState(false);
   const [conflictResolution, setConflictResolution] = useState(null);
   const [conflictStrategy, setConflictStrategy] = useState("");
   const [mode, setMode] = useState("booking");
@@ -107,6 +110,54 @@ export default function Booking() {
   useEffect(() => {
     loadResources();
   }, []);
+
+  useEffect(() => {
+    if (mode !== "booking") return undefined;
+    if (selectedTypeIds.length === 0) {
+      setResourceEvaluation(null);
+      setResourceEvaluationLoading(false);
+      return undefined;
+    }
+
+    const previewDate = recurring ? rangeStart : date;
+    if (!previewDate || !startTime || !endTime || startTime >= endTime) {
+      setResourceEvaluation(null);
+      setResourceEvaluationLoading(false);
+      return undefined;
+    }
+
+    const timeout = setTimeout(async () => {
+      try {
+        setResourceEvaluationLoading(true);
+        const preview = await apiPost("/bookings/preview", {
+          resources: selectedResources,
+          resource_type_ids: selectedTypeIds,
+          start_time: startTime,
+          end_time: endTime,
+          date: previewDate,
+          user_id: assignUsers ? String(responsibleUser?.national_id || "").trim() || undefined : undefined,
+        });
+        setResourceEvaluation(preview?.resource_evaluation || null);
+      } catch {
+        setResourceEvaluation(null);
+      } finally {
+        setResourceEvaluationLoading(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [
+    mode,
+    selectedTypeIds,
+    selectedResources,
+    date,
+    startTime,
+    endTime,
+    recurring,
+    rangeStart,
+    assignUsers,
+    responsibleUser,
+  ]);
 
   useEffect(() => {
     if (!assignUsers) return;
@@ -229,6 +280,7 @@ export default function Booking() {
         ? errLike.data.violation_details
         : [],
       alertDetails: Array.isArray(errLike?.data?.alert_details) ? errLike.data.alert_details : [],
+      resourceEvaluation: errLike?.data?.resource_evaluation || null,
       conflictResolution: errLike?.data?.conflict_resolution || null,
     };
   }
@@ -249,6 +301,7 @@ export default function Booking() {
     setSuggestions([]);
     setViolationDetails([]);
     setAlertDetails([]);
+    setResourceEvaluation(null);
     setMessage(`Alternative loaded: ${suggestion?.summary || "suggested resources selected"}`);
   }
 
@@ -358,6 +411,8 @@ export default function Booking() {
     setSuggestions([]);
     setViolationDetails([]);
     setAlertDetails([]);
+    setResourceEvaluation(null);
+    setResourceEvaluationLoading(false);
     setConflictResolution(null);
     setConflictStrategy("");
 
@@ -396,7 +451,8 @@ export default function Booking() {
       }
 
       if (targetIds.length === 0) {
-        await apiPost("/bookings", basePayload);
+        const result = await apiPost("/bookings", basePayload);
+        setResourceEvaluation(result?.resource_evaluation || null);
       } else {
         const results = await Promise.allSettled(
           targetIds.map((id) =>
@@ -408,6 +464,7 @@ export default function Booking() {
         );
         const failures = results.filter((result) => result.status === "rejected");
         if (failures.length > 0) {
+          const firstFailureDetails = extractFailureDetails(failures[0]?.reason);
           const violations = failures
             .map((failure) => extractFailureDetails(failure?.reason).violations)
             .flat();
@@ -424,6 +481,7 @@ export default function Booking() {
             failures
               .map((failure) => extractFailureDetails(failure?.reason).conflictResolution)
               .find(Boolean) || null;
+          setResourceEvaluation(firstFailureDetails.resourceEvaluation || null);
           if (violations.length > 0) {
             setMessage(formatViolationMessage(violations));
             setSuggestions(nextSuggestions);
@@ -442,6 +500,8 @@ export default function Booking() {
           setSubmitting(false);
           return;
         }
+        const firstSuccess = results.find((result) => result.status === "fulfilled");
+        setResourceEvaluation(firstSuccess?.value?.resource_evaluation || null);
       }
 
       setMessage("Booking created successfully!");
@@ -453,6 +513,7 @@ export default function Booking() {
         suggestions: nextSuggestions,
         violationDetails: nextViolationDetails,
         alertDetails: nextAlertDetails,
+        resourceEvaluation: nextResourceEvaluation,
         conflictResolution: nextConflictResolution,
       } =
         extractFailureDetails(err);
@@ -461,12 +522,14 @@ export default function Booking() {
         setSuggestions(nextSuggestions);
         setViolationDetails(nextViolationDetails);
         setAlertDetails(nextAlertDetails);
+        setResourceEvaluation(nextResourceEvaluation);
         setConflictResolution(nextConflictResolution);
       } else {
         setMessage(err?.message || "Failed to create booking.");
         setSuggestions(nextSuggestions);
         setViolationDetails(nextViolationDetails);
         setAlertDetails(nextAlertDetails);
+        setResourceEvaluation(nextResourceEvaluation);
         setConflictResolution(nextConflictResolution);
       }
       console.error(err);
@@ -599,6 +662,12 @@ export default function Booking() {
                 {message}
               </div>
             )}
+
+            <ResourceEvaluationPanel
+              evaluation={resourceEvaluation}
+              preview
+              loading={resourceEvaluationLoading}
+            />
 
             {(violationDetails.length > 0 || alertDetails.length > 0) && (
               <div className="mb-6 rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm">

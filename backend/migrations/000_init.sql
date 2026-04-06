@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   role TEXT,
   national_id TEXT,
+  department TEXT,
   organization_id TEXT,
   password TEXT
 );

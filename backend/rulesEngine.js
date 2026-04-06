@@ -111,13 +111,33 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
   const hardViolations = [];
   const softMatches = [];
   const alerts = [];
+  const ruleTraces = [];
   let score = 0;
 
   for (const rule of rules) {
     if (!rule?.is_active) continue;
-    if (!evaluateCondition(rule.condition, context)) continue;
-
     const effect = getActionEffect(rule);
+    const delta = effect === "score" ? getScoreDelta(rule) : 0;
+    const matched = evaluateCondition(rule.condition, context);
+    const traceBase = {
+      id: rule.id,
+      name: rule.name,
+      description: rule.description,
+      target_type: rule.target_type,
+      resource_id: resourceId,
+      effect,
+      matched,
+      delta,
+    };
+
+    if (!matched) {
+      ruleTraces.push({
+        ...traceBase,
+        status: effect === "score" ? "not_matched" : "not_triggered",
+      });
+      continue;
+    }
+
     if (effect === "forbid") {
       hardViolations.push({
         id: rule.id,
@@ -125,6 +145,10 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
         description: rule.description,
         target_type: rule.target_type,
         resource_id: resourceId,
+      });
+      ruleTraces.push({
+        ...traceBase,
+        status: "blocked",
       });
       continue;
     }
@@ -138,11 +162,14 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
         resource_id: resourceId,
         effect,
       });
+      ruleTraces.push({
+        ...traceBase,
+        status: effect,
+      });
       continue;
     }
 
     if (effect === "score") {
-      const delta = getScoreDelta(rule);
       score += delta;
       softMatches.push({
         id: rule.id,
@@ -152,10 +179,14 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
         resource_id: resourceId,
         delta,
       });
+      ruleTraces.push({
+        ...traceBase,
+        status: "scored",
+      });
     }
   }
 
-  return { hardViolations, softMatches, alerts, score };
+  return { hardViolations, softMatches, alerts, ruleTraces, score };
 }
 
 export function evaluateRules({ rules, booking, resources, roles }) {
@@ -186,6 +217,7 @@ export function evaluateRules({ rules, booking, resources, roles }) {
     hardViolations: [],
     softMatches: [],
     alerts: [],
+    ruleTraces: [],
     score: 0,
   };
 
@@ -202,6 +234,7 @@ export function evaluateRules({ rules, booking, resources, roles }) {
   results.hardViolations.push(...bookingEval.hardViolations);
   results.softMatches.push(...bookingEval.softMatches);
   results.alerts.push(...bookingEval.alerts);
+  results.ruleTraces.push(...bookingEval.ruleTraces);
   results.score += bookingEval.score;
 
   for (const resource of resources) {
@@ -224,6 +257,7 @@ export function evaluateRules({ rules, booking, resources, roles }) {
     results.hardViolations.push(...resourceEval.hardViolations, ...pairEval.hardViolations);
     results.softMatches.push(...resourceEval.softMatches, ...pairEval.softMatches);
     results.alerts.push(...resourceEval.alerts, ...pairEval.alerts);
+    results.ruleTraces.push(...resourceEval.ruleTraces, ...pairEval.ruleTraces);
     results.score += resourceEval.score + pairEval.score;
   }
 
