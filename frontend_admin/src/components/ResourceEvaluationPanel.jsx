@@ -3,6 +3,10 @@ function formatDelta(value) {
   return `${numeric > 0 ? "+" : ""}${numeric}`;
 }
 
+function hasMeaningfulBreakdown(candidate) {
+  return Array.isArray(candidate?.score_breakdown) && candidate.score_breakdown.length > 0;
+}
+
 function getCandidateTone(state) {
   if (state === "selected") {
     return {
@@ -59,9 +63,9 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
             Explainable scheduling score
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Every candidate resource is evaluated against the active rules. Selected resources are
-            highlighted, blocked resources show rejection reasons, and lower-scoring options expose
-            the exact rule deltas behind the decision.
+            {preview
+              ? "Live preview shows only the top candidate slice so the page stays fast while you edit."
+              : "Every candidate resource is evaluated against the active rules. Selected resources are highlighted, blocked resources show rejection reasons, and lower-scoring options expose the exact rule deltas behind the decision."}
           </p>
         </div>
         {!summary.has_perfect_match && (
@@ -118,10 +122,15 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
                     Best valid score {Number(group.best_valid_score)}
                   </span>
                 )}
+                {preview && Number(group.total_candidates) > Number(group.shown_candidates) && (
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    Showing {group.shown_candidates} of {group.total_candidates}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            <div className={`mt-4 grid gap-4 ${preview ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               {group.candidates.map((candidate) => {
                 const tone = getCandidateTone(candidate.state);
                 return (
@@ -151,7 +160,7 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
                       </div>
                     </div>
 
-                    {candidate.blocking_reasons?.length > 0 && (
+                    {candidate.blocking_reasons?.length > 0 && !preview && (
                       <div className="mt-4 rounded-2xl border border-rose-200 bg-white/80 p-3">
                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
                           Blocking reasons
@@ -170,7 +179,7 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
                       </div>
                     )}
 
-                    {candidate.alerts?.length > 0 && (
+                    {candidate.alerts?.length > 0 && !preview && (
                       <div className="mt-4 rounded-2xl border border-sky-200 bg-white/80 p-3">
                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
                           Alerts
@@ -189,26 +198,28 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
                       </div>
                     )}
 
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Score breakdown
+                    {hasMeaningfulBreakdown(candidate) ? (
+                      <div className="mt-4 rounded-2xl border border-slate-200 bg-white/90 p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Score breakdown
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {preview
+                              ? `${candidate.score_breakdown?.length || 0} top rules`
+                              : `${candidate.score_breakdown?.length || 0} scoring rules`}
+                          </div>
                         </div>
-                        <div className="text-xs text-slate-400">
-                          {candidate.score_breakdown?.length || 0} scoring rules
-                        </div>
-                      </div>
 
-                      <div className="mt-3 space-y-2">
-                        {candidate.score_breakdown?.length > 0 ? (
-                          candidate.score_breakdown.map((rule) => (
+                        <div className="mt-3 space-y-2">
+                          {candidate.score_breakdown.map((rule) => (
                             <div
                               key={`candidate-${candidate.resource_id}-rule-${rule.id}-${rule.name}`}
                               className="flex flex-col gap-2 rounded-xl border border-slate-200 px-3 py-3 sm:flex-row sm:items-start sm:justify-between"
                             >
                               <div>
                                 <div className="text-sm font-semibold text-slate-900">{rule.name}</div>
-                                {rule.description && (
+                                {!preview && rule.description && (
                                   <div className="mt-1 text-sm text-slate-500">{rule.description}</div>
                                 )}
                               </div>
@@ -235,14 +246,16 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
                                 </span>
                               </div>
                             </div>
-                          ))
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
-                            No scoring rules applied to this candidate.
-                          </div>
-                        )}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white/80 px-3 py-4 text-sm text-slate-500">
+                        {preview
+                          ? "No rules are affecting this candidate right now."
+                          : "No scoring rules applied to this candidate."}
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -251,7 +264,7 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
         ))}
       </div>
 
-      {!summary.has_perfect_match && alternatives.length > 0 && (
+      {!preview && !summary.has_perfect_match && alternatives.length > 0 && (
         <div className="mt-6 rounded-[24px] border border-amber-200 bg-amber-50/70 p-4 sm:p-5">
           <div className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-700">
             Best alternatives

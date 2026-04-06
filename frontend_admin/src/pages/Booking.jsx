@@ -143,7 +143,7 @@ export default function Booking() {
       } finally {
         setResourceEvaluationLoading(false);
       }
-    }, 350);
+    }, 500);
 
     return () => clearTimeout(timeout);
   }, [

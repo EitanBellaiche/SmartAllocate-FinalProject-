@@ -199,6 +199,40 @@ async function loadExplainableCandidateRowsByTypeIds(client, typeIds, orgId, exc
   return rows;
 }
 
+async function loadConflictingResourceIds(client, resourceIds, date, startTime, endTime, orgId) {
+  if (!resourceIds.length) return new Set();
+  const params = [resourceIds, date, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT DISTINCT br.resource_id
+    FROM booking_resources br
+    JOIN bookings b ON b.id = br.booking_id
+    JOIN resources r ON r.id = br.resource_id
+    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+    WHERE br.resource_id = ANY($1)
+      AND b.date = $2
+      AND bc.booking_id IS NULL
+      ${orgWhere}
+      AND (
+        ($3 >= b.start_time AND $3 < b.end_time) OR
+        ($4 > b.start_time AND $4 <= b.end_time) OR
+        ($3 <= b.start_time AND $4 >= b.end_time)
+      )
+    `,
+    params
+  );
+  return new Set(
+    rows
+      .map((row) => Number(row.resource_id))
+      .filter((id) => Number.isFinite(id))
+  );
+}
+
 async function buildCandidateEvaluationDetails({
   client,
   orgId,
@@ -212,6 +246,10 @@ async function buildCandidateEvaluationDetails({
   roles,
   selectedResourceIds = [],
   selectedEvaluation = null,
+  maxCandidatesPerType = null,
+  maxRulesPerCandidate = null,
+  includeAlternatives = true,
+  impactfulRulesOnly = false,
 }) {
   const normalizedTypeIds = uniqueNumericIds(candidateTypeIds);
   if (normalizedTypeIds.length === 0) return null;
@@ -245,9 +283,22 @@ async function buildCandidateEvaluationDetails({
       if (Number(resource?.type_id) !== Number(typeId)) return false;
       return !comparisonBaseIds.includes(Number(resource?.id));
     });
+    const boundedCandidatesForType = Number.isFinite(Number(maxCandidatesPerType))
+      ? candidatesForType.slice(0, Number(maxCandidatesPerType))
+      : candidatesForType;
+    const conflictingResourceIds = await loadConflictingResourceIds(
+      client,
+      boundedCandidatesForType
+        .map((resource) => Number(resource?.id))
+        .filter((id) => Number.isFinite(id)),
+      bookingDate,
+      startTime,
+      endTime,
+      orgId
+    );
 
     const evaluatedCandidates = [];
-    for (const candidate of candidatesForType) {
+    for (const candidate of boundedCandidatesForType) {
       const candidateId = Number(candidate?.id);
       const candidateResources = [...comparisonBase, candidate];
       const evaluation = evaluateRules({
@@ -261,14 +312,7 @@ async function buildCandidateEvaluationDetails({
         resources: candidateResources,
         roles,
       });
-      const hasConflict = await hasResourceConflict(
-        client,
-        [candidateId],
-        bookingDate,
-        startTime,
-        endTime,
-        orgId
-      );
+      const hasConflict = conflictingResourceIds.has(candidateId);
       const blockingReasons = [
         ...(hasConflict ? [describeResourceConflict(candidate, bookingDate, startTime, endTime)] : []),
         ...evaluation.hardViolations.map((item) => describeViolation(item, candidateResources)),
@@ -281,6 +325,15 @@ async function buildCandidateEvaluationDetails({
       const scoreBreakdown = (evaluation.ruleTraces || [])
         .filter((trace) => trace?.effect === "score")
         .map((trace) => describeRuleTrace(trace));
+      const filteredScoreBreakdown = impactfulRulesOnly
+        ? scoreBreakdown.filter(
+            (trace) => trace.matched || Number(trace.delta) !== 0 || Number(trace.potential_delta) !== 0
+          )
+        : scoreBreakdown;
+      const matchedScoreBreakdown = filteredScoreBreakdown.filter((trace) => trace.matched);
+      const limitedScoreBreakdown = Number.isFinite(Number(maxRulesPerCandidate))
+        ? matchedScoreBreakdown.slice(0, Number(maxRulesPerCandidate))
+        : matchedScoreBreakdown;
       const alertBreakdown = describeAlerts(evaluation.alerts || [], candidateResources);
       const candidateDetails = {
         resource_id: candidateId,
@@ -292,11 +345,12 @@ async function buildCandidateEvaluationDetails({
         final_score: Number(evaluation.score || 0),
         blocking_reasons: blockingReasons,
         alerts: alertBreakdown,
-        score_breakdown: scoreBreakdown,
+        score_breakdown: limitedScoreBreakdown,
+        total_score_rules: matchedScoreBreakdown.length,
       };
 
       evaluatedCandidates.push(candidateDetails);
-      if (candidateState === "valid") {
+      if (includeAlternatives && candidateState === "valid") {
         alternatives.push(candidateDetails);
       }
     }
@@ -316,7 +370,6 @@ async function buildCandidateEvaluationDetails({
     const hasPerfectMatch = validCandidates.some(
       (candidate) => !candidate.score_breakdown.some((item) => Number(item.delta) < 0)
     );
-
     candidateGroups.push({
       type_id: Number(typeId),
       type_name:
@@ -329,6 +382,8 @@ async function buildCandidateEvaluationDetails({
           ? Math.max(...validCandidates.map((candidate) => Number(candidate.final_score || 0)))
           : null,
       has_perfect_match: hasPerfectMatch,
+      total_candidates: candidatesForType.length,
+      shown_candidates: evaluatedCandidates.length,
       candidates: evaluatedCandidates,
     });
   }
@@ -363,12 +418,14 @@ async function buildCandidateEvaluationDetails({
       selected_resources: selectedSummary,
     },
     candidate_groups: candidateGroups,
-    alternatives: alternatives
+    alternatives: includeAlternatives
+      ? alternatives
       .sort((left, right) => {
         if (right.final_score !== left.final_score) return right.final_score - left.final_score;
         return String(left.name || "").localeCompare(String(right.name || ""));
       })
-      .slice(0, 6),
+      .slice(0, 6)
+      : [],
   };
 }
 
@@ -1273,6 +1330,10 @@ router.post("/preview", async (req, res) => {
       candidateTypeIds,
       rules: ruleRows,
       roles: roleMap,
+      maxCandidatesPerType: 3,
+      maxRulesPerCandidate: 3,
+      includeAlternatives: false,
+      impactfulRulesOnly: true,
     });
 
     res.json({
