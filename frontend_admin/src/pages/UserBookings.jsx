@@ -12,6 +12,14 @@ function formatDateValue(dateStr) {
   return `${y}-${m}-${day}`;
 }
 
+function formatUserType(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  if (!normalized) return "Unknown";
+  if (normalized === "responsible") return "Responsible";
+  if (normalized === "user") return "User";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 export default function UserBookings() {
   const [userQuery, setUserQuery] = useState("");
   const [userOptions, setUserOptions] = useState([]);
@@ -316,6 +324,11 @@ export default function UserBookings() {
                 {selectedUser.email}
               </div>
             )}
+            {selectedUser?.role && (
+              <div className="inline-flex items-center rounded-full bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700">
+                {formatUserType(selectedUser.role)}
+              </div>
+            )}
           </div>
 
           {userLoading && <div className="mt-3 text-sm text-slate-500">Loading users...</div>}
@@ -336,7 +349,10 @@ export default function UserBookings() {
                   >
                     <div>
                       <div className="font-semibold text-slate-900">{u.full_name || "User"}</div>
-                      <div className="text-sm text-slate-500">{u.email || "No email"}</div>
+                      <div className="text-sm text-slate-500">
+                        {u.email || "No email"}
+                        {u.role ? ` · ${formatUserType(u.role)}` : ""}
+                      </div>
                     </div>
                     <div className="text-sm font-medium text-slate-500">{u.national_id}</div>
                   </button>
