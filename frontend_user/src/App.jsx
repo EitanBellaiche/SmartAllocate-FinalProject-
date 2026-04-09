@@ -159,6 +159,16 @@ function getBookingResources(booking) {
   return booking?.all_resources || booking?.resources || [];
 }
 
+function getAssignedBookingResources(booking) {
+  return booking?.assigned_resources || [];
+}
+
+function getBookingTitle(booking) {
+  const resources = getBookingResources(booking);
+  const names = resources.map((r) => r?.name).filter(Boolean);
+  return names.length > 0 ? names.join(" / ") : `Booking #${booking?.id || ""}`;
+}
+
 function getBookingRoomLine(booking) {
   if (String(booking?.location || "").toLowerCase() === "zoom") {
     return "Location: Zoom";
@@ -196,10 +206,14 @@ function getBookingRoomLine(booking) {
 
 function filterBookingsToPrimaryResources(bookings) {
   return bookings.map((booking) => {
-    const allResources = booking.resources || [];
-    const primaryResources = allResources.filter(isPrimaryResource);
-    const resources = primaryResources.length > 0 ? primaryResources : allResources;
-    return { ...booking, resources, all_resources: allResources };
+    const allResources = getBookingResources(booking);
+    const assignedResources = allResources.filter(isPrimaryResource);
+    return {
+      ...booking,
+      resources: allResources,
+      all_resources: allResources,
+      assigned_resources: assignedResources,
+    };
   });
 }
 
@@ -240,6 +254,10 @@ export default function App() {
   const [viewMode, setViewMode] = useState("month"); // month | list
   const [monthDate, setMonthDate] = useState(new Date());
   const [hasUser, setHasUser] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
+  const isTablet = viewportWidth <= 960;
+  const isMobile = viewportWidth <= 640;
 
   // resource search
   const [resources, setResources] = useState([]);
@@ -293,6 +311,7 @@ export default function App() {
   const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
   const [announcementSent, setAnnouncementSent] = useState("");
   const [announcementError, setAnnouncementError] = useState("");
+  const [selectedScheduleDay, setSelectedScheduleDay] = useState(null);
   const [cancelDialog, setCancelDialog] = useState({ open: false, booking: null });
   const [cancelReason, setCancelReason] = useState("");
   const [cancelSenderName, setCancelSenderName] = useState("");
@@ -345,6 +364,27 @@ export default function App() {
       localStorage.removeItem(SESSION_KEY);
     }
   }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth);
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (viewportWidth > 960 && mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  }, [viewportWidth, mobileMenuOpen]);
+
+  useEffect(() => {
+    if (viewportWidth <= 960 && mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  }, [section, viewportWidth, mobileMenuOpen]);
 
   async function handleLogin() {
     const id = currentUserId.trim();
@@ -414,7 +454,7 @@ export default function App() {
     const q = filter.trim().toLowerCase();
     if (!q) return scheduleBookings;
     return scheduleBookings.filter((b) => {
-      const resourcesTxt = (b.resources || [])
+      const resourcesTxt = getBookingResources(b)
         .map((r) => `${r.name} ${r.type_name || ""}`)
         .join(" ");
       const haystack = `${b.id} ${b.date} ${resourcesTxt}`.toLowerCase();
@@ -750,7 +790,7 @@ export default function App() {
   const resourceSessions = useMemo(() => {
     const byId = {};
     for (const b of activeBookings) {
-      for (const r of b.resources || []) {
+      for (const r of getBookingResources(b)) {
         byId[r.id] = byId[r.id] || [];
         byId[r.id].push({
           bookingId: b.id,
@@ -774,7 +814,7 @@ export default function App() {
   const allResourceSessions = useMemo(() => {
     const byId = {};
     for (const b of bookings) {
-      for (const r of b.resources || []) {
+      for (const r of getBookingResources(b)) {
         byId[r.id] = byId[r.id] || [];
         byId[r.id].push({
           bookingId: b.id,
@@ -794,9 +834,6 @@ export default function App() {
     );
     return byId;
   }, [bookings]);
-
-  // Sidebar selection
-  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
 
   async function loadUserRequests() {
     const userId = currentUserId.trim();
@@ -1251,17 +1288,16 @@ export default function App() {
   const requestGroupsCount = groupedUserRequests.length;
   const requestUpdatesCount = filteredUserRequests.length;
   const hasUserRequestsQuery = userRequestsQuery.trim().length > 0;
-  const isTablet = viewportWidth <= 960;
-  const isMobile = viewportWidth <= 640;
-
-  useEffect(() => {
-    function handleResize() {
-      setViewportWidth(window.innerWidth);
-    }
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  const heroPadding = isMobile ? 18 : 28;
+  const cardPadding = isMobile ? 16 : 22;
+  const detailPadding = isMobile ? 18 : 24;
+  const responsiveSidebarCardMinWidth = isMobile ? "100%" : 220;
+  const responsiveWideMinWidth = isMobile ? "100%" : 240;
+  const responsiveMediumMinWidth = isMobile ? "100%" : 230;
+  const responsiveInputMinWidth = isMobile ? "100%" : 280;
+  const responsiveCompactMinWidth = isMobile ? "100%" : 160;
+  const twoColumnGrid = isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))";
+  const splitPanelGrid = isTablet ? "1fr" : "minmax(0, 1.1fr) minmax(280px, 0.9fr)";
 
   return (
     <div
@@ -1273,19 +1309,62 @@ export default function App() {
         background: "#f8fafc",
       }}
     >
+      {isTablet && (
+        <div className="mobile-topbar">
+          <div className="mobile-topbar__brand">
+            <div style={{ fontWeight: 800, fontSize: 18 }}>SmartAllocate</div>
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>
+              {labels.userId}: {currentUserId}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="mobile-menu-button"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
+      )}
+
+      {isTablet && mobileMenuOpen && (
+        <button
+          type="button"
+          className="mobile-menu-overlay"
+          aria-label="Close menu overlay"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className="app-sidebar"
         style={{
-          width: isTablet ? "100%" : 220,
+          width: isTablet ? "min(320px, 84vw)" : 220,
           background: "#0f172a",
           color: "#e2e8f0",
           display: "flex",
-          flexDirection: isTablet ? "row" : "column",
-          flexWrap: isTablet ? "wrap" : "nowrap",
-          alignItems: isTablet ? "center" : "stretch",
+          flexDirection: "column",
+          flexWrap: "nowrap",
+          alignItems: "stretch",
           padding: 16,
           gap: 12,
+          position: isTablet ? "fixed" : "static",
+          top: isTablet ? 0 : "auto",
+          left: isTablet ? 0 : "auto",
+          bottom: isTablet ? 0 : "auto",
+          zIndex: isTablet ? 40 : "auto",
+          transform: isTablet
+            ? mobileMenuOpen
+              ? "translateX(0)"
+              : "translateX(-105%)"
+            : "none",
+          transition: isTablet ? "transform 180ms ease" : "none",
+          overflowY: "auto",
         }}
       >
         <div style={{ fontWeight: 800, fontSize: 18, flexShrink: 0 }}>SmartAllocate</div>
@@ -1319,7 +1398,10 @@ export default function App() {
           {labels.userId}: {currentUserId}
         </div>
         <button
-          onClick={() => setSection("schedule")}
+          onClick={() => {
+            setSection("schedule");
+            setMobileMenuOpen(false);
+          }}
           className="app-nav-button"
           style={{
             textAlign: "left",
@@ -1334,7 +1416,10 @@ export default function App() {
           My Schedule
         </button>
         <button
-          onClick={() => setSection("search")}
+          onClick={() => {
+            setSection("search");
+            setMobileMenuOpen(false);
+          }}
           className="app-nav-button"
           style={{
             textAlign: "left",
@@ -1350,7 +1435,10 @@ export default function App() {
         </button>
         {role === "manager" && (
           <button
-            onClick={() => setSection("requests")}
+            onClick={() => {
+              setSection("requests");
+              setMobileMenuOpen(false);
+            }}
             className="app-nav-button"
             style={{
               textAlign: "left",
@@ -1366,7 +1454,10 @@ export default function App() {
           </button>
         )}
         <button
-          onClick={() => setSection("notifications")}
+          onClick={() => {
+            setSection("notifications");
+            setMobileMenuOpen(false);
+          }}
           className="app-nav-button"
           style={{
             textAlign: "left",
@@ -1405,7 +1496,10 @@ export default function App() {
         </button>
         {role === "manager" && (
           <button
-            onClick={() => setSection("availability")}
+            onClick={() => {
+              setSection("availability");
+              setMobileMenuOpen(false);
+            }}
             className="app-nav-button"
             style={{
               textAlign: "left",
@@ -1576,7 +1670,7 @@ export default function App() {
               <div
                 style={{
                   marginTop: 18,
-                  padding: 28,
+                  padding: heroPadding,
                   borderRadius: 22,
                   color: "#475569",
                   textAlign: "center",
@@ -1602,13 +1696,15 @@ export default function App() {
                       )
                     }
                     days={monthDays}
+                    onDayClick={(day) => setSelectedScheduleDay(day)}
                     renderBooking={(b) => {
                       const past = isPastBooking(b);
                       const roomLine = getBookingRoomLine(b);
-                      return (
-                        <div
-                          style={{
-                            padding: "10px 12px",
+	                      return (
+	                        <div
+                          className="month-booking-card"
+	                          style={{
+	                            padding: "10px 12px",
                             borderRadius: 14,
                             background:
                               "linear-gradient(135deg,#0f172a,#1e293b 55%, #334155)",
@@ -1620,20 +1716,17 @@ export default function App() {
                             border: "1px solid rgba(255,255,255,0.12)",
                           }}
                         >
-                          <div style={{ fontWeight: 700 }}>
-                            {(b.resources || [])
-                              .map((r) => r.name)
-                              .filter(Boolean)
-                              .join(" / ")}
+	                          <div className="month-booking-title" style={{ fontWeight: 700 }}>
+	                            {getBookingTitle(b)}
                           </div>
-                          <div style={{ opacity: 0.9 }}>
-                            {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                          </div>
-                          {roomLine && (
-                            <div style={{ fontSize: 11, fontWeight: 700 }}>
-                              {roomLine}
-                            </div>
-                          )}
+	                          <div className="month-booking-time" style={{ opacity: 0.9 }}>
+	                            {formatTime(b.start_time)} - {formatTime(b.end_time)}
+	                          </div>
+	                          {roomLine && (
+	                            <div className="month-booking-location" style={{ fontSize: 11, fontWeight: 700 }}>
+	                              {roomLine}
+	                            </div>
+	                          )}
                           {role === "manager" && (
                             <button
                               type="button"
@@ -1698,7 +1791,7 @@ export default function App() {
                   background:
                     "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(241,245,249,0.95) 55%, rgba(219,234,254,0.78))",
                   boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: 28,
+                  padding: heroPadding,
                   display: "grid",
                   gap: 18,
                 }}
@@ -1774,9 +1867,10 @@ export default function App() {
                     </div>
                     <div
                       style={{
-                        minWidth: 220,
+                        minWidth: responsiveSidebarCardMinWidth,
                         display: "grid",
                         gap: 12,
+                        width: isMobile ? "100%" : "auto",
                       }}
                     >
                       <div
@@ -1815,7 +1909,7 @@ export default function App() {
                   <div
                     className="glass"
                     style={{
-                      padding: 18,
+                      padding: isMobile ? 14 : 18,
                       borderRadius: 24,
                       border: "1px solid rgba(148,163,184,0.18)",
                       background: "rgba(255,255,255,0.82)",
@@ -1892,7 +1986,7 @@ export default function App() {
                         placeholder="e.g. projector, room 103, prep station..."
                         style={{
                           flex: 1,
-                          minWidth: 280,
+                          minWidth: responsiveInputMinWidth,
                           padding: "16px 18px",
                           borderRadius: 18,
                           border: "1px solid #dbe3f0",
@@ -1917,7 +2011,7 @@ export default function App() {
                           fontWeight: 800,
                           fontSize: 15,
                           cursor: resourceLoading ? "default" : "pointer",
-                          minWidth: 138,
+                          minWidth: isMobile ? "100%" : 138,
                           boxShadow: "0 18px 40px rgba(37,99,235,0.26)",
                         }}
                       >
@@ -1950,7 +2044,7 @@ export default function App() {
                     border: "1px solid rgba(148,163,184,0.18)",
                     background: "#ffffff",
                     boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                    padding: 24,
+                    padding: detailPadding,
                     display: "grid",
                     gap: 18,
                   }}
@@ -2012,13 +2106,13 @@ export default function App() {
                     style={{
                       display: "grid",
                       gap: 18,
-                      gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                      gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(260px, 1fr))",
                     }}
                   >
                     <div
                       className="glass"
                       style={{
-                        padding: 22,
+                        padding: cardPadding,
                         borderRadius: 24,
                         border: "1px solid #e2e8f0",
                         background:
@@ -2041,7 +2135,7 @@ export default function App() {
                         </div>
                         <div
                           style={{
-                            fontSize: 32,
+                            fontSize: isMobile ? 26 : 32,
                             fontWeight: 900,
                             color: "#0f172a",
                             letterSpacing: "-0.04em",
@@ -2076,7 +2170,7 @@ export default function App() {
                         border: "1px solid #dbeafe",
                         background:
                           "linear-gradient(180deg, rgba(239,246,255,0.95), rgba(255,255,255,0.95))",
-                        padding: 20,
+                        padding: isMobile ? 16 : 20,
                         display: "grid",
                         gap: 8,
                         alignContent: "start",
@@ -2401,7 +2495,7 @@ export default function App() {
                   background:
                     "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.95) 48%, rgba(237,233,254,0.8))",
                   boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: 28,
+                  padding: heroPadding,
                 }}
               >
                 <div
@@ -2468,9 +2562,10 @@ export default function App() {
                   </div>
                   <div
                     style={{
-                      minWidth: 230,
+                      minWidth: responsiveMediumMinWidth,
                       display: "grid",
                       gap: 12,
+                      width: isMobile ? "100%" : "auto",
                     }}
                   >
                     <div
@@ -2523,7 +2618,7 @@ export default function App() {
             {requestView === "form" ? (
               <div
                 style={{
-                  padding: 22,
+                  padding: cardPadding,
                   borderRadius: 28,
                   border: "1px solid rgba(148,163,184,0.18)",
                   background: "#fff",
@@ -2546,7 +2641,7 @@ export default function App() {
                       style={{
                         fontWeight: 900,
                         color: "#0f172a",
-                        fontSize: 28,
+                        fontSize: isMobile ? 24 : 28,
                         letterSpacing: "-0.04em",
                       }}
                     >
@@ -2584,7 +2679,7 @@ export default function App() {
                         border: "1px solid #e2e8f0",
                         background:
                           "linear-gradient(135deg, rgba(248,250,252,0.96), rgba(255,255,255,0.98))",
-                        padding: 18,
+                        padding: isMobile ? 14 : 18,
                         display: "grid",
                         gap: 10,
                       }}
@@ -2600,7 +2695,7 @@ export default function App() {
                       >
                         Selected {labels.resource}
                       </div>
-                      <div style={{ fontSize: 28, fontWeight: 900, color: "#0f172a" }}>
+                      <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 900, color: "#0f172a" }}>
                         {selectedRequestResource.name}
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -2700,7 +2795,7 @@ export default function App() {
             ) : (
               <div
                 style={{
-                  padding: 22,
+                  padding: cardPadding,
                   borderRadius: 28,
                   border: "1px solid rgba(148,163,184,0.18)",
                   background: "#fff",
@@ -2766,7 +2861,7 @@ export default function App() {
                     borderRadius: 24,
                     border: "1px solid #e2e8f0",
                     background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-                    padding: 18,
+                    padding: isMobile ? 14 : 18,
                     display: "grid",
                     gap: 12,
                   }}
@@ -2785,7 +2880,7 @@ export default function App() {
                       placeholder={`Search ${labelsLower.resources}...`}
                       style={{
                         flex: 1,
-                        minWidth: 240,
+                        minWidth: responsiveWideMinWidth,
                         padding: "14px 16px",
                         borderRadius: 16,
                         border: "1px solid #dbe3f0",
@@ -3021,7 +3116,7 @@ export default function App() {
                   background:
                     "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94) 50%, rgba(236,253,245,0.86))",
                   boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: 28,
+                  padding: heroPadding,
                 }}
               >
                 <div
@@ -3088,9 +3183,10 @@ export default function App() {
                   </div>
                   <div
                     style={{
-                      minWidth: 240,
+                      minWidth: responsiveWideMinWidth,
                       display: "grid",
                       gap: 12,
+                      width: isMobile ? "100%" : "auto",
                     }}
                   >
                     <div
@@ -3144,13 +3240,13 @@ export default function App() {
                 style={{
                   display: "grid",
                   gap: 20,
-                  gridTemplateColumns: "minmax(0, 1.1fr) minmax(280px, 0.9fr)",
+                  gridTemplateColumns: splitPanelGrid,
                   alignItems: "start",
                 }}
               >
                 <div
                   style={{
-                    padding: 22,
+                    padding: cardPadding,
                     borderRadius: 28,
                     border: "1px solid rgba(148,163,184,0.18)",
                     background: "#fff",
@@ -3180,7 +3276,7 @@ export default function App() {
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        gridTemplateColumns: twoColumnGrid,
                         gap: 10,
                         marginTop: 10,
                       }}
@@ -3227,7 +3323,7 @@ export default function App() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gridTemplateColumns: twoColumnGrid,
                       gap: 14,
                     }}
                   >
@@ -3280,7 +3376,7 @@ export default function App() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gridTemplateColumns: twoColumnGrid,
                       gap: 14,
                     }}
                   >
@@ -3376,7 +3472,7 @@ export default function App() {
 
                 <div
                   style={{
-                    padding: 22,
+                    padding: cardPadding,
                     borderRadius: 28,
                     border: "1px solid rgba(148,163,184,0.18)",
                     background:
@@ -3524,7 +3620,7 @@ export default function App() {
                   background:
                     "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94) 52%, rgba(224,242,254,0.82))",
                   boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: 28,
+                  padding: heroPadding,
                 }}
               >
                 <div
@@ -3592,9 +3688,10 @@ export default function App() {
                   </div>
                   <div
                     style={{
-                      minWidth: 240,
+                      minWidth: responsiveWideMinWidth,
                       display: "grid",
                       gap: 12,
+                      width: isMobile ? "100%" : "auto",
                     }}
                   >
                     <div
@@ -3691,7 +3788,7 @@ export default function App() {
 
             <div
               style={{
-                padding: 22,
+                padding: cardPadding,
                 borderRadius: 28,
                 border: "1px solid rgba(148,163,184,0.18)",
                 background: "#fff",
@@ -3717,7 +3814,7 @@ export default function App() {
                   placeholder={`Search by ${labelsLower.resource}, date, or status...`}
                   style={{
                     flex: 1,
-                    minWidth: 220,
+                    minWidth: responsiveSidebarCardMinWidth,
                     padding: "14px 16px",
                     borderRadius: 16,
                     border: "1px solid #dbe3f0",
@@ -3855,7 +3952,7 @@ export default function App() {
                   }}
                 >
                   {!selectedUserGroup ? (
-                    <div style={{ padding: 18, display: "grid", gap: 14 }}>
+                    <div style={{ padding: isMobile ? 14 : 18, display: "grid", gap: 14 }}>
                       {groupedUserRequests.map((group) => {
                         const unreadCount = group.requests.filter(
                           (req) =>
@@ -3874,7 +3971,7 @@ export default function App() {
                             style={{
                               width: "100%",
                               textAlign: "left",
-                              padding: "18px 20px",
+                              padding: isMobile ? "14px 16px" : "18px 20px",
                               borderRadius: 20,
                               border: "1px solid rgba(148,163,184,0.18)",
                               background:
@@ -3951,7 +4048,7 @@ export default function App() {
                       })}
                     </div>
                   ) : (
-                    <div style={{ padding: 20 }}>
+                    <div style={{ padding: isMobile ? 16 : 20 }}>
                       <button
                         type="button"
                         onClick={() => setSelectedUserRequestKey(null)}
@@ -3971,7 +4068,7 @@ export default function App() {
                       <div
                         style={{
                           fontWeight: 900,
-                          fontSize: 30,
+                          fontSize: isMobile ? 24 : 30,
                           color: "#0f172a",
                           letterSpacing: "-0.04em",
                           marginBottom: 8,
@@ -3996,12 +4093,13 @@ export default function App() {
                             <div
                               key={req.id}
                               style={{
-                                padding: 18,
+                                padding: isMobile ? 14 : 18,
                                 borderRadius: 20,
                                 border: "1px solid rgba(148,163,184,0.18)",
                                 background:
                                   "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
                                 display: "flex",
+                                flexWrap: "wrap",
                                 gap: 12,
                                 alignItems: "center",
                                 boxShadow: "0 14px 30px rgba(15,23,42,0.05)",
@@ -4045,7 +4143,7 @@ export default function App() {
             <div
               className="glass"
               style={{
-                padding: 16,
+                padding: isMobile ? 14 : 16,
                 borderRadius: 18,
                 display:
                   role === "user" && notificationTab === "announcements"
@@ -4068,7 +4166,7 @@ export default function App() {
                   placeholder="Search announcements..."
                   style={{
                     flex: 1,
-                    minWidth: 220,
+                    minWidth: responsiveSidebarCardMinWidth,
                     padding: "10px 12px",
                     borderRadius: 12,
                     border: "1px solid #e2e8f0",
@@ -4158,7 +4256,7 @@ export default function App() {
                       placeholder={`${labels.resource} name (optional)`}
                       style={{
                         flex: 1,
-                        minWidth: 160,
+                        minWidth: responsiveCompactMinWidth,
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid #e2e8f0",
@@ -4175,7 +4273,7 @@ export default function App() {
                       placeholder={`${labels.userId} (optional)`}
                       style={{
                         flex: 1,
-                        minWidth: 160,
+                        minWidth: responsiveCompactMinWidth,
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid #e2e8f0",
@@ -4192,7 +4290,7 @@ export default function App() {
                       placeholder="Your name"
                       style={{
                         flex: 1,
-                        minWidth: 160,
+                        minWidth: responsiveCompactMinWidth,
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid #e2e8f0",
@@ -4303,6 +4401,143 @@ export default function App() {
           </>
         )}
 
+        {selectedScheduleDay && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(15,23,42,0.35)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+              zIndex: 58,
+            }}
+            onClick={() => setSelectedScheduleDay(null)}
+          >
+            <div
+              className="glass"
+              style={{
+                width: "min(560px, 92vw)",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                padding: isMobile ? 16 : 20,
+                borderRadius: 18,
+                background: "#fff",
+                border: "1px solid #e2e8f0",
+                display: "grid",
+                gap: 12,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: "#0f172a" }}>Daily schedule</div>
+                  <div style={{ color: "#475569", fontSize: 12, marginTop: 4 }}>
+                    {formatDate(selectedScheduleDay.key)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedScheduleDay(null)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+              {selectedScheduleDay.bookings.length === 0 ? (
+                <div
+                  style={{
+                    padding: "18px 16px",
+                    borderRadius: 16,
+                    border: "1px dashed #cbd5e1",
+                    background: "#f8fafc",
+                    color: "#475569",
+                  }}
+                >
+                  No sessions on this day.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {selectedScheduleDay.bookings.map((booking) => {
+                    const roomLine = getBookingRoomLine(booking);
+                    return (
+                      <div
+                        key={booking.id}
+                        style={{
+                          padding: "14px 16px",
+                          borderRadius: 16,
+                          border: "1px solid #e2e8f0",
+                          background: "linear-gradient(180deg,#ffffff,#f8fafc)",
+                          display: "grid",
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 16 }}>
+                            {getBookingTitle(booking)}
+                          </div>
+                          <span
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 999,
+                              background: "#eef2ff",
+                              color: "#4338ca",
+                              fontSize: 12,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                          </span>
+                        </div>
+                        {roomLine && (
+                          <div style={{ color: "#334155", fontSize: 13, fontWeight: 600 }}>
+                            {roomLine}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          {getBookingResources(booking).map((resource) => (
+                            <span
+                              key={resource.id}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: 999,
+                                border: "1px solid #e2e8f0",
+                                background: getAssignedBookingResources(booking).some(
+                                  (assigned) => assigned.id === resource.id
+                                )
+                                  ? "#ede9fe"
+                                  : "#fff",
+                                color: getAssignedBookingResources(booking).some(
+                                  (assigned) => assigned.id === resource.id
+                                )
+                                  ? "#5b21b6"
+                                  : "#334155",
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {resource.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {cancelDialog.open && (
           <div
             style={{
@@ -4321,7 +4556,7 @@ export default function App() {
               className="glass"
               style={{
                 width: "min(560px, 92vw)",
-                padding: 20,
+                padding: isMobile ? 16 : 20,
                 borderRadius: 18,
                 background: "#fff",
                 border: "1px solid #e2e8f0",
@@ -4441,7 +4676,7 @@ export default function App() {
               {cancelSuccess && (
                 <div style={{ color: "#166534" }}>{cancelSuccess}</div>
               )}
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <button
                   type="button"
                   onClick={() => setCancelDialog({ open: false, booking: null })}
@@ -4865,6 +5100,9 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
           <div style={{ color: "#475569", fontSize: 12 }}>
             Booking #{booking.id}
           </div>
+          <div style={{ color: "#0f172a", fontWeight: 800, fontSize: 18, marginTop: 2 }}>
+            {getBookingTitle(booking)}
+          </div>
           <div style={{ color: "#0f172a", fontWeight: 600 }}>
             {formatDate(booking.date)}
           </div>
@@ -4909,7 +5147,7 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
       )}
 
       <div style={{ display: "grid", gap: 10 }}>
-        {(booking.resources || []).map((r) => (
+        {getBookingResources(booking).map((r) => (
           <div
             key={r.id}
             style={{
@@ -4924,6 +5162,22 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
               {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels)}` : ""}
               {r.role ? ` - Role: ${r.role}` : ""}
             </div>
+              {getAssignedBookingResources(booking).some((assigned) => assigned.id === r.id) && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    width: "fit-content",
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    background: "#ede9fe",
+                    color: "#5b21b6",
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}
+                >
+                  Assigned to you
+                </div>
+              )}
               {r.metadata && Object.keys(r.metadata).length > 0 && (
                 <div
                   style={{
@@ -4950,6 +5204,7 @@ function MonthGrid({
   onPrev,
   onNext,
   days,
+  onDayClick,
   renderBooking,
   maxItems = 3,
   renderDayAction,
@@ -5038,7 +5293,8 @@ function MonthGrid({
         </div>
       </div>
 
-      <div className="calendar-grid">
+      <div className="month-grid-scroll">
+        <div className="calendar-grid month-grid">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div
             key={d}
@@ -5061,8 +5317,10 @@ function MonthGrid({
             <div
               key={`${wi}-${di}`}
               className="calendar-day"
+              onClick={() => onDayClick?.(day)}
               style={{
                 opacity: day.inMonth ? 1 : 0.45,
+                cursor: onDayClick ? "pointer" : "default",
               }}
             >
               <div className="date">{day.date.getDate()}</div>
@@ -5087,10 +5345,7 @@ function MonthGrid({
                         }}
                       >
                         <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                          {(b.resources || [])
-                            .map((r) => r.name)
-                            .filter(Boolean)
-                            .join(" / ")}
+                          {getBookingTitle(b)}
                         </div>
                         <div style={{ opacity: 0.9 }}>
                           {formatTime(b.start_time)} - {formatTime(b.end_time)}
@@ -5110,6 +5365,7 @@ function MonthGrid({
             </div>
           ))
         )}
+        </div>
       </div>
     </div>
   );

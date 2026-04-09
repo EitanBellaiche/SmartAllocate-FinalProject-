@@ -87,6 +87,27 @@ select {
   gap: 12px;
 }
 
+.month-grid-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+.month-grid {
+  min-width: 760px;
+}
+
+.month-booking-card {
+  overflow: hidden;
+}
+
+.month-booking-title,
+.month-booking-time,
+.month-booking-location {
+  overflow-wrap: anywhere;
+}
+
 .calendar-day {
   min-height: 140px;
   border: 1px solid #e2e8f0;
@@ -345,19 +366,72 @@ select {
   flex-shrink: 0;
 }
 
+.mobile-topbar {
+  display: none;
+}
+
+.mobile-menu-button {
+  display: none;
+}
+
+.mobile-menu-overlay {
+  display: none;
+}
+
 @media (max-width: 900px) {
-  .calendar-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .app-sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 20;
-  }
-
   .app-nav-button {
     min-width: fit-content;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding: 14px 16px;
+    background: #0f172a;
+    color: #e2e8f0;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  }
+
+  .mobile-topbar__brand {
+    min-width: 0;
+  }
+
+  .mobile-menu-button {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1px solid #1e293b;
+    background: #111827;
+    cursor: pointer;
+    padding: 0 10px;
+  }
+
+  .mobile-menu-button span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 999px;
+    background: #f8fafc;
+  }
+
+  .mobile-menu-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    border: 0;
+    background: rgba(15, 23, 42, 0.42);
+    padding: 0;
+    margin: 0;
   }
 }
 
@@ -413,12 +487,60 @@ select {
     align-items: start;
   }
 
+  .calendar-day {
+    min-height: 110px;
+  }
+
   .calendar-grid {
-    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .calendar-day {
-    min-height: 110px;
+    min-height: 74px;
+    padding: 4px;
+  }
+
+  .calendar-day .date {
+    margin-bottom: 2px;
+    font-size: 11px;
+  }
+
+  .month-booking-card {
+    padding: 5px 6px !important;
+    border-radius: 10px !important;
+    gap: 2px !important;
+    font-size: 9px !important;
+  }
+
+  .month-booking-title {
+    font-size: 9px;
+    line-height: 1.15;
+  }
+
+  .month-booking-time {
+    font-size: 9px !important;
+    line-height: 1.15;
+  }
+
+  .month-booking-location {
+    display: none;
+  }
+
+  .month-grid-scroll {
+    overflow-x: hidden;
+  }
+
+  .month-grid {
+    min-width: 0;
+  }
+
+  .calendar-grid > div {
+    min-width: 0;
+  }
+
+  .calendar-grid > div[style*="uppercase"] {
+    font-size: 10px !important;
+    letter-spacing: 0.08em !important;
   }
 
   .timetable-header,
@@ -429,6 +551,7 @@ select {
 
   .app-sidebar {
     align-items: stretch;
+    width: min(320px, 86vw);
   }
 
   .app-nav-button {
