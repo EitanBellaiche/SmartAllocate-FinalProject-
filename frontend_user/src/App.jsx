@@ -166,24 +166,32 @@ function getBookingRoomLine(booking) {
   const resources = getBookingResources(booking);
   const room = resources.find((r) => {
     const meta = normalizeMetadata(r?.metadata);
+    const typeName = String(r?.type_name || "").trim().toLowerCase();
+    if (isPrimaryResource(r) || ["courses", "exam"].includes(typeName)) {
+      return false;
+    }
     return (
       meta.room ||
       meta.location ||
       meta.site ||
       meta.space ||
       meta.building ||
-      meta.floor
+      meta.floor ||
+      ["classroom", "auditorium", "lab", "studio"].includes(typeName)
     );
   });
   if (!room) return "";
   const name = room.name || "On-site";
-  const meta =
-    room.metadata && Object.keys(room.metadata).length > 0
-      ? Object.entries(room.metadata)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(" | ")
-      : "";
-  return meta ? `Location: ${name} (${meta})` : `Location: ${name}`;
+  const meta = normalizeMetadata(room.metadata);
+  const details = [
+    meta.building ? `Building: ${meta.building}` : "",
+    meta.floor != null && meta.floor !== "" ? `Floor: ${meta.floor}` : "",
+    meta.room ? `Room: ${meta.room}` : "",
+    meta.location ? `Location: ${meta.location}` : "",
+  ].filter(Boolean);
+  return details.length > 0
+    ? `Location: ${name} (${details.join(" | ")})`
+    : `Location: ${name}`;
 }
 
 function filterBookingsToPrimaryResources(bookings) {

@@ -1212,7 +1212,25 @@ router.get("/", async (req, res) => {
     const userIdValue = String(user_id || national_id || "").trim();
     if (userIdValue) {
       params.push(userIdValue);
-      conditions.push(`b.user_id::text = $${params.length}`);
+      const userParamIndex = params.length;
+      conditions.push(`
+        (
+          b.user_id::text = $${userParamIndex}
+          OR EXISTS (
+            SELECT 1
+            FROM booking_resources br_user
+            JOIN resources r_user ON r_user.id = br_user.resource_id
+            WHERE br_user.booking_id = b.id
+              AND (
+                COALESCE(r_user.metadata->'user_ids', '[]'::jsonb) ? $${userParamIndex}
+                OR COALESCE(r_user.metadata->>'responsible_user_id', '') = $${userParamIndex}
+                OR COALESCE(r_user.metadata->>'responsibleUserId', '') = $${userParamIndex}
+                OR COALESCE(r_user.metadata->>'responsible_id', '') = $${userParamIndex}
+                OR COALESCE(r_user.metadata->>'responsibleId', '') = $${userParamIndex}
+              )
+          )
+        )
+      `);
     }
 
     if (orgId) {
