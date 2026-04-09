@@ -380,12 +380,6 @@ export default function App() {
     }
   }, [viewportWidth, mobileMenuOpen]);
 
-  useEffect(() => {
-    if (viewportWidth <= 960 && mobileMenuOpen) {
-      setMobileMenuOpen(false);
-    }
-  }, [section, viewportWidth, mobileMenuOpen]);
-
   async function handleLogin() {
     const id = currentUserId.trim();
     if (!id) {
