@@ -227,6 +227,9 @@ function normalizeRole(value) {
 }
 
 export default function App() {
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? 1280 : window.innerWidth
+  );
   const [currentUserId, setCurrentUserId] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("user");
@@ -1196,10 +1199,12 @@ export default function App() {
             <input
               className="login-input"
               type="text"
-              inputMode="numeric"
               value={currentUserId}
               onChange={(e) => setCurrentUserId(e.target.value)}
               placeholder={`Enter your ${labelsLower.userId}`}
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="username"
             />
             <label className="login-label">Password</label>
             <input
@@ -1246,22 +1251,44 @@ export default function App() {
   const requestGroupsCount = groupedUserRequests.length;
   const requestUpdatesCount = filteredUserRequests.length;
   const hasUserRequestsQuery = userRequestsQuery.trim().length > 0;
+  const isTablet = viewportWidth <= 960;
+  const isMobile = viewportWidth <= 640;
+
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth);
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", background: "#f8fafc" }}>
+    <div
+      className="app-shell"
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: isTablet ? "column" : "row",
+        background: "#f8fafc",
+      }}
+    >
       {/* Sidebar */}
       <aside
+        className="app-sidebar"
         style={{
-          width: 220,
+          width: isTablet ? "100%" : 220,
           background: "#0f172a",
           color: "#e2e8f0",
           display: "flex",
-          flexDirection: "column",
+          flexDirection: isTablet ? "row" : "column",
+          flexWrap: isTablet ? "wrap" : "nowrap",
+          alignItems: isTablet ? "center" : "stretch",
           padding: 16,
           gap: 12,
         }}
       >
-        <div style={{ fontWeight: 800, fontSize: 18 }}>SmartAllocate</div>
+        <div style={{ fontWeight: 800, fontSize: 18, flexShrink: 0 }}>SmartAllocate</div>
         <div style={{ display: "grid", gap: 6 }}>
           <div
             style={{
@@ -1293,6 +1320,7 @@ export default function App() {
         </div>
         <button
           onClick={() => setSection("schedule")}
+          className="app-nav-button"
           style={{
             textAlign: "left",
             padding: "10px 12px",
@@ -1307,6 +1335,7 @@ export default function App() {
         </button>
         <button
           onClick={() => setSection("search")}
+          className="app-nav-button"
           style={{
             textAlign: "left",
             padding: "10px 12px",
@@ -1322,6 +1351,7 @@ export default function App() {
         {role === "manager" && (
           <button
             onClick={() => setSection("requests")}
+            className="app-nav-button"
             style={{
               textAlign: "left",
               padding: "10px 12px",
@@ -1337,6 +1367,7 @@ export default function App() {
         )}
         <button
           onClick={() => setSection("notifications")}
+          className="app-nav-button"
           style={{
             textAlign: "left",
             padding: "10px 12px",
@@ -1375,6 +1406,7 @@ export default function App() {
         {role === "manager" && (
           <button
             onClick={() => setSection("availability")}
+            className="app-nav-button"
             style={{
               textAlign: "left",
               padding: "10px 12px",
@@ -1390,8 +1422,9 @@ export default function App() {
         )}
         <button
           onClick={handleLogout}
+          className="app-nav-button"
           style={{
-            marginTop: 8,
+            marginTop: isTablet ? 0 : 8,
             textAlign: "left",
             padding: "10px 12px",
             borderRadius: 10,
@@ -1403,13 +1436,22 @@ export default function App() {
         >
           Sign out
         </button>
-        <div style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>
+        <div style={{ marginTop: isTablet ? 0 : "auto", fontSize: 12, color: "#94a3b8" }}>
           Powered by SmartAllocate
         </div>
       </aside>
 
       {/* Main */}
-      <div style={{ flex: 1, padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+      <div
+        className="app-main"
+        style={{
+          flex: 1,
+          width: "100%",
+          padding: isMobile ? 14 : isTablet ? 18 : 24,
+          maxWidth: 1200,
+          margin: "0 auto",
+        }}
+      >
         {section === "schedule" ? (
           <>
             <header
@@ -1417,7 +1459,7 @@ export default function App() {
                 marginBottom: 20,
                 border: "1px solid #e2e8f0",
                 borderRadius: 28,
-                padding: 24,
+                padding: isMobile ? 18 : 24,
                 background:
                   "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92) 45%, rgba(250,245,235,0.86))",
                 boxShadow: "0 22px 60px rgba(15,23,42,0.08)",
@@ -1445,7 +1487,7 @@ export default function App() {
                 style={{
                   margin: "18px 0 0",
                   color: "#0f172a",
-                  fontSize: 44,
+                  fontSize: isMobile ? 34 : isTablet ? 38 : 44,
                   lineHeight: 1,
                   letterSpacing: "-0.04em",
                 }}
@@ -1459,8 +1501,9 @@ export default function App() {
             </header>
 
             <div
+              className="schedule-toolbar"
               style={{
-                padding: 18,
+                padding: isMobile ? 14 : 18,
                 borderRadius: 24,
                 display: "flex",
                 gap: 12,
@@ -1471,7 +1514,7 @@ export default function App() {
                 boxShadow: "0 16px 40px rgba(15,23,42,0.06)",
               }}
             >
-              <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ flex: 1, minWidth: isMobile ? "100%" : 200 }}>
                 <h3 style={{ margin: 0, color: "#0f172a", fontSize: 24 }}>My {labels.resources}</h3>
                 <p style={{ margin: "6px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.6 }}>
                   Search by {labelsLower.resource} or tag, then move between calendar and agenda
@@ -1483,7 +1526,7 @@ export default function App() {
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Search..."
                 style={{
-                  width: 220,
+                  width: isMobile ? "100%" : 220,
                   padding: "12px 14px",
                   borderRadius: 14,
                   border: "1px solid #e2e8f0",
@@ -1500,6 +1543,7 @@ export default function App() {
                   background: "#f8fafc",
                   padding: 4,
                   gap: 4,
+                  width: isMobile ? "100%" : "auto",
                 }}
               >
                 {[

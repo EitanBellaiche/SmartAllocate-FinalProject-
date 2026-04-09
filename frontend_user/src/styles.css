@@ -329,9 +329,35 @@ select {
   font-weight: 600;
 }
 
+.app-shell {
+  width: 100%;
+}
+
+.app-sidebar {
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+}
+
+.app-main {
+  min-width: 0;
+}
+
+.app-nav-button {
+  flex-shrink: 0;
+}
+
 @media (max-width: 900px) {
   .calendar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .app-nav-button {
+    min-width: fit-content;
   }
 }
 
@@ -399,6 +425,19 @@ select {
   .timetable-slot,
   .timetable-event {
     padding: 10px;
+  }
+
+  .app-sidebar {
+    align-items: stretch;
+  }
+
+  .app-nav-button {
+    width: 100%;
+  }
+
+  .schedule-toolbar {
+    display: grid !important;
+    grid-template-columns: 1fr;
   }
 }
 
