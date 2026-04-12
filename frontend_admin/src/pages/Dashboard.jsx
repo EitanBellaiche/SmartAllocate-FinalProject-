@@ -12,6 +12,23 @@ export default function Dashboard() {
   const config = getOrgConfig();
   const theme = config.theme;
   const isCinema = config.domain === "cinema";
+  const isShenkar = config.domain === "shenkar";
+  const heroSectionClass = isCinema
+    ? `${theme.heroDark} shadow-[0_18px_45px_rgba(88,28,135,0.18)]`
+    : isShenkar
+      ? `${theme.heroDark} shadow-[0_24px_60px_rgba(78,115,151,0.22)]`
+      : `${theme.card} bg-gradient-to-br ${theme.hero} shadow-[0_20px_55px_rgba(59,130,246,0.10)]`;
+  const heroTitleClass = theme.heroTextStrong || (isCinema ? "text-white" : theme.textStrong);
+  const heroSubtitleClass = theme.heroTextSoft || (isCinema ? "text-slate-100/88" : theme.textSoft);
+  const heroNoteClass = theme.heroNote || (isCinema
+    ? "border-white/10 bg-white/10 text-slate-100"
+    : "border-white/70 bg-white/75 text-slate-600");
+  const searchPanelClass = isCinema
+    ? theme.modalSurface
+    : "border-slate-200 bg-white/72 backdrop-blur-sm";
+  const emptyStateClass = isCinema
+    ? theme.modalSurface
+    : "border-slate-200 bg-white/70";
 
   const [editModal, setEditModal] = useState({
     open: false,
@@ -207,7 +224,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <section
-        className={`rounded-[30px] border ${config.theme.panelBorder} bg-gradient-to-br ${config.theme.hero} p-6 shadow-[0_18px_45px_rgba(59,130,246,0.08)] sm:p-8`}
+        className={`rounded-[30px] border ${config.theme.panelBorder} p-6 sm:p-8 ${heroSectionClass}`}
       >
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
@@ -216,16 +233,14 @@ export default function Dashboard() {
             >
               {config.dashboard.eyebrow}
             </div>
-            <h1
-              className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}
-            >
+            <h1 className={`text-4xl font-black tracking-tight ${heroTitleClass}`}>
               {config.dashboard.title}
             </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-200">
+            <p className={`mt-3 max-w-2xl text-base leading-7 ${heroSubtitleClass}`}>
               {config.dashboard.subtitle}
             </p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-slate-100 shadow-sm backdrop-blur-sm">
+          <div className={`rounded-2xl border px-4 py-3 text-sm shadow-sm backdrop-blur-sm ${heroNoteClass}`}>
             System overview updated from live resources and bookings.
           </div>
         </div>
@@ -287,7 +302,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className={`mb-5 rounded-[24px] border p-4 ${theme.modalSurface}`}>
+        <div className={`mb-5 rounded-[24px] border p-4 ${searchPanelClass}`}>
           <input
             type="text"
             placeholder={config.dashboard.searchPlaceholder}
@@ -300,7 +315,7 @@ export default function Dashboard() {
         {!hasSearchQuery ? (
           <div className={`rounded-[22px] border px-4 py-10 shadow-sm ${theme.card}`}>
             <div
-              className={`mx-auto max-w-md rounded-2xl border border-dashed px-6 py-8 text-center ${theme.modalSurface}`}
+              className={`mx-auto max-w-md rounded-2xl border border-dashed px-6 py-8 text-center ${emptyStateClass}`}
             >
               <div className={`text-lg font-semibold ${theme.textStrong}`}>
                 {config.dashboard.emptyTitle}
@@ -313,7 +328,7 @@ export default function Dashboard() {
         ) : filteredResources.length === 0 ? (
           <div className={`rounded-[22px] border px-4 py-10 shadow-sm ${theme.card}`}>
             <div
-              className={`mx-auto max-w-md rounded-2xl border border-dashed px-6 py-8 text-center ${theme.modalSurface}`}
+              className={`mx-auto max-w-md rounded-2xl border border-dashed px-6 py-8 text-center ${emptyStateClass}`}
             >
               <div className={`text-lg font-semibold ${theme.textStrong}`}>
                 {config.dashboard.noResultsTitle}
@@ -601,8 +616,8 @@ function StatCard({ title, value, tone = "blue", theme }) {
   const toneClass = tones[tone] || theme.card;
 
   return (
-    <div className={`rounded-[24px] border p-5 shadow-[0_14px_30px] ${toneClass}`}>
-      <p className={`text-sm font-medium ${theme.textSoft}`}>{title}</p>
+    <div className={`rounded-[24px] border p-5 shadow-[0_18px_34px_rgba(15,23,42,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_38px_rgba(15,23,42,0.10)] ${toneClass}`}>
+      <p className="text-sm font-semibold text-slate-600">{title}</p>
       <p className={`mt-3 text-4xl font-black ${theme.textStrong}`}>{value}</p>
     </div>
   );

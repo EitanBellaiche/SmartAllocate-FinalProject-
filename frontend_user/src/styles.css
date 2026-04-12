@@ -100,12 +100,21 @@ select {
 
 .month-booking-card {
   overflow: hidden;
+  min-width: 0;
 }
 
 .month-booking-title,
 .month-booking-time,
 .month-booking-location {
   overflow-wrap: anywhere;
+}
+
+.month-booking-title {
+  line-height: 1.35;
+}
+
+.month-booking-location {
+  color: #475569;
 }
 
 .calendar-day {
@@ -355,6 +364,7 @@ select {
   font-size: 0.9rem;
   font-weight: 600;
 }
+
 
 .app-shell {
   width: 100%;

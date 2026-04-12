@@ -147,7 +147,7 @@ function formatDate(dateStr) {
   if (!dateStr) return "";
   const d = parseDateValue(dateStr);
   if (!d || Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("he-IL", {
+  return d.toLocaleDateString("en-GB", {
     timeZone: "Asia/Jerusalem",
     weekday: "short",
     day: "2-digit",
@@ -294,13 +294,40 @@ function getBookingRoomLine(booking) {
   });
   if (!room) return "";
   const name = room.name || "On-site";
-  const meta =
-    room.metadata && Object.keys(room.metadata).length > 0
-      ? Object.entries(room.metadata)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(" | ")
-      : "";
+  const meta = getResourcePreviewDetails(room);
   return meta ? `Location: ${name} (${meta})` : `Location: ${name}`;
+}
+
+function getResourcePreviewDetails(resource) {
+  const metadata = normalizeMetadata(resource?.metadata);
+  if (!metadata || typeof metadata !== "object") return "";
+
+  const preferredKeys = [
+    "building",
+    "floor",
+    "capacity",
+    "projector",
+    "whiteboard",
+    "equipment",
+    "category",
+    "model",
+  ];
+
+  const formatValue = (value) => {
+    if (typeof value === "boolean") return value ? "yes" : "no";
+    if (value === null || value === undefined || value === "") return "";
+    if (Array.isArray(value) || typeof value === "object") return "";
+    return String(value);
+  };
+
+  const details = preferredKeys
+    .map((key) => {
+      const value = formatValue(metadata[key]);
+      return value ? `${key}: ${value}` : "";
+    })
+    .filter(Boolean);
+
+  return details.slice(0, 4).join(" | ");
 }
 
 function filterBookingsToPrimaryResources(bookings) {
@@ -438,7 +465,11 @@ export default function App() {
     [labels]
   );
 
-  const isCinema = true;
+  const orgId = String(getSessionOrgId(SESSION_KEY) || "").trim().toLowerCase();
+  const isShenkarResponsible = orgId === "shenkar" && role === "manager";
+  const isShenkarUser = orgId === "shenkar" && role === "user";
+  const isShenkarTheme = isShenkarResponsible || isShenkarUser;
+  const isCinema = !isShenkarTheme;
 
   const cinemaPrimaryButton = {
     border: "none",
@@ -454,6 +485,46 @@ export default function App() {
     color: "#5b21b6",
     fontWeight: 800,
     boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+  };
+
+  const shenkarResponsiblePrimaryButton = {
+    border: "1px solid #2f7c7e",
+    background: "linear-gradient(135deg,#2f7c7e,#4ea8a4)",
+    color: "#fff",
+    fontWeight: 800,
+    boxShadow: "0 14px 28px rgba(47,124,126,0.18)",
+  };
+
+  const shenkarResponsibleSecondaryButton = {
+    border: "1px solid #b9ded8",
+    background: "#ffffff",
+    color: "#2b6d70",
+    fontWeight: 800,
+    boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+  };
+
+  const responsibleHeaderCardStyle = {
+    padding: "18px 20px",
+    borderRadius: 22,
+    border: "1px solid #d9ebe7",
+    background: "linear-gradient(180deg,#ffffff 0%,#f5fbfa 100%)",
+    boxShadow: "0 18px 42px rgba(20,83,78,0.08)",
+    marginBottom: 18,
+  };
+
+  const responsiblePanelStyle = {
+    padding: 18,
+    borderRadius: 22,
+    border: "1px solid #d9ebe7",
+    background: "linear-gradient(180deg,#ffffff 0%,#f7fbfa 100%)",
+    boxShadow: "0 18px 42px rgba(20,83,78,0.06)",
+  };
+
+  const responsibleFieldStyle = {
+    border: "1px solid #d4e9e4",
+    background: "#ffffff",
+    color: "#0f172a",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
   };
 
   useEffect(() => {
@@ -569,13 +640,13 @@ export default function App() {
     [availabilityMonthDate, availabilityBookings]
   );
 
-  const monthLabel = monthDate.toLocaleDateString("he-IL", {
+  const monthLabel = monthDate.toLocaleDateString("en-GB", {
     timeZone: "Asia/Jerusalem",
     month: "long",
     year: "numeric",
   });
   const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
-    "he-IL",
+    "en-GB",
     {
       timeZone: "Asia/Jerusalem",
       month: "long",
@@ -601,7 +672,7 @@ export default function App() {
 
   const filteredResources = useMemo(() => {
     const visibleResources = resources.filter((r) => {
-      if (role === "manager" && isPrimaryResource(r)) return false;
+      if (role === "manager" && !isShenkarResponsible && isPrimaryResource(r)) return false;
       return true;
     });
     const sortedResources = [...visibleResources].sort((a, b) =>
@@ -610,25 +681,25 @@ export default function App() {
     if (role === "user" && !resourceQuery.trim()) return sortedResources;
     if (!resourceQuery.trim()) return [];
     return sortedResources.filter((r) => resourceMatchesQuery(r, resourceQuery));
-  }, [resources, resourceQuery, role]);
+  }, [resources, resourceQuery, role, isShenkarResponsible]);
 
   const filteredRequestResources = useMemo(() => {
     return resources.filter((r) => {
-      if (role === "manager" && isPrimaryResource(r)) return false;
+      if (role === "manager" && !isShenkarResponsible && isPrimaryResource(r)) return false;
       if (!resourceMatchesQuery(r, requestQuery)) return false;
       if (onlyAvailable && !isResourceAvailable(r)) return false;
       return true;
     });
-  }, [resources, requestQuery, onlyAvailable, role]);
+  }, [resources, requestQuery, onlyAvailable, role, isShenkarResponsible]);
 
   const selectedResource = useMemo(() => {
     if (!selectedResourceId) return null;
-    return resources.find((r) => r.id === selectedResourceId) || null;
+    return resources.find((r) => String(r.id) === String(selectedResourceId)) || null;
   }, [resources, selectedResourceId]);
 
   const selectedRequestResource = useMemo(() => {
     if (!requestResourceId) return null;
-    return resources.find((r) => r.id === requestResourceId) || null;
+    return resources.find((r) => String(r.id) === String(requestResourceId)) || null;
   }, [resources, requestResourceId]);
 
   async function loadResources(options = {}) {
@@ -862,9 +933,11 @@ export default function App() {
   const resourceSessions = useMemo(() => {
     const byId = {};
     for (const b of activeBookings) {
-      for (const r of b.resources || []) {
-        byId[r.id] = byId[r.id] || [];
-        byId[r.id].push({
+      for (const r of getBookingResources(b)) {
+        const resourceId = String(r?.id ?? "");
+        if (!resourceId) continue;
+        byId[resourceId] = byId[resourceId] || [];
+        byId[resourceId].push({
           bookingId: b.id,
           date: b.date,
           start: b.start_time,
@@ -886,9 +959,11 @@ export default function App() {
   const allResourceSessions = useMemo(() => {
     const byId = {};
     for (const b of bookings) {
-      for (const r of b.resources || []) {
-        byId[r.id] = byId[r.id] || [];
-        byId[r.id].push({
+      for (const r of getBookingResources(b)) {
+        const resourceId = String(r?.id ?? "");
+        if (!resourceId) continue;
+        byId[resourceId] = byId[resourceId] || [];
+        byId[resourceId].push({
           bookingId: b.id,
           date: b.date,
           start: b.start_time,
@@ -906,6 +981,11 @@ export default function App() {
     );
     return byId;
   }, [bookings]);
+
+  const selectedResourceSessions = useMemo(() => {
+    if (!selectedResourceId) return [];
+    return resourceSessions[String(selectedResourceId)] || [];
+  }, [resourceSessions, selectedResourceId]);
 
   // Sidebar selection
   const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
@@ -1350,7 +1430,7 @@ export default function App() {
       style={{
         minHeight: "100vh",
         display: "flex",
-        background: isCinema ? "#f1f5f9" : "#f8fafc",
+        background: isShenkarTheme ? "#f7fbfa" : isCinema ? "#f1f5f9" : "#f8fafc",
       }}
     >
       {/* Sidebar */}
@@ -1359,21 +1439,27 @@ export default function App() {
           width: 220,
           background: isCinema
             ? "linear-gradient(180deg,#09090b 0%,#120a19 100%)"
-            : "#0f172a",
+            : isShenkarTheme
+              ? "linear-gradient(180deg,#24555a 0%,#2f6d73 46%,#3f878b 100%)"
+              : "#0f172a",
           color: "#e2e8f0",
           display: "flex",
           flexDirection: "column",
           padding: 16,
           gap: 12,
-          boxShadow: isCinema ? "inset -1px 0 0 rgba(196,181,253,0.14)" : "none",
+          boxShadow: isCinema
+            ? "inset -1px 0 0 rgba(196,181,253,0.14)"
+            : isShenkarTheme
+              ? "inset -1px 0 0 rgba(235,250,247,0.14)"
+              : "none",
         }}
       >
         <div
           style={{
             fontWeight: 900,
             fontSize: 18,
-            color: isCinema ? "#f5f3ff" : undefined,
-            letterSpacing: isCinema ? "0.02em" : undefined,
+            color: isCinema ? "#f5f3ff" : isShenkarTheme ? "#f2fdfa" : undefined,
+            letterSpacing: isCinema || isShenkarTheme ? "0.02em" : undefined,
           }}
         >
           SmartAllocate
@@ -1382,7 +1468,7 @@ export default function App() {
           <div
             style={{
               fontSize: 10,
-              color: "#94a3b8",
+              color: isShenkarTheme ? "rgba(236,253,250,0.72)" : "#94a3b8",
               textTransform: "uppercase",
               letterSpacing: "0.12em",
             }}
@@ -1393,10 +1479,16 @@ export default function App() {
             style={{
               padding: "8px 10px",
               borderRadius: 12,
-              border: isCinema ? "1px solid rgba(196,181,253,0.24)" : "1px solid #1e293b",
+              border: isCinema
+                ? "1px solid rgba(196,181,253,0.24)"
+                : isShenkarTheme
+                  ? "1px solid rgba(233,250,246,0.18)"
+                  : "1px solid #1e293b",
               background: isCinema
                 ? "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(196,181,253,0.08))"
-                : "#0b1120",
+                : isShenkarTheme
+                  ? "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08))"
+                  : "#0b1120",
               color: "#e2e8f0",
               fontWeight: 800,
               textTransform: "capitalize",
@@ -1406,7 +1498,7 @@ export default function App() {
             {role === "manager" ? labels.manager : labels.user}
           </div>
         </div>
-        <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+        <div style={{ fontSize: 12, color: isShenkarTheme ? "rgba(240,253,250,0.88)" : "#cbd5e1" }}>
           {labels.userId}: {currentUserId}
         </div>
         <button
@@ -1415,19 +1507,28 @@ export default function App() {
             textAlign: "left",
             padding: "12px 14px",
             borderRadius: 14,
-            border: isCinema && section === "schedule" ? "1px solid transparent" : "none",
+            border:
+              (isCinema || isShenkarTheme) && section === "schedule"
+                ? "1px solid transparent"
+                : "none",
             background:
               section === "schedule"
                 ? isCinema
                   ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                  : isShenkarTheme
+                    ? "linear-gradient(135deg,#2f7c7e,#4ea8a4)"
                   : "#1d4ed8"
                 : "transparent",
             color: "#fff",
             cursor: "pointer",
             fontWeight: 800,
             boxShadow:
-              isCinema && section === "schedule"
-                ? "0 14px 30px rgba(79,70,229,0.22)"
+              section === "schedule"
+                ? isCinema
+                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                  : isShenkarTheme
+                    ? "0 14px 30px rgba(47,124,126,0.18)"
+                    : "none"
                 : "none",
           }}
         >
@@ -1439,19 +1540,28 @@ export default function App() {
             textAlign: "left",
             padding: "12px 14px",
             borderRadius: 14,
-            border: isCinema && section === "search" ? "1px solid transparent" : "none",
+            border:
+              (isCinema || isShenkarTheme) && section === "search"
+                ? "1px solid transparent"
+                : "none",
             background:
               section === "search"
                 ? isCinema
                   ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                  : isShenkarTheme
+                    ? "linear-gradient(135deg,#2f7c7e,#4ea8a4)"
                   : "#1d4ed8"
                 : "transparent",
             color: "#fff",
             cursor: "pointer",
             fontWeight: 800,
             boxShadow:
-              isCinema && section === "search"
-                ? "0 14px 30px rgba(79,70,229,0.22)"
+              section === "search"
+                ? isCinema
+                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                  : isShenkarTheme
+                    ? "0 14px 30px rgba(47,124,126,0.18)"
+                    : "none"
                 : "none",
           }}
         >
@@ -1464,19 +1574,28 @@ export default function App() {
               textAlign: "left",
               padding: "12px 14px",
               borderRadius: 14,
-              border: isCinema && section === "requests" ? "1px solid transparent" : "none",
+              border:
+                (isCinema || isShenkarTheme) && section === "requests"
+                  ? "1px solid transparent"
+                  : "none",
               background:
                 section === "requests"
                   ? isCinema
                     ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                    : isShenkarTheme
+                      ? "linear-gradient(135deg,#2f7c7e,#4ea8a4)"
                     : "#1d4ed8"
                   : "transparent",
               color: "#fff",
               cursor: "pointer",
               fontWeight: 800,
               boxShadow:
-                isCinema && section === "requests"
-                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                section === "requests"
+                  ? isCinema
+                    ? "0 14px 30px rgba(79,70,229,0.22)"
+                    : isShenkarTheme
+                      ? "0 14px 30px rgba(47,124,126,0.18)"
+                      : "none"
                   : "none",
             }}
           >
@@ -1489,11 +1608,16 @@ export default function App() {
             textAlign: "left",
             padding: "12px 14px",
             borderRadius: 14,
-            border: isCinema && section === "notifications" ? "1px solid transparent" : "none",
+            border:
+              (isCinema || isShenkarTheme) && section === "notifications"
+                ? "1px solid transparent"
+                : "none",
             background:
               section === "notifications"
                 ? isCinema
                   ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                  : isShenkarTheme
+                    ? "linear-gradient(135deg,#2f7c7e,#4ea8a4)"
                   : "#1d4ed8"
                 : "transparent",
             color: "#fff",
@@ -1504,8 +1628,12 @@ export default function App() {
             gap: 8,
             fontWeight: 800,
             boxShadow:
-              isCinema && section === "notifications"
-                ? "0 14px 30px rgba(79,70,229,0.22)"
+              section === "notifications"
+                ? isCinema
+                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                  : isShenkarTheme
+                    ? "0 14px 30px rgba(47,124,126,0.18)"
+                    : "none"
                 : "none",
           }}
         >
@@ -1537,19 +1665,28 @@ export default function App() {
               textAlign: "left",
               padding: "12px 14px",
               borderRadius: 14,
-              border: isCinema && section === "availability" ? "1px solid transparent" : "none",
+              border:
+                (isCinema || isShenkarTheme) && section === "availability"
+                  ? "1px solid transparent"
+                  : "none",
               background:
                 section === "availability"
                   ? isCinema
                     ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                    : isShenkarTheme
+                      ? "linear-gradient(135deg,#2f7c7e,#4ea8a4)"
                     : "#971dd8ff"
                   : "transparent",
               color: "#fff",
               cursor: "pointer",
               fontWeight: 800,
               boxShadow:
-                isCinema && section === "availability"
-                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                section === "availability"
+                  ? isCinema
+                    ? "0 14px 30px rgba(79,70,229,0.22)"
+                    : isShenkarTheme
+                      ? "0 14px 30px rgba(47,124,126,0.18)"
+                      : "none"
                   : "none",
             }}
           >
@@ -1563,10 +1700,16 @@ export default function App() {
             textAlign: "left",
             padding: "12px 14px",
             borderRadius: 14,
-            border: isCinema ? "1px solid rgba(196,181,253,0.2)" : "1px solid #1e293b",
+            border: isCinema
+              ? "1px solid rgba(196,181,253,0.2)"
+              : isShenkarTheme
+                ? "1px solid rgba(233,250,246,0.18)"
+                : "1px solid #1e293b",
             background: isCinema
               ? "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(196,181,253,0.06))"
-              : "#0b1120",
+              : isShenkarTheme
+                ? "linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08))"
+                : "#0b1120",
             color: "#e2e8f0",
             cursor: "pointer",
             fontWeight: 700,
@@ -1574,7 +1717,7 @@ export default function App() {
         >
           Sign out
         </button>
-        <div style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>
+        <div style={{ marginTop: "auto", fontSize: 12, color: isShenkarTheme ? "rgba(236,253,250,0.72)" : "#94a3b8" }}>
           Powered by SmartAllocate
         </div>
       </aside>
@@ -1585,9 +1728,17 @@ export default function App() {
           <>
             <header
               style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
+                padding: isShenkarTheme ? "16px 18px" : "12px 0",
+                borderBottom: isShenkarTheme ? "none" : "1px solid #e2e8f0",
+                marginBottom: 18,
+                borderRadius: isShenkarTheme ? 22 : 0,
+                background: isShenkarTheme
+                  ? "linear-gradient(180deg,#ffffff 0%,#f7fbfa 100%)"
+                  : undefined,
+                border: isShenkarTheme ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarTheme
+                  ? "0 16px 34px rgba(15,23,42,0.05)"
+                  : undefined,
               }}
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>
@@ -1603,12 +1754,14 @@ export default function App() {
             <div
               className="glass"
               style={{
-                padding: 16,
-                borderRadius: 18,
+                padding: isShenkarTheme ? 18 : 16,
+                borderRadius: isShenkarTheme ? 22 : 18,
                 display: "flex",
                 gap: 12,
                 alignItems: "center",
                 flexWrap: "wrap",
+                border: isShenkarTheme ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarTheme ? "0 16px 34px rgba(15,23,42,0.05)" : undefined,
               }}
             >
               <div style={{ flex: 1, minWidth: 200 }}>
@@ -1623,20 +1776,22 @@ export default function App() {
                 placeholder="Search..."
                 style={{
                   width: 220,
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid #e2e8f0",
+                  padding: "11px 14px",
+                  borderRadius: 14,
+                  border: "1px solid #d7e4e1",
                   background: "#fff",
                   color: "#0f172a",
+                  boxShadow: "inset 0 1px 2px rgba(15,23,42,0.04)",
                 }}
               />
               <div
                 className="glass"
                 style={{
                   display: "flex",
-                  borderRadius: 12,
+                  borderRadius: 14,
                   overflow: "hidden",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid #d7e4e1",
+                  background: "#f8fbfb",
                 }}
               >
                 {[
@@ -1647,15 +1802,17 @@ export default function App() {
                     key={opt.key}
                     onClick={() => setViewMode(opt.key)}
                     style={{
-                      padding: "10px 14px",
+                      padding: "10px 16px",
                       border: "none",
                       background:
                         viewMode === opt.key
-                          ? "rgba(37,99,235,0.1)"
+                          ? isShenkarTheme
+                            ? "linear-gradient(135deg,#e8f6f3,#d8efea)"
+                            : "rgba(37,99,235,0.1)"
                           : "transparent",
-                      color: "#0f172a",
+                      color: viewMode === opt.key && isShenkarTheme ? "#1f5d5c" : "#0f172a",
                       cursor: "pointer",
-                      fontWeight: 700,
+                      fontWeight: 800,
                     }}
                   >
                     {opt.label}
@@ -1682,6 +1839,7 @@ export default function App() {
                 {viewMode === "month" ? (
                   <MonthGrid
                     monthLabel={monthLabel}
+                    isShenkarResponsible={isShenkarTheme}
                     onPrev={() =>
                       setMonthDate(
                         (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
@@ -1698,29 +1856,65 @@ export default function App() {
                       const roomLine = getBookingRoomLine(b);
                       return (
                         <div
+                          className={isShenkarTheme ? "month-booking-card shenkar-booking-card" : "month-booking-card"}
                           style={{
-                            padding: "8px 10px",
-                            borderRadius: 10,
-                            background:
-                              "linear-gradient(135deg,#2563eb,#1d4ed8)",
-                            color: "#fff",
+                            padding: "10px 11px",
+                            borderRadius: 14,
+                            background: isShenkarTheme
+                              ? "linear-gradient(180deg,#edf2f5 0%,#d7e0e6 100%)"
+                              : "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                            color: isShenkarTheme ? "#0f172a" : "#fff",
                             fontSize: 12,
-                            boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
+                            boxShadow: isShenkarTheme
+                              ? "0 14px 28px rgba(15,23,42,0.12)"
+                              : "0 6px 18px rgba(37,99,235,0.25)",
+                            border: isShenkarTheme ? "1px solid #c7d1d8" : "none",
                             display: "grid",
                             gap: 6,
+                            position: "relative",
                           }}
                         >
-                          <div style={{ fontWeight: 700 }}>
-                            {(b.resources || [])
+                          <div
+                            style={{
+                              position: "absolute",
+                              insetInlineStart: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: 4,
+                              borderRadius: "14px 0 0 14px",
+                              background: isShenkarTheme
+                                ? "linear-gradient(180deg,#5fa7a4,#2f7c7e)"
+                                : "rgba(255,255,255,0.5)",
+                            }}
+                          />
+                          <div className="month-booking-title" style={{ fontWeight: 800, paddingInlineStart: 6 }}>
+                            {getBookingResources(b)
                               .map((r) => r.name)
                               .filter(Boolean)
                               .join(" / ")}
                           </div>
-                          <div style={{ opacity: 0.9 }}>
+                          <div
+                            className="month-booking-time"
+                            style={{
+                              opacity: isShenkarTheme ? 1 : 0.9,
+                              color: isShenkarTheme ? "#334155" : undefined,
+                              paddingInlineStart: 6,
+                              fontWeight: 700,
+                            }}
+                          >
                             {formatTime(b.start_time)} - {formatTime(b.end_time)}
                           </div>
                           {roomLine && (
-                            <div style={{ fontSize: 11, fontWeight: 700 }}>
+                            <div
+                              className="month-booking-location"
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: isShenkarTheme ? "#475569" : undefined,
+                                paddingInlineStart: 6,
+                                lineHeight: 1.45,
+                              }}
+                            >
                               {roomLine}
                             </div>
                           )}
@@ -1736,12 +1930,19 @@ export default function App() {
                                 marginTop: 2,
                                 padding: "4px 6px",
                                 borderRadius: 8,
-                                border: "1px solid rgba(255,255,255,0.6)",
-                                background: past ? "rgba(255,255,255,0.3)" : "#fff",
-                                color: past ? "#e2e8f0" : "#1d4ed8",
+                                border: isShenkarResponsible
+                                  ? "1px solid #cbd5db"
+                                  : "1px solid rgba(255,255,255,0.6)",
+                                background: past
+                                  ? (isShenkarResponsible ? "#e5eaee" : "rgba(255,255,255,0.3)")
+                                  : "#fff",
+                                color: past
+                                  ? (isShenkarResponsible ? "#94a3b8" : "#e2e8f0")
+                                  : (isShenkarResponsible ? "#475569" : "#1d4ed8"),
                                 fontSize: 11,
                                 fontWeight: 700,
                                 cursor: past ? "not-allowed" : "pointer",
+                                justifySelf: "start",
                               }}
                             >
                               Cancel {labelsLower.resource}
@@ -1758,6 +1959,8 @@ export default function App() {
                       color="#2563eb"
                       items={upcoming}
                       role={role}
+                      labels={labels}
+                      labelsLower={labelsLower}
                       onCancel={openCancelDialog}
                     />
                     <Section
@@ -1765,6 +1968,8 @@ export default function App() {
                       color="#94a3b8"
                       items={past}
                       role={role}
+                      labels={labels}
+                      labelsLower={labelsLower}
                       onCancel={openCancelDialog}
                     />
                   </>
@@ -1776,30 +1981,118 @@ export default function App() {
           <>
             <header
               style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
+                padding: isShenkarTheme ? "16px 18px" : "12px 0",
+                borderBottom: isShenkarTheme ? "none" : "1px solid #e2e8f0",
+                marginBottom: 18,
+                borderRadius: isShenkarTheme ? 22 : 0,
+                background: isShenkarTheme
+                  ? "linear-gradient(180deg,#ffffff 0%,#f7fbfa 100%)"
+                  : undefined,
+                border: isShenkarTheme ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarTheme
+                  ? "0 16px 34px rgba(15,23,42,0.05)"
+                  : undefined,
               }}
             >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>
-                {isCinema ? "Seat Explorer" : `Find a ${labelsLower.resource}`}
-              </h1>
-              <p style={{ margin: 0, color: "#475569" }}>
-                {isCinema
-                  ? role === "user"
-                    ? "Browse available seats in the hall and inspect their booking sessions."
-                    : "Search seats by row, number, hall, or metadata to manage assignments."
-                  : role === "user"
-                    ? `Browse all ${labelsLower.resources}, then expand one to see your assignments.`
-                    : "Search by name or tags, then expand to see your dates & times."}
-              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 18,
+                  flexWrap: "wrap",
+                  alignItems: "flex-start",
+                }}
+              >
+                <div style={{ maxWidth: 720 }}>
+                  {isShenkarTheme && (
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "7px 11px",
+                        borderRadius: 999,
+                        background: "#f2faf8",
+                        color: "#216b68",
+                        border: "1px solid #cbe6e0",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        marginBottom: 12,
+                      }}
+                    >
+                      Resource Explorer
+                    </div>
+                  )}
+                  <h1 style={{ margin: 0, color: "#0f172a", fontSize: isShenkarTheme ? 40 : undefined, lineHeight: isShenkarTheme ? 1.05 : undefined }}>
+                    {isCinema ? "Seat Explorer" : `Find a ${labelsLower.resource}`}
+                  </h1>
+                  <p style={{ margin: "10px 0 0", color: "#475569", fontSize: isShenkarTheme ? 16 : undefined, maxWidth: 680 }}>
+                    {isCinema
+                      ? role === "user"
+                        ? "Browse available seats in the hall and inspect their booking sessions."
+                        : "Search seats by row, number, hall, or metadata to manage assignments."
+                      : role === "user"
+                        ? `Browse all ${labelsLower.resources}, then expand one to see your assignments.`
+                        : "Search by name or tags, then expand any result to review your assigned dates and times."}
+                  </p>
+                </div>
+                {isShenkarTheme && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(150px, 1fr))",
+                      gap: 10,
+                      minWidth: 320,
+                      flex: "1 1 320px",
+                      maxWidth: 380,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 18,
+                        background: "#ffffff",
+                        border: "1px solid #dcebe8",
+                        boxShadow: "0 10px 22px rgba(15,23,42,0.04)",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: "#6b7f7d", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700 }}>
+                        Search Focus
+                      </div>
+                      <div style={{ marginTop: 8, color: "#0f172a", fontWeight: 800 }}>
+                        Rooms, labs, projectors, courses
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        padding: "12px 14px",
+                        borderRadius: 18,
+                        background: "#fcfefd",
+                        border: "1px solid #dcebe8",
+                        boxShadow: "0 10px 22px rgba(15,23,42,0.04)",
+                      }}
+                    >
+                      <div style={{ fontSize: 12, color: "#6b7f7d", textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700 }}>
+                        Search Tip
+                      </div>
+                      <div style={{ marginTop: 8, color: "#0f172a", fontWeight: 800 }}>
+                        Try building names or room numbers
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </header>
 
             <div
               className="glass"
               style={{
-                padding: 16,
-                borderRadius: 18,
+                padding: isShenkarTheme ? 20 : 16,
+                borderRadius: isShenkarTheme ? 24 : 18,
+                border: isShenkarTheme ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarTheme ? "0 18px 36px rgba(15,23,42,0.06)" : undefined,
               }}
             >
               <div
@@ -1817,25 +2110,32 @@ export default function App() {
                   style={{
                     flex: 1,
                     minWidth: 280,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
+                    padding: isShenkarTheme ? "14px 16px" : "10px 12px",
+                    borderRadius: isShenkarTheme ? 16 : 12,
+                    border: isShenkarTheme ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
                     background: "#fff",
                     color: "#0f172a",
+                    boxShadow: isShenkarTheme ? "inset 0 1px 2px rgba(15,23,42,0.04)" : undefined,
                   }}
                 />
                 <button
                   onClick={() => loadResources({ allowEmptyQuery: role === "user" })}
                   disabled={resourceLoading}
                   style={{
-                    padding: "10px 16px",
-                    borderRadius: 12,
+                    padding: isShenkarTheme ? "13px 22px" : "10px 16px",
+                    borderRadius: isShenkarTheme ? 16 : 12,
                     border: "none",
-                    background: resourceLoading ? "#94a3b8" : "linear-gradient(135deg, rgb(79, 70, 229), rgb(124, 58, 237))",
+                    background: resourceLoading
+                      ? "#94a3b8"
+                      : isShenkarTheme
+                        ? "linear-gradient(135deg,#2f7c7e,#4ea8a4)"
+                        : "linear-gradient(135deg, rgb(79, 70, 229), rgb(124, 58, 237))",
                     color: "#fff",
                     fontWeight: 700,
                     cursor: resourceLoading ? "default" : "pointer",
-                    boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
+                    boxShadow: isShenkarTheme
+                      ? "0 10px 30px rgba(47,124,126,0.22)"
+                      : "0 10px 30px rgba(37,99,235,0.25)",
                   }}
                 >
                   {resourceLoading ? "Searching..." : "Search"}
@@ -1847,8 +2147,13 @@ export default function App() {
                 !resourceLoading && (
                   <div
                     style={{
-                      marginTop: 16,
+                      marginTop: 18,
                       color: "#475569",
+                      borderRadius: 18,
+                      border: isShenkarTheme ? "1px dashed #d7e4e1" : "1px dashed #e2e8f0",
+                      background: isShenkarTheme ? "#f8fbfb" : "#fff",
+                      padding: 20,
+                      textAlign: "center",
                     }}
                   >
                     No matches found. Try another keyword.
@@ -1860,8 +2165,10 @@ export default function App() {
                     marginTop: 18,
                     padding: 18,
                     borderRadius: 18,
-                    background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
-                    border: "1px solid #ddd6fe",
+                    background: isShenkarResponsible
+                      ? "linear-gradient(180deg,#ffffff 0%,#f4fbfa 100%)"
+                      : "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
+                    border: `1px solid ${isShenkarResponsible ? "#d8ece7" : "#ddd6fe"}`,
                   }}
                 >
                   <button
@@ -1871,7 +2178,9 @@ export default function App() {
                       borderRadius: 14,
                       cursor: "pointer",
                       marginBottom: 12,
-                      ...cinemaSecondaryButton,
+                      ...(isShenkarResponsible
+                        ? shenkarResponsibleSecondaryButton
+                        : cinemaSecondaryButton),
                     }}
                   >
                     Back to results
@@ -1882,7 +2191,7 @@ export default function App() {
                     style={{
                       padding: 20,
                       borderRadius: 22,
-                      border: "1px solid #ddd6fe",
+                      border: `1px solid ${isShenkarResponsible ? "#d8ece7" : "#ddd6fe"}`,
                       background: "#fff",
                       display: "grid",
                       gap: 18,
@@ -1901,13 +2210,13 @@ export default function App() {
                         <div
                           style={{
                             fontSize: 12,
-                            color: "#7c3aed",
+                            color: isShenkarResponsible ? "#0f766e" : "#7c3aed",
                             textTransform: "uppercase",
                             letterSpacing: "0.14em",
                             fontWeight: 800,
                           }}
                         >
-                          Hall overview
+                          {isShenkarResponsible ? "Assigned sessions" : "Hall overview"}
                         </div>
                         <div
                           style={{
@@ -1924,8 +2233,8 @@ export default function App() {
                       <span
                         style={{
                           fontSize: 12,
-                          background: "#ede9fe",
-                          color: "#5b21b6",
+                          background: isShenkarResponsible ? "#ecfdfa" : "#ede9fe",
+                          color: isShenkarResponsible ? "#0f766e" : "#5b21b6",
                           padding: "8px 12px",
                           borderRadius: 999,
                           fontWeight: 800,
@@ -1934,41 +2243,129 @@ export default function App() {
                         {formatTypeLabel(selectedResource.type_name, labels)}
                       </span>
                     </div>
-                    {selectedResource.metadata &&
-                      Object.keys(selectedResource.metadata).length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                          {Object.entries(selectedResource.metadata)
-                            .filter(([key]) => key !== "seatObjects")
-                            .map(([key, value]) => (
-                              <span
-                                key={key}
+                    {getResourcePreviewDetails(selectedResource) && (
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 10,
+                          alignItems: "center",
+                        }}
+                      >
+                        {getResourcePreviewDetails(selectedResource)
+                          .split(" | ")
+                          .filter(Boolean)
+                          .map((detail) => (
+                            <span
+                              key={detail}
+                              style={{
+                                padding: "8px 12px",
+                                borderRadius: 999,
+                                border: `1px solid ${isShenkarResponsible ? "#bfe3dc" : "#ddd6fe"}`,
+                                background: isShenkarResponsible ? "#f3fbf9" : "#faf5ff",
+                                color: isShenkarResponsible ? "#216b68" : "#5b21b6",
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                            >
+                              {detail}
+                            </span>
+                          ))}
+                        <span
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            border: `1px solid ${isShenkarResponsible ? "#d8ece7" : "#e9d5ff"}`,
+                            background: "#ffffff",
+                            color: "#475569",
+                            fontSize: 12,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Resource ID: {selectedResource.id}
+                        </span>
+                      </div>
+                    )}
+
+                    {isShenkarResponsible ? (
+                      <div
+                        style={{
+                          borderRadius: 22,
+                          border: "1px solid #d8ece7",
+                          background: "linear-gradient(180deg,#ffffff 0%,#f4fbfa 100%)",
+                          padding: 20,
+                        }}
+                      >
+                        {selectedResourceSessions.length === 0 ? (
+                          <div
+                            style={{
+                              padding: "18px 16px",
+                              borderRadius: 18,
+                              border: "1px dashed #c7e5df",
+                              background: "#f8fcfb",
+                              color: "#475569",
+                              textAlign: "center",
+                            }}
+                          >
+                            No bookings assigned to you for this resource.
+                          </div>
+                        ) : (
+                          <div style={{ display: "grid", gap: 12 }}>
+                            {selectedResourceSessions.map((session) => (
+                              <div
+                                key={`${selectedResource.id}-${session.bookingId}-${session.date}-${session.start}`}
                                 style={{
-                                  padding: "8px 12px",
-                                  borderRadius: 999,
-                                  border: "1px solid #ddd6fe",
-                                  background: "#faf5ff",
-                                  color: "#5b21b6",
-                                  fontSize: 12,
-                                  fontWeight: 700,
+                                  padding: 16,
+                                  borderRadius: 18,
+                                  border: "1px solid #d8ece7",
+                                  background: "#ffffff",
+                                  boxShadow: "0 10px 24px rgba(20,83,78,0.05)",
+                                  display: "grid",
+                                  gap: 6,
                                 }}
                               >
-                                {key}: {String(value)}
-                              </span>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                                  <span
+                                    style={{
+                                      padding: "6px 10px",
+                                      borderRadius: 999,
+                                      background: "#ecfdfa",
+                                      color: "#0f766e",
+                                      fontSize: 12,
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {formatDate(session.date)}
+                                  </span>
+                                  <span style={{ color: "#0f172a", fontWeight: 700 }}>
+                                    {formatTime(session.start)} - {formatTime(session.end)}
+                                  </span>
+                                  {session.role && (
+                                    <span style={{ color: "#64748b", fontSize: 12 }}>
+                                      Role: {session.role}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ color: "#64748b", fontSize: 12 }}>
+                                  Booking ID: {session.bookingId}
+                                </div>
+                              </div>
                             ))}
-                        </div>
-                      )}
-
-                    <div
-                      style={{
-                        borderRadius: 22,
-                        border: "1px solid #ddd6fe",
-                        background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
-                        padding: 20,
-                        maxWidth: 1180,
-                        width: "100%",
-                        margin: "0 auto",
-                      }}
-                    >
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          borderRadius: 22,
+                          border: "1px solid #ddd6fe",
+                          background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
+                          padding: 20,
+                          maxWidth: 1180,
+                          width: "100%",
+                          margin: "0 auto",
+                        }}
+                      >
                       <div
                         style={{
                           textAlign: "center",
@@ -2246,31 +2643,82 @@ export default function App() {
                           );
                         })}
                       </div>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div style={{ marginTop: 16 }}>
                   {filteredResources.map((r) => {
                     const userSeats = getUserSeatIdsForHall(r, bookings);
+                    const assignedSessions = resourceSessions[r.id] || [];
 
                     return (
                       <div
                         key={r.id}
                         onClick={() => setSelectedResourceId(r.id)}
                         style={{
-                          padding: 16,
-                          border: "1px solid #e5e7eb",
-                          borderRadius: 12,
-                          marginBottom: 10,
-                          cursor: "pointer"
+                          padding: isShenkarTheme ? 20 : 16,
+                          border: isShenkarTheme ? "1px solid #d7e4e1" : "1px solid #e5e7eb",
+                          borderRadius: isShenkarTheme ? 22 : 12,
+                          marginBottom: 12,
+                          cursor: "pointer",
+                          background: isShenkarTheme
+                            ? "linear-gradient(135deg,#ffffff 0%,#f8fbfb 100%)"
+                            : "#fff",
+                          boxShadow: isShenkarTheme
+                            ? "0 18px 34px rgba(15,23,42,0.06)"
+                            : "none",
+                          display: "grid",
+                          gap: 10,
                         }}
                       >
-                        <div style={{ fontWeight: "bold" }}>{r.name}</div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            alignItems: "flex-start",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                            <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 900, color: "#0f172a", fontSize: isShenkarTheme ? 24 : undefined }}>
+                              {r.name}
+                            </div>
+                            <div style={{ fontSize: 13, color: "#5b726f", marginTop: 4 }}>
+                              {r.type_name ? formatTypeLabel(r.type_name, labels) : labels.resource}
+                            </div>
+                          </div>
+                          {isShenkarTheme && (
+                            <div
+                              style={{
+                                padding: "8px 12px",
+                                borderRadius: 999,
+                                background: "#ecf7f5",
+                                border: "1px solid #cde4df",
+                                color: "#256b68",
+                                fontSize: 12,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {assignedSessions.length > 0
+                                ? `${assignedSessions.length} assigned session${assignedSessions.length > 1 ? "s" : ""}`
+                                : "No assigned sessions"}
+                            </div>
+                          )}
+                        </div>
+                        {isShenkarTheme && getResourcePreviewDetails(r) && (
+                          <div style={{ color: "#64748b", fontSize: 13 }}>
+                            {getResourcePreviewDetails(r)}
+                          </div>
+                        )}
                         <div style={{ fontSize: 12, color: "#666" }}>
-                          {userSeats.size > 0
-                            ? `${userSeats.size} seats yours`
-                            : "No seats assigned"}
+                          {isShenkarTheme
+                            ? "Open to review your dates, times, and assignment details."
+                            : userSeats.size > 0
+                              ? `${userSeats.size} seats yours`
+                              : "No seats assigned"}
                         </div>
                       </div>
                     );
@@ -2283,11 +2731,15 @@ export default function App() {
         ) : section === "requests" ? (
           <>
             <header
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
-              }}
+              style={
+                isShenkarResponsible
+                  ? responsibleHeaderCardStyle
+                  : {
+                      padding: "12px 0",
+                      borderBottom: "1px solid #e2e8f0",
+                      marginBottom: 16,
+                    }
+              }
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>
                 Request a {labelsLower.resource}
@@ -2340,14 +2792,16 @@ export default function App() {
                       padding: "10px 14px",
                       borderRadius: 14,
                       cursor: "pointer",
-                      ...(isCinema
+                      ...(isShenkarResponsible
+                        ? shenkarResponsibleSecondaryButton
+                        : isCinema
                         ? cinemaSecondaryButton
                         : {
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 700,
-                        }),
+                            border: "1px solid #e2e8f0",
+                            background: "#fff",
+                            color: "#0f172a",
+                            fontWeight: 700,
+                          }),
                     }}
                   >
                     Back to {labels.resources}
@@ -2397,16 +2851,18 @@ export default function App() {
                               background: "#94a3b8",
                               color: "#fff",
                               fontWeight: 800,
-                              boxShadow: "none",
-                            }
-                            : isCinema
-                              ? cinemaPrimaryButton
-                              : {
-                                border: "none",
-                                background: "#2563eb",
-                                color: "#fff",
-                                fontWeight: 700,
-                              }),
+                          boxShadow: "none",
+                        }
+                        : isShenkarResponsible
+                          ? shenkarResponsiblePrimaryButton
+                          : isCinema
+                          ? cinemaPrimaryButton
+                          : {
+                              border: "none",
+                              background: "#2563eb",
+                              color: "#fff",
+                              fontWeight: 700,
+                            }),
                         }}
                       >
                         {requestSubmitting ? "Sending..." : "Send request"}
@@ -2422,15 +2878,17 @@ export default function App() {
                           marginTop: 2,
                           padding: "6px 10px",
                           borderRadius: 10,
-                          cursor: past ? "not-allowed" : "pointer",
-                          ...(isCinema
+                          cursor: requestSubmitting ? "default" : "pointer",
+                          ...(isShenkarResponsible
+                            ? shenkarResponsibleSecondaryButton
+                            : isCinema
                             ? cinemaSecondaryButton
                             : {
-                              border: "1px solid rgba(255,255,255,0.6)",
-                              background: past ? "rgba(255,255,255,0.3)" : "#fff",
-                              color: past ? "#e2e8f0" : "#1d4ed8",
-                              fontWeight: 700,
-                            }),
+                                border: "1px solid #dbe5ea",
+                                background: "#fff",
+                                color: "#475569",
+                                fontWeight: 700,
+                              }),
                         }}
                       >
                         Cancel
@@ -2496,15 +2954,17 @@ export default function App() {
                           fontWeight: 800,
                           boxShadow: "none",
                         }
-                        : isCinema
+                        : isShenkarResponsible
+                          ? shenkarResponsiblePrimaryButton
+                          : isCinema
                           ? cinemaPrimaryButton
                           : {
-                            border: "none",
-                            background: "#2563eb",
-                            color: "#fff",
-                            fontWeight: 700,
-                            boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
-                          }),
+                              border: "none",
+                              background: "#2563eb",
+                              color: "#fff",
+                              fontWeight: 700,
+                              boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
+                            }),
                     }}
                   >
                     {resourceLoading ? "Loading..." : `Load ${labelsLower.resources}`}
@@ -2548,11 +3008,15 @@ export default function App() {
                           style={{
                             borderRadius: 18,
                             padding: 16,
-                            border: isCinema ? "1px solid #d1d5db" : "1px solid #e2e8f0",
+                            border: isCinema
+                                ? "1px solid #d1d5db"
+                                : "1px solid #e2e8f0",
                             background: "#fff",
                             display: "grid",
                             gap: 10,
-                            boxShadow: isCinema ? "0 10px 24px rgba(15,23,42,0.06)" : "none",
+                            boxShadow: isCinema
+                                ? "0 10px 24px rgba(15,23,42,0.06)"
+                                : "none",
                           }}
                         >
                           <div
@@ -2581,32 +3045,43 @@ export default function App() {
                                 borderRadius: 999,
                                 fontWeight: 800,
                                 cursor: "pointer",
-                                ...(isCinema
+                                ...(isShenkarResponsible
                                   ? available
                                     ? {
-                                      border: "1px solid #86efac",
-                                      background: "#ecfdf5",
-                                      color: "#166534",
-                                      boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
-                                    }
+                                        border: "1px solid #bfe3dc",
+                                        background: "#eef8f6",
+                                        color: "#216b68",
+                                        boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+                                      }
+                                    : {
+                                        border: "1px solid #d7e4e1",
+                                        background: "#f8fbfb",
+                                        color: "#54716f",
+                                        boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+                                      }
+                                  : isCinema
+                                  ? available
+                                    ? {
+                                        border: "1px solid #86efac",
+                                        background: "#ecfdf5",
+                                        color: "#166534",
+                                        boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+                                      }
                                     : cinemaSecondaryButton
                                   : {
-                                    border: "none",
-                                    background: available ? "#dcfce7" : "#e2e8f0",
-                                    color: available ? "#166534" : "#475569",
-                                  }),
+                                      border: "none",
+                                      background: available ? "#dcfce7" : "#e2e8f0",
+                                      color: available ? "#166534" : "#475569",
+                                    }),
                               }}
                             >
                               {available ? "Available" : "Check availability"}
                             </button>
                           </div>
 
-                          {r.metadata && Object.keys(r.metadata).length > 0 && (
+                          {getResourcePreviewDetails(r) && (
                             <div style={{ color: "#64748b", fontSize: 12 }}>
-                              {Object.entries(r.metadata)
-                                .slice(0, 4)
-                                .map(([k, v]) => `${k}: ${v}`)
-                                .join(" | ")}
+                              {getResourcePreviewDetails(r)}
                             </div>
                           )}
 
@@ -2632,14 +3107,16 @@ export default function App() {
                                 padding: "12px 18px",
                                 borderRadius: 16,
                                 cursor: "pointer",
-                                ...(isCinema
+                                ...(isShenkarResponsible
+                                  ? shenkarResponsiblePrimaryButton
+                                  : isCinema
                                   ? cinemaPrimaryButton
                                   : {
-                                    border: "none",
-                                    background: "#0f172a",
-                                    color: "#fff",
-                                    fontWeight: 700,
-                                  }),
+                                      border: "none",
+                                      background: "#0f172a",
+                                      color: "#fff",
+                                      fontWeight: 700,
+                                    }),
                               }}
                             >
                               Request this {labelsLower.resource}
@@ -2657,13 +3134,21 @@ export default function App() {
           <>
             <header
               style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
+                padding: isShenkarResponsible ? "16px 18px" : "12px 0",
+                borderBottom: isShenkarResponsible ? "none" : "1px solid #e2e8f0",
+                marginBottom: 18,
+                borderRadius: isShenkarResponsible ? 22 : 0,
+                background: isShenkarResponsible
+                  ? "linear-gradient(180deg,#ffffff 0%,#f7fbfa 100%)"
+                  : undefined,
+                border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarResponsible
+                  ? "0 16px 34px rgba(15,23,42,0.05)"
+                  : undefined,
               }}
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>My Availability</h1>
-              <p style={{ margin: 0, color: "#475569" }}>
+              <p style={{ margin: "8px 0 0", color: "#475569" }}>
                 Share the hours you can support so the admin can schedule your {labelsLower.resources}.
               </p>
             </header>
@@ -2673,9 +3158,11 @@ export default function App() {
                 className="glass"
                 style={{
                   marginBottom: 16,
-                  padding: 12,
-                  borderRadius: 12,
-                  color: "#1d4ed8",
+                  padding: 14,
+                  borderRadius: 16,
+                  color: isShenkarResponsible ? "#216b68" : "#1d4ed8",
+                  border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                  background: isShenkarResponsible ? "#f6fbfa" : undefined,
                 }}
               >
                 {availabilityMessage}
@@ -2683,202 +3170,295 @@ export default function App() {
             )}
 
             <div
-              className="glass"
               style={{
-                padding: 16,
-                borderRadius: 16,
                 display: "grid",
-                gap: 12,
-                maxWidth: 520,
+                gridTemplateColumns: isShenkarResponsible ? "minmax(0, 1.15fr) minmax(280px, 0.85fr)" : "minmax(0, 1fr)",
+                gap: 18,
+                alignItems: "start",
               }}
             >
-              <div style={{ fontWeight: 700 }}>Add availability</div>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Days of week
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 8,
-                    marginTop: 8,
-                  }}
-                >
-                  {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                    <label
-                      key={day}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #e2e8f0",
-                        background: "#fff",
-                        color: "#0f172a",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={availabilityForm.day_of_week.includes(String(day))}
-                        onChange={() =>
-                          setAvailabilityForm((prev) => {
-                            const exists = prev.day_of_week.includes(String(day));
-                            const nextDays = exists
-                              ? prev.day_of_week.filter((value) => value !== String(day))
-                              : [...prev.day_of_week, String(day)];
-                            return { ...prev, day_of_week: nextDays };
-                          })
-                        }
-                      />
-                      <span>{weekdayLabel(day)}</span>
-                    </label>
-                  ))}
-                </div>
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Start time
-                <input
-                  type="time"
-                  value={availabilityForm.start_time}
-                  onChange={(e) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      start_time: e.target.value,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                End time
-                <input
-                  type="time"
-                  value={availabilityForm.end_time}
-                  onChange={(e) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      end_time: e.target.value,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Start date (optional)
-                <IsraelDateInput
-                  value={availabilityForm.start_date}
-                  onChange={(nextDate) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      start_date: nextDate,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                End date (optional)
-                <IsraelDateInput
-                  value={availabilityForm.end_date}
-                  onChange={(nextDate) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      end_date: nextDate,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                disabled={availabilitySaving}
-                onClick={async () => {
-                  const userId = currentUserId.trim();
-                  if (!userId) return;
-                  if (!availabilityForm.day_of_week.length) {
-                    setAvailabilityMessage("Choose at least one day.");
-                    return;
-                  }
-                  setAvailabilitySaving(true);
-                  setAvailabilityMessage("");
-                  try {
-                    const created = await Promise.all(
-                      availabilityForm.day_of_week.map((day) =>
-                        createUserAvailability({
-                          user_id: userId,
-                          day_of_week: Number(day),
-                          start_time: availabilityForm.start_time,
-                          end_time: availabilityForm.end_time,
-                          start_date: availabilityForm.start_date || null,
-                          end_date: availabilityForm.end_date || null,
-                        })
-                      )
-                    );
-                    setUserAvailability((prev) => [...prev, ...created]);
-                    setAvailabilityMessage("Availability saved.");
-                  } catch (err) {
-                    setAvailabilityMessage(err?.message || "Failed to save availability.");
-                  } finally {
-                    setAvailabilitySaving(false);
-                  }
-                }}
+              <div
+                className="glass"
                 style={{
-                  padding: "12px 18px",
-                  borderRadius: 16,
-                  cursor: availabilitySaving ? "default" : "pointer",
-                  width: isCinema ? "fit-content" : undefined,
-                  ...(availabilitySaving
-                    ? {
-                      border: "none",
-                      background: "#94a3b8",
-                      color: "#fff",
-                      fontWeight: 800,
-                      boxShadow: "none",
-                    }
-                    : isCinema
-                      ? cinemaPrimaryButton
-                      : {
-                        border: "none",
-                        background: "#1d4ed8",
-                        color: "#fff",
-                        fontWeight: 700,
-                      }),
+                  padding: isShenkarResponsible ? 22 : 16,
+                  borderRadius: isShenkarResponsible ? 24 : 16,
+                  display: "grid",
+                  gap: 16,
+                  border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                  boxShadow: isShenkarResponsible ? "0 18px 38px rgba(15,23,42,0.06)" : undefined,
                 }}
               >
-                {availabilitySaving ? "Saving..." : "Save availability"}
-              </button>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    <div style={{ fontWeight: 900, color: "#0f172a", fontSize: isShenkarResponsible ? 28 : undefined }}>
+                      Add availability
+                    </div>
+                    <div style={{ color: "#5d7370", fontSize: 14 }}>
+                      Choose the days and time range you can cover, then optionally limit the range with start and end dates.
+                    </div>
+                  </div>
+                  <label style={{ fontSize: 12, color: "#475569" }}>
+                    Days of week
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        gap: 10,
+                        marginTop: 10,
+                      }}
+                    >
+                      {[0, 1, 2, 3, 4, 5, 6].map((day) => {
+                        const checked = availabilityForm.day_of_week.includes(String(day));
+                        return (
+                          <label
+                            key={day}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: "11px 12px",
+                              borderRadius: 14,
+                              border: checked ? "1px solid #a9d7cf" : "1px solid #dbe5ea",
+                              background: checked ? "#eff8f6" : "#fff",
+                              color: checked ? "#185f5d" : "#0f172a",
+                              boxShadow: checked ? "0 8px 16px rgba(47,124,126,0.08)" : "none",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setAvailabilityForm((prev) => {
+                                  const exists = prev.day_of_week.includes(String(day));
+                                  const nextDays = exists
+                                    ? prev.day_of_week.filter((value) => value !== String(day))
+                                    : [...prev.day_of_week, String(day)];
+                                  return { ...prev, day_of_week: nextDays };
+                                })
+                              }
+                            />
+                            <span style={{ fontWeight: 700 }}>{weekdayLabel(day)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </label>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      gap: 12,
+                    }}
+                  >
+                    <label style={{ fontSize: 12, color: "#475569" }}>
+                      Start time
+                      <input
+                        type="time"
+                        value={availabilityForm.start_time}
+                        onChange={(e) =>
+                          setAvailabilityForm((prev) => ({
+                            ...prev,
+                            start_time: e.target.value,
+                          }))
+                        }
+                        style={{
+                          display: "block",
+                          marginTop: 6,
+                          padding: "11px 12px",
+                          borderRadius: 12,
+                          border: "1px solid #dbe5ea",
+                          width: "100%",
+                          background: "#fff",
+                        }}
+                      />
+                    </label>
+                    <label style={{ fontSize: 12, color: "#475569" }}>
+                      End time
+                      <input
+                        type="time"
+                        value={availabilityForm.end_time}
+                        onChange={(e) =>
+                          setAvailabilityForm((prev) => ({
+                            ...prev,
+                            end_time: e.target.value,
+                          }))
+                        }
+                        style={{
+                          display: "block",
+                          marginTop: 6,
+                          padding: "11px 12px",
+                          borderRadius: 12,
+                          border: "1px solid #dbe5ea",
+                          width: "100%",
+                          background: "#fff",
+                        }}
+                      />
+                    </label>
+                    <label style={{ fontSize: 12, color: "#475569" }}>
+                      Start date (optional)
+                      <IsraelDateInput
+                        value={availabilityForm.start_date}
+                        onChange={(nextDate) =>
+                          setAvailabilityForm((prev) => ({
+                            ...prev,
+                            start_date: nextDate,
+                          }))
+                        }
+                        style={{
+                          display: "block",
+                          marginTop: 6,
+                          padding: "11px 12px",
+                          borderRadius: 12,
+                          border: "1px solid #dbe5ea",
+                          width: "100%",
+                          background: "#fff",
+                        }}
+                      />
+                    </label>
+                    <label style={{ fontSize: 12, color: "#475569" }}>
+                      End date (optional)
+                      <IsraelDateInput
+                        value={availabilityForm.end_date}
+                        onChange={(nextDate) =>
+                          setAvailabilityForm((prev) => ({
+                            ...prev,
+                            end_date: nextDate,
+                          }))
+                        }
+                        style={{
+                          display: "block",
+                          marginTop: 6,
+                          padding: "11px 12px",
+                          borderRadius: 12,
+                          border: "1px solid #dbe5ea",
+                          width: "100%",
+                          background: "#fff",
+                        }}
+                      />
+                    </label>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={availabilitySaving}
+                    onClick={async () => {
+                      const userId = currentUserId.trim();
+                      if (!userId) return;
+                      if (!availabilityForm.day_of_week.length) {
+                        setAvailabilityMessage("Choose at least one day.");
+                        return;
+                      }
+                      setAvailabilitySaving(true);
+                      setAvailabilityMessage("");
+                      try {
+                        const created = await Promise.all(
+                          availabilityForm.day_of_week.map((day) =>
+                            createUserAvailability({
+                              user_id: userId,
+                              day_of_week: Number(day),
+                              start_time: availabilityForm.start_time,
+                              end_time: availabilityForm.end_time,
+                              start_date: availabilityForm.start_date || null,
+                              end_date: availabilityForm.end_date || null,
+                            })
+                          )
+                        );
+                        setUserAvailability((prev) => [...prev, ...created]);
+                        setAvailabilityMessage("Availability saved.");
+                      } catch (err) {
+                        setAvailabilityMessage(err?.message || "Failed to save availability.");
+                      } finally {
+                        setAvailabilitySaving(false);
+                      }
+                    }}
+                    style={{
+                      padding: "13px 18px",
+                      borderRadius: 16,
+                      cursor: availabilitySaving ? "default" : "pointer",
+                      width: isShenkarResponsible ? "100%" : isCinema ? "fit-content" : undefined,
+                      ...(availabilitySaving
+                        ? {
+                            border: "none",
+                            background: "#94a3b8",
+                            color: "#fff",
+                            fontWeight: 800,
+                            boxShadow: "none",
+                          }
+                        : isShenkarResponsible
+                          ? shenkarResponsiblePrimaryButton
+                          : isCinema
+                            ? cinemaPrimaryButton
+                            : {
+                                border: "none",
+                                background: "#1d4ed8",
+                                color: "#fff",
+                                fontWeight: 700,
+                              }),
+                    }}
+                  >
+                    {availabilitySaving ? "Saving..." : "Save availability"}
+                  </button>
+                </div>
+
+              {isShenkarResponsible && (
+                <div
+                  className="glass"
+                  style={{
+                    padding: 22,
+                    borderRadius: 24,
+                    display: "grid",
+                    gap: 14,
+                    border: "1px solid #d7e4e1",
+                    boxShadow: "0 18px 38px rgba(15,23,42,0.06)",
+                    background: "linear-gradient(180deg,#ffffff 0%,#f8fbfb 100%)",
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#6b7f7d", textTransform: "uppercase", letterSpacing: "0.14em", fontWeight: 800 }}>
+                    Planning Guide
+                  </div>
+                  <div style={{ fontSize: 24, lineHeight: 1.12, fontWeight: 900, color: "#0f172a" }}>
+                    Keep your schedule clear and easy to plan around.
+                  </div>
+                  <div style={{ color: "#5f7471", fontSize: 14, lineHeight: 1.6 }}>
+                    Add recurring availability for the days you usually support, then use date limits for temporary schedule changes.
+                  </div>
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {[
+                      "Choose one or more weekdays for recurring support.",
+                      "Set a clear start and end time window.",
+                      "Use optional dates when availability applies only for part of the month.",
+                    ].map((tip) => (
+                      <div
+                        key={tip}
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: 16,
+                          border: "1px solid #dcebe8",
+                          background: "#ffffff",
+                          color: "#355552",
+                          fontSize: 13,
+                        }}
+                      >
+                        {tip}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ marginTop: 20 }}>
-              <h3 style={{ marginBottom: 8, color: "#0f172a" }}>
+              <h3 style={{ marginBottom: 10, color: "#0f172a", fontSize: isShenkarResponsible ? 32 : undefined }}>
                 Saved availability
               </h3>
               {userAvailability.length === 0 ? (
-                <div className="glass" style={{ padding: 12, borderRadius: 12 }}>
+                <div
+                  className="glass"
+                  style={{
+                    padding: 18,
+                    borderRadius: 18,
+                    border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                    background: isShenkarResponsible ? "#fbfdfd" : undefined,
+                  }}
+                >
                   No availability saved yet.
                 </div>
               ) : (
@@ -2887,17 +3467,39 @@ export default function App() {
                     <div
                       key={slot.id}
                       className="glass"
-                      style={{ padding: 12, borderRadius: 12 }}
+                      style={{
+                        padding: isShenkarResponsible ? 18 : 12,
+                        borderRadius: isShenkarResponsible ? 20 : 12,
+                        border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                        background: isShenkarResponsible
+                          ? "linear-gradient(135deg,#ffffff 0%,#f8fbfb 100%)"
+                          : undefined,
+                        boxShadow: isShenkarResponsible
+                          ? "0 16px 30px rgba(15,23,42,0.05)"
+                          : undefined,
+                      }}
                     >
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                      <div style={{ fontWeight: 800, color: "#0f172a", fontSize: isShenkarResponsible ? 18 : undefined }}>
                         {weekdayLabel(slot.day_of_week)}
                       </div>
-                      <div style={{ color: "#475569", fontSize: 13 }}>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          marginTop: 8,
+                          padding: "7px 10px",
+                          borderRadius: 999,
+                          background: isShenkarResponsible ? "#eef8f6" : "#f1f5f9",
+                          border: isShenkarResponsible ? "1px solid #d4e7e2" : "1px solid #e2e8f0",
+                          color: isShenkarResponsible ? "#216b68" : "#475569",
+                          fontSize: 13,
+                          fontWeight: 700,
+                        }}
+                      >
                         {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
                       </div>
                       {(slot.start_date || slot.end_date) && (
-                        <div style={{ color: "#94a3b8", fontSize: 12 }}>
-                          {slot.start_date ? formatDate(slot.start_date) : "כל תאריך"} → {slot.end_date ? formatDate(slot.end_date) : "כל תאריך"}
+                        <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 10 }}>
+                          {slot.start_date ? formatDate(slot.start_date) : "Any date"} → {slot.end_date ? formatDate(slot.end_date) : "Any date"}
                         </div>
                       )}
                       <button
@@ -2916,12 +3518,16 @@ export default function App() {
                           }
                         }}
                         style={{
-                          marginTop: 8,
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
+                          marginTop: 14,
+                          padding: "8px 12px",
+                          borderRadius: 12,
+                          ...(isShenkarResponsible
+                            ? shenkarResponsibleSecondaryButton
+                            : {
+                                border: "1px solid #e2e8f0",
+                                background: "#fff",
+                                color: "#0f172a",
+                              }),
                         }}
                       >
                         Remove
@@ -2936,9 +3542,17 @@ export default function App() {
           <>
             <header
               style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
+                padding: isShenkarResponsible ? "16px 18px" : "12px 0",
+                borderBottom: isShenkarResponsible ? "none" : "1px solid #e2e8f0",
+                marginBottom: 18,
+                borderRadius: isShenkarResponsible ? 22 : 0,
+                background: isShenkarResponsible
+                  ? "linear-gradient(180deg,#ffffff 0%,#f7fbfa 100%)"
+                  : undefined,
+                border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarResponsible
+                  ? "0 16px 34px rgba(15,23,42,0.05)"
+                  : undefined,
               }}
             >
               <h1 style={{ margin: 0, color: "#0f172a" }}>
@@ -2956,39 +3570,9 @@ export default function App() {
                 display: "flex",
                 gap: 8,
                 flexWrap: "wrap",
-                marginBottom: 12,
+                marginBottom: role === "user" ? 14 : 0,
               }}
             >
-              {role === "manager" && (
-                <button
-                  type="button"
-                  onClick={() => setNotificationTab("requests")}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: 16,
-                    cursor: "pointer",
-                    ...(notificationTab === "requests"
-                      ? isCinema
-                        ? cinemaPrimaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#2563eb",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }
-                      : isCinema
-                        ? cinemaSecondaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 700,
-                        }),
-                  }}
-                >
-                  Request Updates
-                </button>
-              )}
               {role === "user" && (
                 <button
                   type="button"
@@ -2998,22 +3582,26 @@ export default function App() {
                     borderRadius: 16,
                     cursor: "pointer",
                     ...(notificationTab === "announcements"
-                      ? isCinema
+                      ? isShenkarTheme
+                        ? shenkarResponsiblePrimaryButton
+                        : isCinema
                         ? cinemaPrimaryButton
                         : {
-                          border: "1px solid #e2e8f0",
-                          background: "#2563eb",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }
+                            border: "1px solid #e2e8f0",
+                            background: "#2563eb",
+                            color: "#fff",
+                            fontWeight: 700,
+                          }
+                      : isShenkarTheme
+                        ? shenkarResponsibleSecondaryButton
                       : isCinema
                         ? cinemaSecondaryButton
                         : {
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 700,
-                        }),
+                            border: "1px solid #e2e8f0",
+                            background: "#fff",
+                            color: "#0f172a",
+                            fontWeight: 700,
+                          }),
                   }}
                 >
                   {labels.manager} Messages
@@ -3024,8 +3612,10 @@ export default function App() {
             <div
               className="glass"
               style={{
-                padding: 16,
-                borderRadius: 18,
+                padding: isShenkarResponsible ? 20 : 16,
+                borderRadius: isShenkarResponsible ? 24 : 18,
+                border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarResponsible ? "0 18px 36px rgba(15,23,42,0.06)" : undefined,
                 display:
                   role === "manager" && notificationTab === "requests"
                     ? "block"
@@ -3048,9 +3638,9 @@ export default function App() {
                   style={{
                     flex: 1,
                     minWidth: 220,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
+                    padding: isShenkarResponsible ? "12px 14px" : "10px 12px",
+                    borderRadius: isShenkarResponsible ? 14 : 12,
+                    border: isShenkarResponsible ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
                     background: "#fff",
                     color: "#0f172a",
                   }}
@@ -3059,13 +3649,25 @@ export default function App() {
                   onClick={loadUserRequests}
                   disabled={userRequestsLoading}
                   style={{
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: userRequestsLoading ? "#94a3b8" : "#2563eb",
-                    color: "#fff",
-                    fontWeight: 700,
+                    padding: isShenkarResponsible ? "12px 18px" : "10px 14px",
+                    borderRadius: isShenkarResponsible ? 14 : 12,
                     cursor: userRequestsLoading ? "default" : "pointer",
+                    ...(userRequestsLoading
+                      ? {
+                          border: "none",
+                          background: "#94a3b8",
+                          color: "#fff",
+                          fontWeight: 800,
+                          boxShadow: "none",
+                        }
+                      : isShenkarResponsible
+                        ? shenkarResponsiblePrimaryButton
+                        : {
+                            border: "none",
+                            background: "#2563eb",
+                            color: "#fff",
+                            fontWeight: 700,
+                          }),
                   }}
                 >
                   {userRequestsLoading ? "Loading..." : "Refresh"}
@@ -3087,7 +3689,17 @@ export default function App() {
                   No requests match your search.
                 </div>
               ) : (
-                <div className="bg-white shadow rounded-lg overflow-hidden">
+                <div
+                  style={{
+                    borderRadius: 22,
+                    overflow: "hidden",
+                    border: isShenkarResponsible ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
+                    background: "#fff",
+                    boxShadow: isShenkarResponsible
+                      ? "0 16px 32px rgba(15,23,42,0.06)"
+                      : "0 10px 24px rgba(15, 23, 42, 0.06)",
+                  }}
+                >
                   {!selectedUserGroup ? (
                     <div style={{ padding: 16, display: "grid", gap: 12 }}>
                       {groupedUserRequests.map((group) => {
@@ -3108,22 +3720,26 @@ export default function App() {
                             style={{
                               width: "100%",
                               textAlign: "left",
-                              padding: "16px 18px",
-                              borderRadius: 14,
-                              border: "1px solid #e2e8f0",
-                              background: "#fff",
+                              padding: isShenkarResponsible ? "18px 20px" : "16px 18px",
+                              borderRadius: isShenkarResponsible ? 18 : 14,
+                              border: isShenkarResponsible ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
+                              background: isShenkarResponsible
+                                ? "linear-gradient(135deg,#ffffff 0%,#f8fbfb 100%)"
+                                : "#fff",
                               display: "flex",
                               alignItems: "center",
                               gap: 12,
-                              boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+                              boxShadow: isShenkarResponsible
+                                ? "0 14px 28px rgba(15,23,42,0.05)"
+                                : "0 10px 24px rgba(15, 23, 42, 0.06)",
                               cursor: "pointer",
                             }}
                           >
                             <div style={{ flex: 1 }}>
                               <div
                                 style={{
-                                  fontSize: 15,
-                                  fontWeight: 700,
+                                  fontSize: isShenkarResponsible ? 18 : 15,
+                                  fontWeight: 800,
                                   color: "#0f172a",
                                 }}
                               >
@@ -3134,6 +3750,21 @@ export default function App() {
                                 {group.resource_type || labels.resource}
                               </div>
                             </div>
+                            {isShenkarResponsible && (
+                              <div
+                                style={{
+                                  padding: "8px 12px",
+                                  borderRadius: 999,
+                                  background: "#eff8f6",
+                                  border: "1px solid #d3e6e1",
+                                  color: "#2a6d69",
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                }}
+                              >
+                                {group.requests.length} update{group.requests.length > 1 ? "s" : ""}
+                              </div>
+                            )}
                             {unreadCount > 0 && (
                               <span
                                 style={{
@@ -3163,18 +3794,24 @@ export default function App() {
                         type="button"
                         onClick={() => setSelectedUserRequestKey(null)}
                         style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#1d4ed8",
-                          fontWeight: 700,
+                          padding: "10px 14px",
+                          borderRadius: 14,
                           cursor: "pointer",
-                          padding: 0,
-                          marginBottom: 12,
+                          marginBottom: 14,
+                          ...(isShenkarResponsible
+                            ? shenkarResponsibleSecondaryButton
+                            : {
+                                border: "none",
+                                background: "transparent",
+                                color: "#1d4ed8",
+                                fontWeight: 700,
+                                padding: 0,
+                              }),
                         }}
                       >
                         Back to {labels.resources}
                       </button>
-                      <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                      <div style={{ fontWeight: 800, marginBottom: 8, fontSize: isShenkarResponsible ? 22 : undefined }}>
                         {selectedUserGroup.resource_name ||
                           `${labels.resource} #${selectedUserGroup.resource_id}`}
                       </div>
@@ -3194,13 +3831,18 @@ export default function App() {
                             <div
                               key={req.id}
                               style={{
-                                padding: 14,
-                                borderRadius: 14,
-                                border: "1px solid #e2e8f0",
-                                background: "#fff",
+                                padding: isShenkarResponsible ? 16 : 14,
+                                borderRadius: isShenkarResponsible ? 18 : 14,
+                                border: isShenkarResponsible ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
+                                background: isShenkarResponsible
+                                  ? "linear-gradient(135deg,#ffffff 0%,#f8fbfb 100%)"
+                                  : "#fff",
                                 display: "flex",
                                 gap: 12,
                                 alignItems: "center",
+                                boxShadow: isShenkarResponsible
+                                  ? "0 10px 22px rgba(15,23,42,0.04)"
+                                  : "none",
                               }}
                             >
                               <div style={{ flex: 1 }}>
@@ -3241,8 +3883,10 @@ export default function App() {
             <div
               className="glass"
               style={{
-                padding: 16,
-                borderRadius: 18,
+                padding: isShenkarTheme ? 22 : 16,
+                borderRadius: isShenkarTheme ? 26 : 18,
+                border: isShenkarTheme ? "1px solid #d7e4e1" : undefined,
+                boxShadow: isShenkarTheme ? "0 22px 44px rgba(15,23,42,0.06)" : undefined,
                 display:
                   role === "user" && notificationTab === "announcements"
                     ? "block"
@@ -3255,7 +3899,9 @@ export default function App() {
                   flexWrap: "wrap",
                   gap: 12,
                   alignItems: "center",
-                  marginBottom: 12,
+                  marginBottom: 16,
+                  paddingBottom: isShenkarTheme ? 14 : 0,
+                  borderBottom: isShenkarTheme ? "1px solid #e6efed" : "none",
                 }}
               >
                 <input
@@ -3265,9 +3911,9 @@ export default function App() {
                   style={{
                     flex: 1,
                     minWidth: 220,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
+                    padding: isShenkarTheme ? "12px 14px" : "10px 12px",
+                    borderRadius: isShenkarTheme ? 14 : 12,
+                    border: isShenkarTheme ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
                     background: "#fff",
                     color: "#0f172a",
                   }}
@@ -3276,10 +3922,10 @@ export default function App() {
                   onClick={loadAnnouncements}
                   disabled={announcementsLoading}
                   style={{
-                    padding: "12px 18px",
-                    borderRadius: 16,
-                    cursor: userRequestsLoading ? "default" : "pointer",
-                    ...(userRequestsLoading
+                    padding: isShenkarTheme ? "12px 18px" : "12px 18px",
+                    borderRadius: isShenkarTheme ? 16 : 16,
+                    cursor: announcementsLoading ? "default" : "pointer",
+                    ...(announcementsLoading
                       ? {
                         border: "none",
                         background: "#94a3b8",
@@ -3287,14 +3933,16 @@ export default function App() {
                         fontWeight: 800,
                         boxShadow: "none",
                       }
+                      : isShenkarTheme
+                        ? shenkarResponsiblePrimaryButton
                       : isCinema
                         ? cinemaPrimaryButton
                         : {
-                          border: "none",
-                          background: "#2563eb",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }),
+                            border: "none",
+                            background: "#2563eb",
+                            color: "#fff",
+                            fontWeight: 700,
+                          }),
                   }}
 
                 >
@@ -3437,11 +4085,27 @@ export default function App() {
               {announcementsLoading ? (
                 <div style={{ color: "#475569" }}>Loading announcements...</div>
               ) : filteredAnnouncements.length === 0 ? (
-                <div style={{ color: "#475569" }}>
-                  No announcements yet.
+                <div
+                  style={{
+                    color: "#475569",
+                    borderRadius: isShenkarTheme ? 24 : 12,
+                    border: isShenkarTheme ? "1px dashed #d7e4e1" : "1px dashed #e2e8f0",
+                    background: isShenkarTheme ? "linear-gradient(180deg,#fbfdfd 0%,#f4faf8 100%)" : "#fff",
+                    padding: isShenkarTheme ? 30 : 14,
+                    textAlign: "center",
+                  }}
+                >
+                  <div style={{ fontWeight: 800, color: "#0f172a", fontSize: isShenkarTheme ? 22 : undefined }}>
+                    No announcements yet.
+                  </div>
+                  {isShenkarTheme && (
+                    <div style={{ marginTop: 8, color: "#607572", fontSize: 14 }}>
+                      Updates from your managers will appear here as soon as they are published.
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ display: "grid", gap: 14 }}>
                   {filteredAnnouncements.map((a) => {
                     const isUnread =
                       role === "user" &&
@@ -3460,13 +4124,17 @@ export default function App() {
                         style={{
                           width: "100%",
                           textAlign: "left",
-                          padding: "16px 18px",
-                          borderRadius: 14,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
+                          padding: isShenkarTheme ? "20px 22px" : "16px 18px",
+                          borderRadius: isShenkarTheme ? 22 : 14,
+                          border: isShenkarTheme ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
+                          background: isShenkarTheme
+                            ? "linear-gradient(135deg,#ffffff 0%,#f8fbfb 100%)"
+                            : "#fff",
                           display: "grid",
                           gap: 6,
-                          boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
+                          boxShadow: isShenkarTheme
+                            ? "0 16px 32px rgba(15, 23, 42, 0.05)"
+                            : "0 10px 24px rgba(15, 23, 42, 0.06)",
                           cursor: "pointer",
                         }}
                       >
@@ -3475,22 +4143,41 @@ export default function App() {
                             display: "flex",
                             gap: 10,
                             alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
                           }}
                         >
-                          {isUnread && (
+                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                            {isUnread && (
+                              <span
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: 999,
+                                  background: "#ef4444",
+                                  display: "inline-block",
+                                }}
+                              />
+                            )}
+                            <div style={{ fontWeight: 800, color: "#0f172a", fontSize: isShenkarTheme ? 18 : undefined }}>
+                              {a.title}
+                            </div>
+                          </div>
+                          {isShenkarTheme && (
                             <span
                               style={{
-                                width: 10,
-                                height: 10,
+                                padding: "7px 10px",
                                 borderRadius: 999,
-                                background: "#ef4444",
-                                display: "inline-block",
+                                border: "1px solid #d5e7e2",
+                                background: "#eef8f6",
+                                color: "#216b68",
+                                fontSize: 12,
+                                fontWeight: 800,
                               }}
-                            />
+                            >
+                              {isSelected ? "Open" : "Message"}
+                            </span>
                           )}
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {a.title}
-                          </div>
                         </div>
                         <div style={{ fontSize: 12, color: "#64748b" }}>
                           {a.resource_name ? `${a.resource_name} • ` : ""}
@@ -3498,7 +4185,7 @@ export default function App() {
                           {formatDate(a.created_at)}
                         </div>
                         {isSelected && (
-                          <div style={{ color: "#475569", fontSize: 14 }}>
+                          <div style={{ color: "#475569", fontSize: 14, lineHeight: 1.7, marginTop: 8 }}>
                             {a.message}
                           </div>
                         )}
@@ -3989,7 +4676,7 @@ export default function App() {
   );
 }
 
-function Section({ title, color, items, role, onCancel }) {
+function Section({ title, color, items, role, labels, labelsLower, onCancel }) {
   return (
     <section>
       <div
@@ -4022,7 +4709,14 @@ function Section({ title, color, items, role, onCancel }) {
       ) : (
         <div className="grid-auto">
           {items.map((b) => (
-            <BookingCard key={b.id} booking={b} role={role} onCancel={onCancel} />
+            <BookingCard
+              key={b.id}
+              booking={b}
+              role={role}
+              labels={labels}
+              labelsLower={labelsLower}
+              onCancel={onCancel}
+            />
           ))}
         </div>
       )}
@@ -4030,7 +4724,7 @@ function Section({ title, color, items, role, onCancel }) {
   );
 }
 
-function BookingCard({ booking, role, onCancel }) {
+function BookingCard({ booking, role, labels, labelsLower, onCancel }) {
   const past = isPastBooking(booking);
   const roomLine = getBookingRoomLine(booking);
   return (
@@ -4063,10 +4757,10 @@ function BookingCard({ booking, role, onCancel }) {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            background: "rgba(37, 99, 235, 0.1)",
-            color: "#1d4ed8",
+            background: "#e3e9ed",
+            color: "#334155",
             fontSize: 13,
-            border: "1px solid rgba(37,99,235,0.25)",
+            border: "1px solid #c5d0d8",
           }}
         >
           {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
@@ -4099,7 +4793,7 @@ function BookingCard({ booking, role, onCancel }) {
       )}
 
       <div style={{ display: "grid", gap: 10 }}>
-        {(booking.resources || []).map((r) => (
+        {getBookingResources(booking).map((r) => (
           <div
             key={r.id}
             style={{
@@ -4114,7 +4808,7 @@ function BookingCard({ booking, role, onCancel }) {
               {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels)}` : ""}
               {r.role ? ` - Role: ${r.role}` : ""}
             </div>
-            {r.metadata && Object.keys(r.metadata).length > 0 && (
+            {getResourcePreviewDetails(r) && (
               <div
                 style={{
                   color: "#64748b",
@@ -4123,9 +4817,7 @@ function BookingCard({ booking, role, onCancel }) {
                   lineHeight: 1.4,
                 }}
               >
-                {Object.entries(r.metadata)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(" | ")}
+                {getResourcePreviewDetails(r)}
               </div>
             )}
           </div>
@@ -4137,6 +4829,7 @@ function BookingCard({ booking, role, onCancel }) {
 
 function MonthGrid({
   monthLabel,
+  isShenkarResponsible,
   onPrev,
   onNext,
   days,
@@ -4150,25 +4843,41 @@ function MonthGrid({
   }
 
   return (
-    <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
+    <div
+      className="glass"
+      style={{
+        padding: 18,
+        borderRadius: 24,
+        border: isShenkarResponsible ? "1px solid #d7e4e1" : undefined,
+        boxShadow: isShenkarResponsible
+          ? "0 22px 48px rgba(15,23,42,0.08)"
+          : undefined,
+        background: isShenkarResponsible
+          ? "linear-gradient(180deg,#ffffff 0%,#fbfdfd 100%)"
+          : undefined,
+      }}
+    >
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 12,
+          marginBottom: 16,
+          paddingBottom: 14,
+          borderBottom: isShenkarResponsible ? "1px solid #e4efec" : "1px solid #eef2f7",
         }}
       >
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             onClick={onPrev}
             style={{
-              border: "1px solid #e2e8f0",
-              background: "#fff",
+              border: isShenkarResponsible ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
+              background: isShenkarResponsible ? "#f8fbfb" : "#fff",
               color: "#0f172a",
-              borderRadius: 10,
-              padding: "6px 10px",
+              borderRadius: 12,
+              padding: "8px 11px",
               cursor: "pointer",
+              boxShadow: "0 8px 18px rgba(15,23,42,0.05)",
             }}
           >
             &lt;
@@ -4176,19 +4885,31 @@ function MonthGrid({
           <button
             onClick={onNext}
             style={{
-              border: "1px solid #e2e8f0",
-              background: "#fff",
+              border: isShenkarResponsible ? "1px solid #d7e4e1" : "1px solid #e2e8f0",
+              background: isShenkarResponsible ? "#f8fbfb" : "#fff",
               color: "#0f172a",
-              borderRadius: 10,
-              padding: "6px 10px",
+              borderRadius: 12,
+              padding: "8px 11px",
               cursor: "pointer",
+              boxShadow: "0 8px 18px rgba(15,23,42,0.05)",
             }}
           >
             &gt;
           </button>
-          <div style={{ fontWeight: 700, color: "#0f172a" }}>{monthLabel}</div>
+          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 18 }}>{monthLabel}</div>
         </div>
-        <div className="badge">
+        <div
+          className="badge"
+          style={
+            isShenkarResponsible
+              ? {
+                  background: "linear-gradient(135deg,#e8f6f3,#d9eeea)",
+                  color: "#236765",
+                  border: "1px solid #c7e2dc",
+                }
+              : undefined
+          }
+        >
           <span role="img" aria-label="calendar">
             CAL
           </span>
@@ -4217,6 +4938,13 @@ function MonthGrid({
               className="calendar-day"
               style={{
                 opacity: day.inMonth ? 1 : 0.45,
+                border: isShenkarResponsible ? "1px solid #dfe8ee" : undefined,
+                background: isShenkarResponsible
+                  ? "linear-gradient(180deg,#ffffff 0%,#fbfcfd 100%)"
+                  : undefined,
+                boxShadow: isShenkarResponsible
+                  ? "0 10px 22px rgba(15,23,42,0.05)"
+                  : undefined,
               }}
             >
               <div className="date">{day.date.getDate()}</div>

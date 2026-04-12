@@ -1005,7 +1005,7 @@ export default function Rules() {
       <section className={`rounded-[30px] border p-6 shadow-[0_24px_60px_rgba(2,6,23,0.35)] sm:p-8 ${theme.heroDark}`}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
+            <div className={`mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${theme.heroEyebrow}`}>
               Policy Center
             </div>
             <h1 className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}>Rules</h1>

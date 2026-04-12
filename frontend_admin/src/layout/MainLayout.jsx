@@ -57,20 +57,20 @@ export default function MainLayout() {
 
       <aside
         className={[
-          `fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] border-r backdrop-blur flex flex-col transform transition-transform duration-200 lg:static lg:w-64 lg:max-w-none lg:translate-x-0 ${theme.card}`,
+          `fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] border-r border-white/10 backdrop-blur-xl flex flex-col transform transition-transform duration-200 lg:static lg:w-64 lg:max-w-none lg:translate-x-0 ${theme.sidebar || theme.card} ${theme.sidebarText || ""}`,
           menuOpen ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
-        <div className={`px-6 py-4 border-b ${theme.card}`}>
-          <h1 className={`text-2xl font-semibold ${isCinema ? "text-indigo-600" : theme.textStrong}`}>
+        <div className="border-b border-white/10 px-7 py-7">
+          <h1 className={`text-2xl font-semibold ${theme.sidebarText || (isCinema ? "text-indigo-600" : theme.textStrong)}`}>
             SmartAllocate
           </h1>
-          <p className={`text-xs -mt-1 ${theme.textSoft}`}>
+          <p className={`mt-1 text-xs ${theme.sidebarMuted || theme.textSoft}`}>
             Resource & room scheduling
           </p>
         </div>
 
-        <nav className="flex-1 px-3 pt-3 space-y-1">
+        <nav className="flex-1 px-3 pt-5 space-y-1.5">
           <NavItem to="/" onClick={closeMenu}>Dashboard</NavItem>
           <NavItem to="/resource-types" onClick={closeMenu}>Resource Types</NavItem>
           <NavItem to="/resources" onClick={closeMenu}>Resources</NavItem>
@@ -81,18 +81,18 @@ export default function MainLayout() {
           <NavItem to="/rules" onClick={closeMenu}>Rules</NavItem>
         </nav>
 
-        <div className={`px-4 py-3 border-t ${theme.card}`}>
+        <div className="border-t border-white/10 px-5 py-5">
           <button
             type="button"
             onClick={() => {
               clearAdminSession();
               window.location.assign(getUserUrl());
             }}
-            className={`w-full text-left text-sm font-medium ${theme.textSoft} ${theme.hoverText || "hover:text-indigo-600"}`}
+            className={`w-full text-left text-sm font-medium ${theme.sidebarMuted || theme.textSoft} ${theme.hoverText || "hover:text-indigo-600"}`}
           >
             Sign out
           </button>
-          <div className={`mt-2 text-xs ${theme.textSoft}`}>
+          <div className={`mt-2 text-xs ${theme.sidebarMuted || theme.textSoft}`}>
             © {new Date().getFullYear()} SmartAllocate
           </div>
         </div>
@@ -109,15 +109,15 @@ export default function MainLayout() {
 function NavItem({ to, children, onClick }) {
   const config = getOrgConfig();
   const theme = config.theme;
-  const isCinema = config.domain === "cinema";
+  const activeClass =
+    theme.navActive ||
+    theme.activeNav ||
+    `${theme.tagMuted || "bg-blue-100 text-blue-700"} border border-slate-200`;
 
-  const activeClass = isCinema
-    ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
-    : `${theme.tagMuted || "bg-blue-100 text-blue-700"} border border-slate-200`;
-
-  const inactiveClass = isCinema
-    ? "text-slate-700 hover:bg-indigo-50 hover:text-indigo-700"
-    : `${theme.textStrong || "text-slate-700"} ${theme.hoverBg || "hover:bg-slate-100"}`;
+  const inactiveClass =
+    theme.navIdle ||
+    theme.idleNav ||
+    `${theme.textStrong || "text-slate-700"} ${theme.hoverBg || "hover:bg-slate-100"}`;
 
   return (
     <NavLink
@@ -126,7 +126,7 @@ function NavItem({ to, children, onClick }) {
       onClick={onClick}
       className={({ isActive }) =>
         [
-          "block px-4 py-3 rounded-2xl text-[15px] font-medium transition",
+          "block rounded-2xl px-4 py-3 text-[15px] font-medium transition duration-200",
           isActive ? activeClass : inactiveClass,
         ].join(" ")
       }

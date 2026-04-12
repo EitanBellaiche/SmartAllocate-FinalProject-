@@ -198,6 +198,9 @@ const CINEMA_CONFIG = {
     idleNav: "text-slate-100 hover:bg-white/5 hover:text-white",
     hero: "from-[#0f172a] via-[#111827] to-[#1e1b4b]",
     heroEyebrow: "border-violet-300/20 bg-violet-400/15 text-violet-100",
+    heroTextStrong: "text-white",
+    heroTextSoft: "text-slate-200/85",
+    heroNote: "border-white/10 bg-white/10 text-slate-100",
     primaryButton: "bg-violet-600 hover:bg-violet-700 text-white shadow-violet-300/20",
     panelBorder: "border-slate-200",
     panelBg: "bg-white",
@@ -209,7 +212,7 @@ const CINEMA_CONFIG = {
     buttonSecondary:
       "border border-purple-300 text-purple-700 bg-white hover:bg-purple-50 shadow-sm",
     textStrong: "text-purple-950",
-    textSoft: "text-slate-300",
+    textSoft: "text-slate-500",
     seatAvailable: "bg-emerald-500",
     seatBlocked: "bg-slate-400",
     seatBroken: "bg-red-600",
@@ -366,10 +369,137 @@ const CLINIC_CONFIG = {
   },
 };
 
+const SHENKAR_CONFIG = {
+  domain: "shenkar",
+  businessName: "Shenkar SmartAllocate",
+  productSubtitle: "Academic spaces, labs, studios, and campus scheduling workspace",
+  labels: {
+    user: "Student",
+    users: "Students",
+    manager: "Coordinator",
+    managers: "Coordinators",
+    resource: "Space",
+    resources: "Spaces",
+    userId: "Student ID",
+    request: "Booking Request",
+    requests: "Booking Requests",
+    booking: "Booking",
+    bookings: "Bookings",
+  },
+  roleNames: {
+    admin: "Academic Administrator",
+    manager: "Coordinator",
+    user: "Student",
+  },
+  navigation: {
+    dashboard: "Dashboard",
+    resourceTypes: "Space Types",
+    resources: "Spaces",
+    availability: "Schedule",
+    bookings: "Bookings",
+    userBookings: "Student Bookings",
+    requests: "Requests",
+    rules: "Rules",
+  },
+  dashboard: {
+    eyebrow: "Campus Operations",
+    title: "Shenkar Dashboard",
+    subtitle:
+      "Track classrooms, labs, studios, bookings, and academic activity from one polished control center.",
+    searchTitle: "Find Campus Spaces",
+    searchPlaceholder: "Search by name, type, building, floor, or metadata...",
+    emptyTitle: "Search to reveal spaces",
+    emptySubtitle: "Start typing to quickly find classrooms, labs, studios, and equipment.",
+    noResultsTitle: "No matching spaces",
+    noResultsSubtitle: "Try a building, room number, type, or equipment keyword.",
+  },
+  resources: {
+    eyebrow: "Campus Inventory",
+    title: "Spaces",
+    subtitle: "Manage classrooms, labs, studios, and shared academic resources in one place.",
+    filterLabel: "Filter by space type",
+    searchLabel: "Search by space name",
+    searchPlaceholder: "Type a room, lab, or studio name...",
+    matchedResults: "Matched Spaces",
+    selectedFilter: "Selected Space Type",
+    totalResources: "Total Spaces",
+    emptyTitle: "Search to reveal spaces",
+    emptySubtitle: "Start typing to keep the view focused and easy to scan.",
+    noResultsTitle: "No matching spaces",
+    noResultsSubtitle: "Try another room, building, or type keyword.",
+    addButton: "Add Space",
+    addTitle: "Add Space",
+    namePlaceholder: "Space name",
+    fieldsTitle: "Space Fields",
+    customFieldsTitle: "Custom Fields For This Space",
+    defaultTypeLabel: "Space",
+  },
+  theme: {
+    sidebar: "bg-[linear-gradient(180deg,#24555a_0%,#2f6d73_48%,#3f878b_100%)]",
+    sidebarText: "text-slate-50",
+    sidebarMuted: "text-teal-50/78",
+    sidebarAccent: "text-[#eefaf7]",
+    pageBg: "bg-white",
+    hoverBg: "hover:bg-white/8",
+    hoverText: "hover:text-white",
+    navActive: "bg-[linear-gradient(135deg,rgba(255,255,255,0.22),rgba(255,255,255,0.12))] text-white border border-white/28 shadow-[0_14px_28px_rgba(36,85,90,0.16)]",
+    navIdle: "text-slate-50/92 hover:bg-white/10 hover:text-white",
+    activeNav: "bg-[linear-gradient(135deg,rgba(255,255,255,0.22),rgba(255,255,255,0.12))] text-white border border-white/28 shadow-[0_14px_28px_rgba(36,85,90,0.16)]",
+    idleNav: "text-slate-50/92 hover:bg-white/10 hover:text-white",
+    hero: "from-[#eaf9f7] via-[#d9f2ef] to-[#c3e7e4]",
+    heroEyebrow: "border border-teal-300 bg-white/88 text-teal-900 shadow-sm",
+    heroTextStrong: "text-slate-900",
+    heroTextSoft: "text-slate-700",
+    heroNote: "border-white/60 bg-white/72 text-slate-600",
+    card: "border-slate-200 bg-white",
+    panelSoft: "border-slate-200/70 bg-white/18 backdrop-blur-sm",
+    heroDark: "border-teal-100/80 bg-[linear-gradient(135deg,#d8f1ee_0%,#bee7e2_48%,#a6d8d2_100%)]",
+    buttonPrimary: "bg-[#2f7c7e] hover:bg-[#286a6c] text-white shadow-[0_16px_32px_rgba(47,124,126,0.18)]",
+    buttonSecondary: "border border-teal-200 bg-white text-[#2f7c7e] hover:bg-teal-50 shadow-sm",
+    textStrong: "text-slate-900",
+    textSoft: "text-slate-600",
+    panelBorder: "border-slate-200/80",
+    panelBg: "bg-white",
+    tag: "border border-teal-200 bg-teal-50 text-teal-700",
+    input:
+      "border-slate-200 bg-white text-slate-900 focus:border-teal-400 focus:bg-white focus:ring-4 focus:ring-teal-100",
+    modalCard: "border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fbfd_100%)]",
+    modalSurface: "border-slate-200 bg-slate-50/90",
+    modalMuted: "text-slate-500",
+    buttonDanger: "bg-red-600 hover:bg-red-700 text-white",
+    buttonGhost: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 shadow-sm",
+    buttonNeutral: "border border-slate-800 bg-slate-800 hover:bg-slate-900 text-white shadow-sm",
+    buttonWarning: "border border-[#8b9fb8] bg-[#8b9fb8] hover:bg-[#7b91ab] text-white shadow-sm",
+    tagMuted: "border-slate-200 bg-white text-slate-600",
+    highlightTag: "border border-[#e7d8bc] bg-[#f9f4ea] text-[#8b6a3f]",
+    aisle: "bg-slate-200/45",
+    seatAvailableClass:
+      "border-teal-300 bg-[linear-gradient(180deg,#d8f5f0_0%,#b7ebe2_100%)] hover:bg-[linear-gradient(180deg,#bcece4_0%,#91ddd2_100%)]",
+    seatBlockedClass:
+      "border-amber-300 bg-[linear-gradient(180deg,#fef3c7_0%,#fde68a_100%)]",
+    seatBrokenClass:
+      "border-red-300 bg-[linear-gradient(180deg,#fee2e2_0%,#fecaca_100%)]",
+    metricCards: {
+      blue: "border-teal-200 bg-[linear-gradient(180deg,#ffffff_0%,#edf9f7_100%)] text-teal-700 shadow-teal-200/50",
+      sky: "border-cyan-200 bg-[linear-gradient(180deg,#ffffff_0%,#eefafa_100%)] text-cyan-700 shadow-cyan-200/50",
+      emerald:
+        "border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#eef8f3_100%)] text-emerald-700 shadow-emerald-200/50",
+      amber: "border-[#dfceb0] bg-[linear-gradient(180deg,#ffffff_0%,#f7f0e4_100%)] text-[#8a6840] shadow-[#dfceb0]/50",
+      violet:
+        "border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#eef4fa_100%)] text-sky-700 shadow-sky-200/50",
+    },
+  },
+};
+
 function getStorageKey() {
   const session = getAdminSession();
   const orgId = String(session?.organization_id || "default").trim() || "default";
   return `${STORAGE_PREFIX}${orgId}`;
+}
+
+function getCurrentOrgId() {
+  const session = getAdminSession();
+  return String(session?.organization_id || "default").trim().toLowerCase() || "default";
 }
 
 function normalizeKeywords(items = []) {
@@ -472,7 +602,8 @@ export function detectPresentation(resourceTypes = [], resources = []) {
 }
 
 export function rememberPresentation(resourceTypes = [], resources = []) {
-  const config = detectPresentation(resourceTypes, resources);
+  const orgId = getCurrentOrgId();
+  const config = orgId === "shenkar" ? SHENKAR_CONFIG : detectPresentation(resourceTypes, resources);
   localStorage.setItem(
     getStorageKey(),
     JSON.stringify({
@@ -483,6 +614,11 @@ export function rememberPresentation(resourceTypes = [], resources = []) {
 }
 
 export function getOrgConfig() {
+  const orgId = getCurrentOrgId();
+  if (orgId === "shenkar") {
+    return SHENKAR_CONFIG;
+  }
+
   const raw = localStorage.getItem(getStorageKey());
   if (!raw) return DEFAULT_CONFIG;
 
@@ -495,6 +631,9 @@ export function getOrgConfig() {
     }
     if (domain === "clinic") {
       return CLINIC_CONFIG;
+    }
+    if (domain === "shenkar") {
+      return SHENKAR_CONFIG;
     }
 
     return DEFAULT_CONFIG;
