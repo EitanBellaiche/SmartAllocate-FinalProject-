@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/api";
+import { getOrgConfig } from "../orgConfig";
 
 const OP_OPTIONS = [
   { label: "==", value: "==" },
@@ -12,7 +13,7 @@ const OP_OPTIONS = [
 const WIZARD_OP_OPTIONS = [...OP_OPTIONS, { label: "in", value: "in" }];
 
 /** @typedef {{ id: string, side: "A" | "B", field: string, op: string, compare: "value" | "field", value: string, refField: string }} WizardCondition */
-/** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, extraBSelections?: { id: string, scopeMode: "type" | "resource", resourceId: string, typeId: string }[], conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
+/** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
 
 function uniq(arr) {
   return Array.from(new Set(arr));
@@ -222,15 +223,6 @@ function parseInputValue(raw, op) {
   return parsePrimitive(text);
 }
 
-function stringifyInputValue(value) {
-  if (Array.isArray(value)) {
-    return value.join(",");
-  }
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
-}
-
 function buildFieldPath(typeId, field) {
   if (!typeId || !field) return "";
   return `resources_by_type_id.${typeId}.${field}`;
@@ -271,17 +263,6 @@ function getFieldOptionsForType(schemaTypes, typeId) {
   return [...base, ...meta];
 }
 
-function intersectFieldOptions(optionLists) {
-  const validLists = optionLists.filter((list) => Array.isArray(list) && list.length > 0);
-  if (!validLists.length) return [];
-  const firstList = validLists[0];
-  const allowed = validLists.slice(1).reduce((acc, list) => {
-    const set = new Set(list.map((item) => item.value));
-    return new Set([...acc].filter((value) => set.has(value)));
-  }, new Set(firstList.map((item) => item.value)));
-  return firstList.filter((item) => allowed.has(item.value));
-}
-
 function detectContradictions(clauses) {
   const tracker = new Map();
   for (const clause of clauses) {
@@ -312,23 +293,6 @@ function detectContradictions(clauses) {
 }
 
 export default function Rules() {
-  const createEmptyForm = () => ({
-    name: "",
-    description: "",
-    aMode: "resource",
-    resourceAId: "",
-    typeAId: "",
-    fieldA: "",
-    op: "<",
-    constValue: "",
-    effect: "forbid",
-    scoreDelta: 10,
-    is_active: true,
-    comparisons: [
-      { compareMode: "field", side: "A", bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "", value: "" },
-    ],
-  });
-
   const [rules, setRules] = useState([]);
   const [resources, setResources] = useState([]);
   const [schemaTypes, setSchemaTypes] = useState([]);
@@ -341,10 +305,27 @@ export default function Rules() {
   const [wizardAnswers, setWizardAnswers] = useState({});
   const [wizardBusy, setWizardBusy] = useState(false);
   const [showSimpleBuilder, setShowSimpleBuilder] = useState(false);
-  const [editingRuleId, setEditingRuleId] = useState(null);
+  const config = getOrgConfig();
+  const theme = config.theme;
+  const isCinema = config.domain === "cinema";
 
   const [mode, setMode] = useState("single"); // single | pair
-  const [form, setForm] = useState(createEmptyForm);
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    aMode: "resource", // resource | type
+    resourceAId: "",
+    typeAId: "",
+    fieldA: "",
+    op: "<",
+    constValue: "",
+    effect: "forbid", // forbid | alert | score
+    scoreDelta: 10,
+    is_active: true,
+    comparisons: [
+      { bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "" },
+    ],
+  });
 
   const createEmptyWizard = () => ({
     actionEffect: "forbid",
@@ -355,7 +336,6 @@ export default function Rules() {
     resourceBId: "",
     typeAId: "",
     typeBId: "",
-    extraBSelections: [],
     conditions: [
       { id: "c1", side: "A", field: "", op: "==", compare: "value", value: "", refField: "" },
     ],
@@ -461,108 +441,6 @@ export default function Rules() {
     setWizardOpen(false);
   }
 
-  function getWizardBSelections(wizardState = wizard) {
-    const primary = [{
-      id: "b1",
-      scopeMode: wizardState.scopeBMode,
-      resourceId: wizardState.resourceBId,
-      typeId: wizardState.typeBId,
-    }];
-    const extras = Array.isArray(wizardState.extraBSelections) ? wizardState.extraBSelections : [];
-    return [...primary, ...extras];
-  }
-
-  function getConfiguredWizardBSelections(wizardState = wizard) {
-    return getWizardBSelections(wizardState).filter((selection) => {
-      if (!selection?.typeId) return false;
-      if (selection.scopeMode === "resource") return !!selection.resourceId;
-      return true;
-    });
-  }
-
-  function addWizardBSelection() {
-    setWizard((prev) => ({
-      ...prev,
-      extraBSelections: [
-        ...(Array.isArray(prev.extraBSelections) ? prev.extraBSelections : []),
-        {
-          id: `b${getWizardBSelections(prev).length + 1}`,
-          scopeMode: "resource",
-          resourceId: "",
-          typeId: "",
-        },
-      ],
-      lastAppliedSentence: "",
-    }));
-  }
-
-  function updateWizardBSelection(idx, patch) {
-    setWizard((prev) => {
-      if (idx === 0) {
-        const next = { ...prev, lastAppliedSentence: "" };
-        if ("scopeMode" in patch && patch.scopeMode !== prev.scopeBMode) {
-          next.scopeBMode = patch.scopeMode;
-          next.resourceBId = "";
-          next.typeBId = "";
-        }
-        if ("resourceId" in patch && patch.resourceId !== prev.resourceBId) {
-          const selected = resources.find((r) => String(r.id) === String(patch.resourceId));
-          next.resourceBId = patch.resourceId;
-          next.typeBId = selected?.type_id ? String(selected.type_id) : "";
-        }
-        if ("typeId" in patch && patch.typeId !== prev.typeBId) {
-          next.typeBId = patch.typeId;
-        }
-        return next;
-      }
-
-      const extras = [...(Array.isArray(prev.extraBSelections) ? prev.extraBSelections : [])];
-      const extraIdx = idx - 1;
-      const current = extras[extraIdx];
-      if (!current) return prev;
-      const nextSelection = { ...current, ...patch };
-      if ("scopeMode" in patch && patch.scopeMode !== current.scopeMode) {
-        nextSelection.resourceId = "";
-        nextSelection.typeId = "";
-      }
-      if ("resourceId" in patch && patch.resourceId !== current.resourceId) {
-        const selected = resources.find((r) => String(r.id) === String(patch.resourceId));
-        nextSelection.typeId = selected?.type_id ? String(selected.type_id) : "";
-      }
-      extras[extraIdx] = nextSelection;
-      return { ...prev, extraBSelections: extras, lastAppliedSentence: "" };
-    });
-  }
-
-  function removeWizardBSelection(idx) {
-    if (idx === 0) {
-      setWizard((prev) => ({
-        ...(prev.extraBSelections?.length
-          ? {
-              ...prev,
-              scopeBMode: prev.extraBSelections[0].scopeMode,
-              resourceBId: prev.extraBSelections[0].resourceId,
-              typeBId: prev.extraBSelections[0].typeId,
-              extraBSelections: prev.extraBSelections.slice(1),
-              lastAppliedSentence: "",
-            }
-          : {
-              ...prev,
-              scopeBMode: "type",
-              resourceBId: "",
-              typeBId: "",
-              lastAppliedSentence: "",
-            }),
-      }));
-      return;
-    }
-    setWizard((prev) => ({
-      ...prev,
-      extraBSelections: (prev.extraBSelections || []).filter((_, extraIdx) => extraIdx !== idx - 1),
-      lastAppliedSentence: "",
-    }));
-  }
-
   function updateWizard(patch) {
     setWizard((prev) => {
       const next = { ...prev, ...patch };
@@ -599,7 +477,6 @@ export default function Rules() {
         next.scopeBMode = "type";
         next.resourceBId = "";
         next.typeBId = "";
-        next.extraBSelections = [];
         next.conditions = next.conditions.map((c) => ({
           ...c,
           side: "A",
@@ -643,7 +520,6 @@ export default function Rules() {
 
   async function applySentenceConditions() {
     const sentence = String(wizard.conditionSentence || "").trim();
-    const bSelections = getConfiguredWizardBSelections();
     if (!sentence) {
       setWizardError("Please write a short condition sentence.");
       return;
@@ -656,8 +532,8 @@ export default function Rules() {
       setWizardError("Select Resource A type and fields first.");
       return;
     }
-    if (bSelections.length && !wizardFieldsB.length) {
-      setWizardError("Select Resource B resources/types with shared fields first.");
+    if (wizard.target === "pair" && !wizardFieldsB.length) {
+      setWizardError("Select Resource B type and fields first.");
       return;
     }
     setWizardError("");
@@ -665,13 +541,9 @@ export default function Rules() {
     try {
       const payload = {
         sentence,
-        target: bSelections.length ? "pair" : "single",
+        target: wizard.target,
         typeAName: schemaTypeById.get(String(wizard.typeAId))?.name || "",
-        typeBName: bSelections
-          .map((selection, idx) =>
-            schemaTypeById.get(String(selection.typeId))?.name || `B${idx + 1}`
-          )
-          .join(", "),
+        typeBName: schemaTypeById.get(String(wizard.typeBId))?.name || "",
         fieldsA: wizardFieldsA.map((f) => f.value),
         fieldsB: wizardFieldsB.map((f) => f.value),
       };
@@ -726,42 +598,21 @@ export default function Rules() {
   }
 
   function buildWizardClauses() {
-    const bSelections = getConfiguredWizardBSelections();
     return wizard.conditions
-      .flatMap((c) => {
+      .map((c) => {
         const isSideB = c.side === "B";
-        if (!isSideB) {
-          const field = buildResourceFieldPath(c.field);
-          if (!field) return [];
-          if (c.compare === "field") {
-            if (!bSelections.length) {
-              const ref = buildResourceFieldPath(c.refField);
-              if (!ref) return [];
-              return [{ field, op: c.op, value: { ref } }];
-            }
-            return bSelections
-              .map((selection) => {
-                const ref = buildFieldPath(selection.typeId, c.refField);
-                if (!ref) return null;
-                return { field, op: c.op, value: { ref } };
-              })
-              .filter(Boolean);
-          }
-          return [{ field, op: c.op, value: parseInputValue(c.value, c.op) }];
+        const field = isSideB
+          ? buildFieldPath(wizard.typeBId, c.field)
+          : buildResourceFieldPath(c.field);
+        if (!field) return null;
+        if (c.compare === "field") {
+          const ref = isSideB
+            ? buildResourceFieldPath(c.refField)
+            : buildFieldPath(wizard.typeBId, c.refField);
+          if (!ref) return null;
+          return { field, op: c.op, value: { ref } };
         }
-
-        return bSelections
-          .map((selection) => {
-            const field = buildFieldPath(selection.typeId, c.field);
-            if (!field) return null;
-            if (c.compare === "field") {
-              const ref = buildResourceFieldPath(c.refField);
-              if (!ref) return null;
-              return { field, op: c.op, value: { ref } };
-            }
-            return { field, op: c.op, value: parseInputValue(c.value, c.op) };
-          })
-          .filter(Boolean);
+        return { field, op: c.op, value: parseInputValue(c.value, c.op) };
       })
       .filter(Boolean);
   }
@@ -769,27 +620,18 @@ export default function Rules() {
 
   function validateWizardStep(step) {
     if (step >= 1 && !wizard.actionEffect) return "Choose an action type.";
-    if (step >= 2) {
+    if (step >= 2 && !wizard.target) return "Choose a target.";
+    if (step >= 3) {
       if (!wizard.scopeAMode) return "Choose whether the rule is for one resource or a whole type.";
       if (wizard.scopeAMode === "resource" && !wizard.resourceAId) return "Choose Resource A.";
       if (!wizard.typeAId) return "Choose Resource A type.";
     }
-    if (step >= 3) {
-      const bSelections = getWizardBSelections();
-      const configuredSelections = getConfiguredWizardBSelections();
-      for (const [idx, selection] of bSelections.entries()) {
-        const hasAnyValue = Boolean(selection.resourceId || selection.typeId);
-        if (!hasAnyValue) continue;
-        if (!selection.scopeMode) return `Choose whether Resource B${idx + 1} is one resource or a whole type.`;
-        if (selection.scopeMode === "resource" && !selection.resourceId) return `Choose Resource B${idx + 1}.`;
-        if (!selection.typeId) return `Choose Resource B${idx + 1} type.`;
-      }
-      const typeIds = configuredSelections.map((selection) => String(selection.typeId)).filter(Boolean);
-      if (new Set(typeIds).size !== typeIds.length) {
-        return "Each selected Resource B must have a different resource type.";
-      }
+    if (step >= 4 && wizard.target === "pair") {
+      if (!wizard.scopeBMode) return "Choose whether Resource B is one resource or a whole type.";
+      if (wizard.scopeBMode === "resource" && !wizard.resourceBId) return "Choose Resource B.";
+      if (!wizard.typeBId) return "Choose Resource B type.";
     }
-    if (step >= 4) {
+    if (step >= 5) {
       const sentence = String(wizard.conditionSentence || "").trim();
       if (sentence && sentence !== String(wizard.lastAppliedSentence || "").trim()) {
         return "Run the AI condition parser successfully before creating the rule.";
@@ -798,7 +640,8 @@ export default function Rules() {
       for (const [idx, c] of wizard.conditions.entries()) {
         if (!c.field) return `Choose a field for condition ${idx + 1}.`;
         if (!c.op) return `Choose an operator for condition ${idx + 1}.`;
-        if (c.compare === "field") {
+        if (wizard.target === "pair" && c.compare === "field") {
+          if (!wizard.typeBId) return "Choose Resource B type.";
           if (!c.refField) return `Choose a reference field for condition ${idx + 1}.`;
         } else {
           const isEmptyValue =
@@ -814,7 +657,7 @@ export default function Rules() {
       const contradiction = detectContradictions(buildWizardClauses());
       if (contradiction) return contradiction;
     }
-    if (step >= 5) {
+    if (step >= 6) {
       if (!wizard.name.trim()) return "Rule name is required.";
       if (!Number.isFinite(Number(wizard.sort_order))) return "Sort order must be a number.";
       if (!Number.isFinite(Number(wizard.weight))) return "Weight must be a number.";
@@ -826,36 +669,32 @@ export default function Rules() {
   }
 
   function nextWizardStep(current) {
-    return Math.min(6, current + 1);
+    if (wizard.target === "single" && current === 3) return 5;
+    return Math.min(7, current + 1);
   }
 
   function prevWizardStep(current) {
+    if (wizard.target === "single" && current === 5) return 3;
     return Math.max(1, current - 1);
   }
 
   function buildWizardPayload() {
     const clauses = buildWizardClauses();
-    const bSelections = getConfiguredWizardBSelections();
     const scopeClauseA =
       wizard.scopeAMode === "resource" && wizard.resourceAId
         ? { field: "resource.id", op: "==", value: Number(wizard.resourceAId) }
         : wizard.typeAId
         ? { field: "resource.type_id", op: "==", value: Number(wizard.typeAId) }
         : null;
-    const scopeClausesB = bSelections.length
-      ? bSelections
-          .map((selection) =>
-            selection.scopeMode === "resource" && selection.resourceId && selection.typeId
-              ? {
-                  field: `resources_by_type_id.${selection.typeId}.id`,
-                  op: "==",
-                  value: Number(selection.resourceId),
-                }
-              : null
-          )
-          .filter(Boolean)
-      : [];
-    const scopedClauses = [scopeClauseA, ...scopeClausesB, ...clauses].filter(Boolean);
+    const scopeClauseB =
+      wizard.target === "pair" && wizard.scopeBMode === "resource" && wizard.resourceBId && wizard.typeBId
+        ? {
+            field: `resources_by_type_id.${wizard.typeBId}.id`,
+            op: "==",
+            value: Number(wizard.resourceBId),
+          }
+        : null;
+    const scopedClauses = [scopeClauseA, scopeClauseB, ...clauses].filter(Boolean);
     const condition = { all: scopedClauses };
     const action =
       wizard.actionEffect === "score"
@@ -865,7 +704,7 @@ export default function Rules() {
     return {
       name: wizard.name.trim(),
       description: wizard.description ?? "",
-      target_type: bSelections.length ? "pair" : "resource",
+      target_type: wizard.target === "pair" ? "pair" : "resource",
       is_hard: wizard.actionEffect === "forbid",
       is_active: !!wizard.is_active,
       weight: wizard.actionEffect === "forbid" ? 0 : Number(wizard.weight) || 0,
@@ -876,32 +715,30 @@ export default function Rules() {
   }
 
   function buildWizardSummary() {
-    const bSelections = getConfiguredWizardBSelections();
     const typeAName = wizard.scopeAMode === "resource"
       ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
       : schemaTypeById.get(String(wizard.typeAId))?.name || "Type A";
-    const bLabelForTypeId = (typeId) => {
-      const selection = bSelections.find((item) => String(item.typeId) === String(typeId));
-      if (!selection) return "Resource B";
-      return selection.scopeMode === "resource"
-        ? resourceNameById.get(String(selection.resourceId)) || "Resource B"
-        : schemaTypeById.get(String(selection.typeId))?.name || "Resource B";
-    };
+    const typeBName = wizard.scopeBMode === "resource"
+      ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
+      : schemaTypeById.get(String(wizard.typeBId))?.name || "Type B";
     const actionText = wizard.actionEffect === "forbid" ? "Block" : `Score ${Number(wizard.scoreValue) || 0}`;
     const parts = buildWizardClauses().map((clause) => {
       if (!clause) return "";
       const fieldStr = String(clause.field || "");
       const isResource = fieldStr.startsWith("resource.");
-      const leftTypeMatch = fieldStr.match(/^resources_by_type_id\.(\d+)\./);
-      const leftType = isResource ? typeAName : bLabelForTypeId(leftTypeMatch?.[1]);
+      const isARef = fieldStr.includes(`resources_by_type_id.${wizard.typeAId}.`);
+      const leftType = isResource ? typeAName : isARef ? typeAName : typeBName;
       const leftField = isResource
         ? fieldLabelFromField(fieldStr.replace(/^resource\./, ""))
         : fieldLabelFromField(fieldStr.split(".").slice(2).join("."));
       if (clause.value && typeof clause.value === "object" && "ref" in clause.value) {
         const refStr = String(clause.value.ref || "");
         const refIsResource = refStr.startsWith("resource.");
-        const refTypeMatch = refStr.match(/^resources_by_type_id\.(\d+)\./);
-        const refType = refIsResource ? typeAName : bLabelForTypeId(refTypeMatch?.[1]);
+        const refType = refIsResource
+          ? typeAName
+          : refStr.includes(`resources_by_type_id.${wizard.typeAId}.`)
+          ? typeAName
+          : typeBName;
         const refField = refIsResource
           ? fieldLabelFromField(refStr.replace(/^resource\./, ""))
           : fieldLabelFromField(refStr.split(".").slice(2).join("."));
@@ -914,7 +751,7 @@ export default function Rules() {
   }
 
   async function createWizardRule() {
-    const err = validateWizardStep(6);
+    const err = validateWizardStep(7);
     if (err) {
       setWizardError(err);
       return;
@@ -949,22 +786,18 @@ export default function Rules() {
         : getFieldOptionsForType(schemaTypes, wizard.typeAId),
     [resources, schemaTypes, wizard.resourceAId, wizard.scopeAMode, wizard.typeAId]
   );
-  const wizardBSelections = getWizardBSelections(wizard);
   const wizardFieldsB = useMemo(
-    () => intersectFieldOptions(
-      wizardBSelections.map((selection) =>
-        selection.scopeMode === "resource"
-          ? getResourceFieldOptions(
-              resources.find((r) => String(r.id) === String(selection.resourceId)) ?? null
-            )
-          : getFieldOptionsForType(schemaTypes, selection.typeId)
-      )
-    ),
-    [resources, schemaTypes, wizardBSelections]
+    () =>
+      wizard.scopeBMode === "resource"
+        ? getResourceFieldOptions(
+            resources.find((r) => String(r.id) === String(wizard.resourceBId)) ?? null
+          )
+        : getFieldOptionsForType(schemaTypes, wizard.typeBId),
+    [resources, schemaTypes, wizard.resourceBId, wizard.scopeBMode, wizard.typeBId]
   );
 
-  const wizardSummary = buildWizardSummary();
-  const wizardPayload = buildWizardPayload();
+  const wizardSummary = useMemo(() => buildWizardSummary(), [wizard, schemaTypeById]);
+  const wizardPayload = useMemo(() => buildWizardPayload(), [wizard]);
 
   function ensureDefaultFieldA(next) {
     const updated = { ...next };
@@ -976,283 +809,6 @@ export default function Rules() {
       }));
     }
     return updated;
-  }
-
-  function resetForm() {
-    setMode("single");
-    setEditingRuleId(null);
-    setForm(ensureDefaultFieldA(createEmptyForm()));
-  }
-
-  function buildFormPayload() {
-    if (!form.name.trim()) return { error: "Name is required" };
-    if (form.aMode === "resource" && !form.resourceAId) return { error: "Please choose Resource A." };
-    if (form.aMode === "type" && !form.typeAId) return { error: "Please choose Resource Type A." };
-
-    let condition;
-    let target_type = "resource";
-
-    const aScopeClause =
-      form.aMode === "type"
-        ? { field: "resource.type_id", op: "==", value: Number(form.typeAId) }
-        : { field: "resource.id", op: "==", value: Number(form.resourceAId) };
-
-    if (mode === "single") {
-      if (!form.fieldA) return { error: "Please choose a field for Resource A." };
-      condition = {
-        all: [
-          aScopeClause,
-          {
-            field: `resource.${form.fieldA}`,
-            op: form.op,
-            value: toNumberIfPossible(form.constValue),
-          },
-        ],
-      };
-    } else {
-      if (!form.comparisons.length) return { error: "Add at least one resource to compare." };
-      target_type = "pair";
-      const clauses = [aScopeClause];
-      const scopedBResourceKeys = new Set();
-
-      for (const [idx, comp] of form.comparisons.entries()) {
-        const addSpecificBScopeIfNeeded = (typeIdB, resourceBId) => {
-          const scopeKey = `${typeIdB}:${resourceBId}`;
-          if (scopedBResourceKeys.has(scopeKey)) return;
-          scopedBResourceKeys.add(scopeKey);
-          clauses.push({
-            field: `resources_by_type_id.${typeIdB}.id`,
-            op: "==",
-            value: Number(resourceBId),
-          });
-        };
-
-        if (comp.compareMode === "field") {
-          if (!comp.fieldA) return { error: `Choose Field A for row ${idx + 1}` };
-          if (!comp.fieldB) return { error: `Choose Field B for row ${idx + 1}` };
-
-          if (comp.bMode === "resource") {
-            if (!comp.resourceBId) return { error: `Choose Resource B for row ${idx + 1}` };
-            const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
-            if (!resourceB?.type_id) return { error: `Resource B (row ${idx + 1}) is missing type.` };
-
-            const typeIdB = Number(resourceB.type_id);
-            addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
-            clauses.push({
-              field: `resource.${comp.fieldA}`,
-              op: comp.op,
-              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-            });
-          } else {
-            if (!comp.typeBId) return { error: `Choose Resource Type for row ${idx + 1}` };
-            const typeIdB = Number(comp.typeBId);
-            clauses.push({
-              field: `resource.${comp.fieldA}`,
-              op: comp.op,
-              value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-            });
-          }
-          continue;
-        }
-
-        if (comp.side === "A") {
-          if (!comp.fieldA) return { error: `Choose Field A for row ${idx + 1}` };
-          if (comp.value === "") return { error: `Enter a value for row ${idx + 1}` };
-          clauses.push({
-            field: `resource.${comp.fieldA}`,
-            op: comp.op,
-            value: parseInputValue(comp.value, comp.op),
-          });
-          continue;
-        }
-
-        if (!comp.fieldB) return { error: `Choose Field B for row ${idx + 1}` };
-        if (comp.value === "") return { error: `Enter a value for row ${idx + 1}` };
-
-        if (comp.bMode === "resource") {
-          if (!comp.resourceBId) return { error: `Choose Resource B for row ${idx + 1}` };
-          const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
-          if (!resourceB?.type_id) return { error: `Resource B (row ${idx + 1}) is missing type.` };
-          const typeIdB = Number(resourceB.type_id);
-          addSpecificBScopeIfNeeded(typeIdB, comp.resourceBId);
-          clauses.push({
-            field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
-            op: comp.op,
-            value: parseInputValue(comp.value, comp.op),
-          });
-          continue;
-        }
-
-        if (!comp.typeBId) return { error: `Choose Resource Type for row ${idx + 1}` };
-        const typeIdB = Number(comp.typeBId);
-        clauses.push({
-          field: `resources_by_type_id.${typeIdB}.${comp.fieldB}`,
-          op: comp.op,
-          value: parseInputValue(comp.value, comp.op),
-        });
-      }
-
-      condition = { all: clauses };
-    }
-
-    let action;
-    if (form.effect === "alert") action = { effect: "alert" };
-    else if (form.effect === "score") action = { effect: "score", delta: Number(form.scoreDelta) || 0 };
-    else action = { effect: "forbid" };
-
-    return {
-      payload: {
-        name: form.name.trim(),
-        description: form.description ?? "",
-        target_type,
-        is_hard: form.effect === "forbid",
-        is_active: !!form.is_active,
-        weight: 0,
-        sort_order: 0,
-        condition,
-        action,
-      },
-    };
-  }
-
-  function loadRuleIntoForm(rule) {
-    const condition = rule?.condition;
-    const clauses = Array.isArray(condition?.all) ? condition.all : null;
-    if (!clauses?.length) {
-      alert("This rule format cannot be edited in the simple builder yet.");
-      return;
-    }
-
-    const aScope = clauses.find(
-      (clause) =>
-        clause?.field === "resource.id" ||
-        clause?.field === "resource.type_id"
-    );
-
-    if (!aScope || aScope.op !== "==") {
-      alert("This rule format cannot be edited in the simple builder yet.");
-      return;
-    }
-
-    const remainingClauses = clauses.filter((clause) => clause !== aScope);
-    const bScopes = new Map();
-    for (const clause of remainingClauses) {
-      const match = String(clause?.field || "").match(/^resources_by_type_id\.(\d+)\.id$/);
-      if (match && clause.op === "==" && Number.isFinite(Number(clause.value))) {
-        bScopes.set(String(match[1]), String(clause.value));
-      }
-    }
-
-    const comparisonClauses = remainingClauses.filter((clause) => {
-      const field = String(clause?.field || "");
-      return !/^resources_by_type_id\.\d+\.id$/.test(field);
-    });
-
-    const nextMode =
-      rule.target_type === "pair" || comparisonClauses.length > 1 || String(comparisonClauses[0]?.field || "").startsWith("resources_by_type_id.")
-        ? "pair"
-        : "single";
-
-    const baseForm = createEmptyForm();
-    baseForm.name = rule.name || "";
-    baseForm.description = rule.description || "";
-    baseForm.is_active = !!rule.is_active;
-    baseForm.effect =
-      rule.action?.effect === "score"
-        ? "score"
-        : rule.action?.effect === "alert"
-        ? "alert"
-        : "forbid";
-    baseForm.scoreDelta = Number(rule.action?.delta) || 10;
-    baseForm.aMode = aScope.field === "resource.type_id" ? "type" : "resource";
-    if (baseForm.aMode === "type") baseForm.typeAId = String(aScope.value ?? "");
-    else baseForm.resourceAId = String(aScope.value ?? "");
-
-    if (nextMode === "single") {
-      const clause = comparisonClauses[0];
-      if (!String(clause?.field || "").startsWith("resource.")) {
-        alert("This rule format cannot be edited in the simple builder yet.");
-        return;
-      }
-      baseForm.fieldA = String(clause.field).replace(/^resource\./, "");
-      baseForm.op = clause.op || "==";
-      baseForm.constValue = stringifyInputValue(clause.value);
-    } else {
-      const parsedComparisons = comparisonClauses.map((clause) => {
-        const field = String(clause?.field || "");
-        const ref = clause?.value && typeof clause.value === "object" && "ref" in clause.value
-          ? String(clause.value.ref || "")
-          : "";
-
-        if (field.startsWith("resource.") && ref) {
-          const refMatch = ref.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
-          if (!refMatch) return null;
-          const typeIdB = refMatch[1];
-          const resourceBId = bScopes.get(typeIdB) || "";
-          return {
-            compareMode: "field",
-            side: "A",
-            bMode: resourceBId ? "resource" : "type",
-            resourceBId,
-            typeBId: typeIdB,
-            fieldA: field.replace(/^resource\./, ""),
-            op: clause.op || "==",
-            fieldB: refMatch[2],
-            value: "",
-          };
-        }
-
-        if (field.startsWith("resource.")) {
-          return {
-            compareMode: "value",
-            side: "A",
-            bMode: "resource",
-            resourceBId: "",
-            typeBId: "",
-            fieldA: field.replace(/^resource\./, ""),
-            op: clause.op || "==",
-            fieldB: "",
-            value: stringifyInputValue(clause.value),
-          };
-        }
-
-        const bMatch = field.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
-        if (bMatch) {
-          const typeIdB = bMatch[1];
-          const resourceBId = bScopes.get(typeIdB) || "";
-          return {
-            compareMode: "value",
-            side: "B",
-            bMode: resourceBId ? "resource" : "type",
-            resourceBId,
-            typeBId: typeIdB,
-            fieldA: "",
-            op: clause.op || "==",
-            fieldB: bMatch[2],
-            value: stringifyInputValue(clause.value),
-          };
-        }
-
-        return null;
-      });
-
-      if (parsedComparisons.some((entry) => !entry)) {
-        alert("This rule format cannot be edited in the simple builder yet.");
-        return;
-      }
-
-      baseForm.comparisons = parsedComparisons.length
-        ? parsedComparisons
-        : baseForm.comparisons;
-      const firstAField = parsedComparisons.find((entry) => entry.fieldA)?.fieldA || "";
-      baseForm.fieldA = firstAField;
-    }
-
-    setMode(nextMode);
-    setEditingRuleId(rule.id);
-    setShowSimpleBuilder(true);
-    setForm(ensureDefaultFieldA(baseForm));
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function updateForm(patch) {
@@ -1273,7 +829,7 @@ export default function Rules() {
         ...prev,
         comparisons: [
           ...prev.comparisons,
-          { compareMode: "field", side: "A", bMode: "resource", resourceBId: "", typeBId: "", fieldA: prev.fieldA || "", op: "<", fieldB: "", value: "" },
+          { bMode: "resource", resourceBId: "", typeBId: "", fieldA: prev.fieldA || "", op: "<", fieldB: "" },
         ],
       };
       return ensureDefaultFieldA(next);
@@ -1288,21 +844,93 @@ export default function Rules() {
   }
 
   async function createRule() {
-    const { payload, error } = buildFormPayload();
-    if (error) return alert(error);
+    if (!form.name.trim()) return alert("Name is required");
+    if (form.aMode === "resource" && !form.resourceAId) return alert("Please choose Resource A.");
+    if (form.aMode === "type" && !form.typeAId) return alert("Please choose Resource Type A.");
+
+    let condition;
+    let target_type = "resource";
+
+    const aScopeClause =
+      form.aMode === "type"
+        ? { field: "resource.type_id", op: "==", value: Number(form.typeAId) }
+        : { field: "resource.id", op: "==", value: Number(form.resourceAId) };
+
+    if (mode === "single") {
+      if (!form.fieldA) return alert("Please choose a field for Resource A.");
+      condition = {
+        all: [
+          aScopeClause,
+          {
+            field: `resource.${form.fieldA}`,
+            op: form.op,
+            value: toNumberIfPossible(form.constValue),
+          },
+        ],
+      };
+    } else {
+      if (!form.comparisons.length) return alert("Add at least one resource to compare.");
+      target_type = "pair";
+      const clauses = [aScopeClause];
+
+      for (const [idx, comp] of form.comparisons.entries()) {
+        if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
+        if (!comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
+
+        if (comp.bMode === "resource") {
+          if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
+          const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
+          if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
+
+          const typeIdB = Number(resourceB.type_id);
+          clauses.push({
+            field: `resources_by_type_id.${typeIdB}.id`,
+            op: "==",
+            value: Number(comp.resourceBId),
+          });
+          clauses.push({
+            field: `resource.${comp.fieldA}`,
+            op: comp.op,
+            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+          });
+        } else {
+          if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+          const typeIdB = Number(comp.typeBId);
+          clauses.push({
+            field: `resource.${comp.fieldA}`,
+            op: comp.op,
+            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+          });
+        }
+      }
+
+      condition = { all: clauses };
+    }
+
+    let action;
+    if (form.effect === "alert") action = { effect: "alert" };
+    else if (form.effect === "score") action = { effect: "score", delta: Number(form.scoreDelta) || 0 };
+    else action = { effect: "forbid" };
+
+    const payload = {
+      name: form.name.trim(),
+      description: form.description ?? "",
+      target_type,
+      is_hard: form.effect === "forbid",
+      is_active: !!form.is_active,
+      weight: 0,
+      sort_order: 0,
+      condition,
+      action,
+    };
 
     try {
-      if (editingRuleId) {
-        await apiPut(`/rules/${editingRuleId}`, payload);
-      } else {
-        await apiPost("/rules", payload);
-      }
+      await apiPost("/rules", payload);
       reloadRules();
-      alert(editingRuleId ? "Rule updated." : "Rule created.");
-      resetForm();
+      alert("Rule created.");
     } catch (err) {
-      console.error("Error saving rule:", err);
-      alert(editingRuleId ? "Failed to update rule" : "Failed to create rule");
+      console.error("Error creating rule:", err);
+      alert("Failed to create rule");
     }
   }
 
@@ -1359,18 +987,6 @@ export default function Rules() {
       return `If ${aName} is compared to other resources → ${action}.`;
     }
     const parts = form.comparisons.map((c) => {
-      if (c.compareMode === "value") {
-        if (c.side === "A") {
-          return `${aName}.${fieldLabel(c.fieldA || form.fieldA)} ${c.op} ${c.value || "?"}`;
-        }
-        if (c.bMode === "type") {
-          const typeLabel = typeOptions.find((t) => String(t.type_id) === String(c.typeBId))?.type_name || "Type";
-          return `${typeLabel}.${fieldLabel(c.fieldB)} ${c.op} ${c.value || "?"}`;
-        }
-        const bName = resourceNameById.get(String(c.resourceBId)) || "Resource B";
-        return `${bName}.${fieldLabel(c.fieldB)} ${c.op} ${c.value || "?"}`;
-      }
-
       const left = fieldLabel(c.fieldA || form.fieldA);
       if (c.bMode === "type") {
         const typeLabel = typeOptions.find((t) => String(t.type_id) === String(c.typeBId))?.type_name || "Type";
@@ -1386,61 +1002,54 @@ export default function Rules() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[30px] border border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_35%),linear-gradient(135deg,#0f172a,#111827,#020617)] p-6 text-white shadow-[0_24px_60px_rgba(2,6,23,0.35)] sm:p-8">
+      <section className={`rounded-[30px] border p-6 shadow-[0_24px_60px_rgba(2,6,23,0.35)] sm:p-8 ${theme.heroDark}`}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="mb-3 inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
               Policy Center
             </div>
-            <h1 className="text-4xl font-black tracking-tight">Rules</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-300">
+            <h1 className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}>Rules</h1>
+            <p className={`mt-3 max-w-2xl text-base leading-7 ${theme.textSoft}`}>
               Shape platform behavior with intelligent policies, guided creation, and
               transparent rule previews.
             </p>
           </div>
           <button
             onClick={openWizard}
-            className="inline-flex h-fit items-center rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-slate-100"
+            className={`inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${theme.buttonPrimary}`}
           >
             Rule Wizard Chat
           </button>
         </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Total Rules</div>
-            <div className="mt-2 text-3xl font-black">{rules.length}</div>
+          <div className={`rounded-2xl border px-4 py-3 ${theme.card}`}>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Total Rules</div>
+            <div className={`mt-2 text-3xl font-black ${theme.textStrong}`}>{rules.length}</div>
           </div>
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-emerald-100">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em]">Active Rules</div>
-            <div className="mt-2 text-3xl font-black">{activeRulesCount}</div>
+          <div className={`rounded-2xl border px-4 py-3 ${theme.card}`}>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Active Rules</div>
+            <div className={`mt-2 text-3xl font-black ${theme.textStrong}`}>{activeRulesCount}</div>
           </div>
-          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-amber-100">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em]">Inactive Rules</div>
-            <div className="mt-2 text-3xl font-black">{inactiveRulesCount}</div>
+          <div className={`rounded-2xl border px-4 py-3 ${theme.card}`}>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Inactive Rules</div>
+            <div className={`mt-2 text-3xl font-black ${theme.textStrong}`}>{inactiveRulesCount}</div>
           </div>
         </div>
       </section>
 
-      <section className="rounded-[26px] border border-emerald-100 bg-gradient-to-r from-emerald-50 to-white p-4 shadow-sm">
+      <section className={`rounded-[26px] border p-4 shadow-sm ${theme.panelSoft}`}>
         <div className="text-sm text-slate-700">
-          Prefer guided setup? Use <span className="font-semibold text-slate-900">Rule Wizard Chat</span> above.
+          Prefer guided setup? Use <span className={theme.textStrong}>Rule Wizard Chat</span> above.
         </div>
       </section>
 
-      <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
+      <section className={`rounded-[26px] border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)] ${theme.card}`}>
         <div className="flex items-center justify-between mb-2">
-          <div>
-            <div className="text-base font-semibold text-slate-900">Simple Rule Builder</div>
-            {editingRuleId ? (
-              <div className="mt-1 text-xs font-medium text-blue-700">
-                Editing rule #{editingRuleId}
-              </div>
-            ) : null}
-          </div>
+          <div className={`text-base font-semibold ${theme.textStrong}`}>Simple Rule Builder</div>
           <button
             onClick={() => setShowSimpleBuilder((prev) => !prev)}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className={`rounded-xl border px-4 py-2 text-xs font-semibold ${theme.buttonGhost}`}
           >
             {showSimpleBuilder ? "Hide" : "Show"}
           </button>
@@ -1474,21 +1083,21 @@ export default function Rules() {
           <div>
             <label className="block text-sm font-medium mb-1">A Source</label>
             <select
-              className="w-full p-2 border rounded bg-white"
+              className={`w-full p-2 border rounded ${theme.input}`}
               value={form.aMode}
               onChange={(e) => updateForm({ aMode: e.target.value, resourceAId: "", typeAId: "", fieldA: "" })}
             >
               <option value="resource">Specific resource</option>
               <option value="type">Resource type</option>
             </select>
-            <div className="text-xs text-gray-500 mt-1">Choose if A is a specific resource or any resource of a type.</div>
+            <div className={`text-xs mt-1 ${theme.textSoft}`}>Choose if A is a specific resource or any resource of a type.</div>
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">Resource A</label>
             {form.aMode === "type" ? (
               <select
-                className="w-full p-2 border rounded bg-white"
+                className={`w-full p-2 border rounded ${theme.input}`}
                 value={form.typeAId}
                 onChange={(e) => updateForm({ typeAId: e.target.value, fieldA: "" })}
               >
@@ -1501,7 +1110,7 @@ export default function Rules() {
               </select>
             ) : (
               <select
-                className="w-full p-2 border rounded bg-white"
+                className={`w-full p-2 border rounded ${theme.input}`}
                 value={form.resourceAId}
                 onChange={(e) => updateForm({ resourceAId: e.target.value, fieldA: "" })}
               >
@@ -1518,7 +1127,7 @@ export default function Rules() {
           <div>
             <label className="block text-sm font-medium mb-1">Field (A)</label>
             <select
-              className="w-full p-2 border rounded bg-white"
+              className={`w-full p-2 border rounded ${theme.input}`}
               value={form.fieldA}
               onChange={(e) => updateForm({ fieldA: e.target.value })}
               disabled={form.aMode === "type" ? !form.typeAId : !form.resourceAId}
@@ -1536,7 +1145,7 @@ export default function Rules() {
             <div>
               <label className="block text-sm font-medium mb-1">Operator</label>
               <select
-                className="w-full p-2 border rounded bg-white"
+                className={`w-full p-2 border rounded ${theme.input}`}
                 value={form.op}
                 onChange={(e) => updateForm({ op: e.target.value })}
               >
@@ -1550,7 +1159,7 @@ export default function Rules() {
               <label className="block text-sm font-medium mb-1">Value</label>
               <input
                 type="text"
-                className="w-full p-2 border rounded"
+                className={`w-full p-2 border rounded ${theme.input}`}
                 value={form.constValue}
                 onChange={(e) => updateForm({ constValue: e.target.value })}
               />
@@ -1558,7 +1167,7 @@ export default function Rules() {
           </div>
         ) : (
           <div className="mb-4">
-            <div className="text-sm font-medium mb-2">Conditions (A, B, or A vs B)</div>
+            <div className="text-sm font-medium mb-2">Comparisons (A vs multiple B)</div>
             <div className="space-y-3">
               {form.comparisons.map((comp, idx) => {
                 const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId)) ?? null;
@@ -1566,33 +1175,13 @@ export default function Rules() {
                   ? getTypeFieldOptions(comp.typeBId)
                   : getResourceFieldOptions(resourceB);
                 return (
-                  <div key={`comp-${idx}`} className="grid grid-cols-8 gap-3 items-end">
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Condition</label>
-                      <select
-                        className="w-full p-2 border rounded bg-white"
-                        value={comp.compareMode}
-                        onChange={(e) =>
-                          updateComparison(idx, {
-                            compareMode: e.target.value,
-                            side: "A",
-                            value: "",
-                            fieldB: "",
-                          })
-                        }
-                      >
-                        <option value="field">A vs B</option>
-                        <option value="value">Field vs value</option>
-                      </select>
-                    </div>
-
+                  <div key={`comp-${idx}`} className="grid grid-cols-6 gap-3 items-end">
                     <div>
                       <label className="block text-xs font-medium mb-1">B Source</label>
                       <select
-                        className="w-full p-2 border rounded bg-white"
+                        className={`w-full p-2 border rounded ${theme.input}`}
                         value={comp.bMode}
                         onChange={(e) => updateComparison(idx, { bMode: e.target.value, resourceBId: "", typeBId: "", fieldB: "" })}
-                        disabled={comp.compareMode === "value" && comp.side === "A"}
                       >
                         <option value="resource">Specific resource</option>
                         <option value="type">Resource type</option>
@@ -1603,10 +1192,9 @@ export default function Rules() {
                       <label className="block text-xs font-medium mb-1">Resource B</label>
                       {comp.bMode === "type" ? (
                         <select
-                          className="w-full p-2 border rounded bg-white"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={comp.typeBId}
                           onChange={(e) => updateComparison(idx, { typeBId: e.target.value, fieldB: "" })}
-                          disabled={comp.compareMode === "value" && comp.side === "A"}
                         >
                           <option value="">Choose type…</option>
                           {typeOptions.map((t) => (
@@ -1617,10 +1205,9 @@ export default function Rules() {
                         </select>
                       ) : (
                         <select
-                          className="w-full p-2 border rounded bg-white"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={comp.resourceBId}
                           onChange={(e) => updateComparison(idx, { resourceBId: e.target.value, fieldB: "" })}
-                          disabled={comp.compareMode === "value" && comp.side === "A"}
                         >
                           <option value="">Choose resource…</option>
                           {resourceOptions.map((r) => (
@@ -1633,37 +1220,24 @@ export default function Rules() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium mb-1">
-                        {comp.compareMode === "value" ? "Side" : "Field (A)"}
-                      </label>
-                      {comp.compareMode === "value" ? (
-                        <select
-                          className="w-full p-2 border rounded bg-white"
-                          value={comp.side}
-                          onChange={(e) => updateComparison(idx, { side: e.target.value, value: "", fieldB: "" })}
-                        >
-                          <option value="A">A</option>
-                          <option value="B">B</option>
-                        </select>
-                      ) : (
-                        <select
-                          className="w-full p-2 border rounded bg-white"
-                          value={comp.fieldA}
-                          onChange={(e) => updateComparison(idx, { fieldA: e.target.value })}
-                          disabled={form.aMode === "type" ? !form.typeAId : !form.resourceAId}
-                        >
-                          <option value="">Choose field…</option>
-                          {fieldsA.map((f) => (
-                            <option key={f.value} value={f.value}>{f.label}</option>
-                          ))}
-                        </select>
-                      )}
+                      <label className="block text-xs font-medium mb-1">Field (A)</label>
+                      <select
+                        className={`w-full p-2 border rounded ${theme.input}`}
+                        value={comp.fieldA}
+                        onChange={(e) => updateComparison(idx, { fieldA: e.target.value })}
+                        disabled={form.aMode === "type" ? !form.typeAId : !form.resourceAId}
+                      >
+                        <option value="">Choose field…</option>
+                        {fieldsA.map((f) => (
+                          <option key={f.value} value={f.value}>{f.label}</option>
+                        ))}
+                      </select>
                     </div>
 
                     <div>
                       <label className="block text-xs font-medium mb-1">Operator</label>
                       <select
-                        className="w-full p-2 border rounded bg-white"
+                        className={`w-full p-2 border rounded ${theme.input}`}
                         value={comp.op}
                         onChange={(e) => updateComparison(idx, { op: e.target.value })}
                       >
@@ -1674,93 +1248,28 @@ export default function Rules() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium mb-1">
-                        {comp.compareMode === "value"
-                          ? comp.side === "A"
-                            ? "Field (A)"
-                            : "Field (B)"
-                          : "Field (B)"}
-                      </label>
+                      <label className="block text-xs font-medium mb-1">Field (B)</label>
                       <select
-                        className="w-full p-2 border rounded bg-white"
-                        value={comp.compareMode === "value" && comp.side === "A" ? comp.fieldA : comp.fieldB}
-                        onChange={(e) =>
-                          updateComparison(
-                            idx,
-                            comp.compareMode === "value" && comp.side === "A"
-                              ? { fieldA: e.target.value }
-                              : { fieldB: e.target.value }
-                          )
-                        }
-                        disabled={
-                          comp.compareMode === "value" && comp.side === "A"
-                            ? form.aMode === "type"
-                              ? !form.typeAId
-                              : !form.resourceAId
-                            : comp.bMode === "type"
-                            ? !comp.typeBId
-                            : !comp.resourceBId
-                        }
+                        className={`w-full p-2 border rounded ${theme.input}`}
+                        value={comp.fieldB}
+                        onChange={(e) => updateComparison(idx, { fieldB: e.target.value })}
+                        disabled={comp.bMode === "type" ? !comp.typeBId : !comp.resourceBId}
                       >
                         <option value="">Choose field…</option>
-                        {(comp.compareMode === "value" && comp.side === "A" ? fieldsA : fieldsB).map((f) => (
+                        {fieldsB.map((f) => (
                           <option key={f.value} value={f.value}>{f.label}</option>
                         ))}
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium mb-1">
-                        {comp.compareMode === "value" ? "Value" : "Value"}
-                      </label>
-                      {comp.compareMode === "value" ? (
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            className="w-full p-2 border rounded"
-                            value={comp.value}
-                            onChange={(e) => updateComparison(idx, { value: e.target.value })}
-                            placeholder={comp.op === "in" ? "Example: A,B,C" : "Example: true / 10 / yes"}
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                              onClick={() => updateComparison(idx, { value: "true" })}
-                            >
-                              True
-                            </button>
-                            <button
-                              type="button"
-                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                              onClick={() => updateComparison(idx, { value: "false" })}
-                            >
-                              False
-                            </button>
-                            <button
-                              type="button"
-                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
-                              onClick={() => updateComparison(idx, { value: "" })}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="w-full rounded border bg-gray-50 p-2 text-xs text-gray-500">
-                          Value is disabled for "A vs B". Choose "Field vs value" to enter a fixed value.
-                        </div>
-                      )}
-                    </div>
-
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => removeComparison(idx)}
-                        className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300"
-                        disabled={form.comparisons.length === 1}
-                      >
-                        Remove
-                      </button>
+                    <button
+                      onClick={() => removeComparison(idx)}
+                      className={`px-3 py-2 rounded-xl ${theme.buttonDanger}`}
+                      disabled={form.comparisons.length === 1}
+                    >
+                      Remove
+                    </button>
                     </div>
                   </div>
                 );
@@ -1769,12 +1278,12 @@ export default function Rules() {
 
             <button
               onClick={addComparison}
-              className="mt-3 px-3 py-2 border rounded hover:bg-gray-50"
+              className={`mt-3 px-3 py-2 border rounded ${theme.buttonGhost}`}
             >
-              + Add Condition
+              + Add Resource
             </button>
-            <div className="text-xs text-gray-500 mt-1">
-              Tip: use "A vs B" for cross-resource checks, and "Field vs value" for fixed requirements on A or B.
+            <div className={`text-xs mt-1 ${theme.textSoft}`}>
+              Tip: choose "Resource type" to apply the rule to any resource of that type.
             </div>
           </div>
         )}
@@ -1784,7 +1293,7 @@ export default function Rules() {
             <label className="block text-sm font-medium mb-1">Rule Name</label>
             <input
               type="text"
-              className="w-full p-2 border rounded"
+              className={`w-full p-2 border rounded ${theme.input}`}
               value={form.name}
               onChange={(e) => updateForm({ name: e.target.value })}
             />
@@ -1794,7 +1303,7 @@ export default function Rules() {
             <label className="block text-sm font-medium mb-1">Description</label>
             <input
               type="text"
-              className="w-full p-2 border rounded"
+              className={`w-full p-2 border rounded ${theme.input}`}
               value={form.description}
               onChange={(e) => updateForm({ description: e.target.value })}
             />
@@ -1841,37 +1350,26 @@ export default function Rules() {
           {form.effect === "score" && (
             <input
               type="number"
-              className="w-24 p-2 border rounded"
+              className={`w-24 p-2 border rounded ${theme.input}`}
               value={form.scoreDelta}
               onChange={(e) => updateForm({ scoreDelta: e.target.value })}
             />
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={createRule}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            {editingRuleId ? "Save Changes" : "Create Rule"}
-          </button>
-          {editingRuleId ? (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="px-4 py-2 border rounded hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          ) : null}
-        </div>
+        <button
+          onClick={createRule}
+          className={`px-4 py-2 rounded-xl ${theme.buttonPrimary}`}
+        >
+          Create Rule
+        </button>
 
-        <div className="mt-3 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3">
+        <div className={`mt-3 text-sm border rounded p-3 ${theme.modalSurface} ${theme.textSoft}`}>
           Preview: {previewText}
         </div>
 
         {mode === "pair" && (
-          <div className="text-xs text-gray-500 mt-2">
+          <div className={`text-xs mt-2 ${theme.textSoft}`}>
             Note: when using "Resource type", the comparison uses the first matching resource of that type
             in the booking.
           </div>
@@ -1880,47 +1378,43 @@ export default function Rules() {
         )}
       </section>
 
-      <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)] sm:p-6">
+      <section className={`rounded-[26px] border p-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)] sm:p-6 ${theme.card}`}>
         <div className="mb-4">
-          <div className="text-lg font-bold text-slate-900">Current Rules</div>
+          <div className={`text-lg font-bold ${theme.textStrong}`}>Current Rules</div>
           <div className="mt-1 text-sm text-slate-500">
             Active rules are shown as live policies with readable conditions and direct actions.
           </div>
         </div>
 
         <div className="grid gap-4">
-          {rules.map((rule, idx) => (
+          {rules.map((rule) => (
             <article
               key={rule.id}
-              className="rounded-[22px] border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+              className={`rounded-[22px] border p-5 shadow-sm transition hover:shadow-md ${theme.card}`}
             >
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
-                      Rule #{idx + 1}
+                    <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>
+                      Rule #{rule.id}
                     </span>
-                    <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-white">
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${theme.tag}`}>
                       {rule.target_type}
                     </span>
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${
-                        rule.is_active
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-slate-200 text-slate-600"
-                      }`}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${rule.is_active ? theme.highlightTag : theme.tagMuted}`}
                     >
                       {rule.is_active ? "Active" : "Disabled"}
                     </span>
                   </div>
 
-                  <h2 className="mt-4 text-2xl font-bold text-slate-900">{rule.name}</h2>
+                  <h2 className={`mt-4 text-2xl font-bold ${theme.textStrong}`}>{rule.name}</h2>
 
-                  <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <div className={`mt-4 rounded-2xl border p-4 ${theme.modalSurface}`}>
+                    <div className={`mb-2 text-xs font-semibold uppercase tracking-[0.16em] ${theme.modalMuted}`}>
                       Condition
                     </div>
-                    <div className="text-sm leading-7 text-slate-700">
+                    <div className={`text-sm leading-7 ${theme.textSoft}`}>
                       {formatCondition(rule.condition, typeNameById, resourceNameById) || "-"}
                     </div>
                   </div>
@@ -1928,26 +1422,20 @@ export default function Rules() {
 
                 <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
                   <button
-                    onClick={() => loadRuleIntoForm(rule)}
-                    className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-                  >
-                    Edit
-                  </button>
-                  <button
                     onClick={() => openDetails(rule)}
-                    className="rounded-xl bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonNeutral}`}
                   >
                     View
                   </button>
                   <button
                     onClick={() => toggleActive(rule)}
-                    className="rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-300"
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonGhost}`}
                   >
                     {rule.is_active ? "Disable" : "Enable"}
                   </button>
                   <button
                     onClick={() => deleteRule(rule.id)}
-                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonDanger}`}
                   >
                     Delete
                   </button>
@@ -1957,7 +1445,7 @@ export default function Rules() {
           ))}
 
           {rules.length === 0 && (
-            <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-14 text-center text-slate-500">
+            <div className={`rounded-[22px] border border-dashed px-4 py-14 text-center ${theme.modalSurface} ${theme.textSoft}`}>
               No rules defined yet.
             </div>
           )}
@@ -1966,31 +1454,32 @@ export default function Rules() {
 
       {wizardOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[900px] shadow-xl max-h-[90vh] overflow-y-auto">
+          <div className={`p-6 rounded-2xl w-[900px] shadow-2xl max-h-[90vh] overflow-y-auto ${theme.modalSurface}`}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-bold">Rule Wizard Chat</h2>
-                <div className="text-xs text-gray-500">Step {wizardStep} of 6</div>
+                <h2 className={`text-xl font-bold ${theme.textStrong}`}>Rule Wizard Chat</h2>
+                <div className={`text-xs ${theme.textSoft}`}>Step {wizardStep} of 7</div>
               </div>
-              <button onClick={closeWizard} className="px-3 py-2 border rounded">
+              <button onClick={closeWizard} className={`px-3 py-2 border rounded ${theme.buttonGhost}`}>
                 Close
               </button>
             </div>
 
             <div className="space-y-4 mb-6">
               <div className="flex">
-                <div className="bg-gray-100 px-4 py-3 rounded-2xl text-sm max-w-[75%]">
+                <div className={`px-4 py-3 rounded-2xl text-sm max-w-[75%] ${theme.panelSoft}`}>
                   {wizardStep === 1 && "Hi! Let’s build a rule together. First, what should this rule do?"}
-                  {wizardStep === 2 && "Should Resource A be one specific resource or all resources of a type?"}
-                  {wizardStep === 3 && "Optionally add Resource B items. If you leave this empty, the rule will apply only to Resource A."}
-                  {wizardStep === 4 && "Describe your conditions in plain English, and I’ll create the JSON."}
-                  {wizardStep === 5 && "Give your rule a name and settings."}
-                  {wizardStep === 6 && "Review everything and create the rule."}
+                  {wizardStep === 2 && "Should this rule target a single resource or a pair (A + B)?"}
+                  {wizardStep === 3 && "Should Resource A be one specific resource or all resources of a type?"}
+                  {wizardStep === 4 && "Should Resource B be one specific resource or all resources of a type?"}
+                  {wizardStep === 5 && "Describe your conditions in plain English, and I’ll create the JSON."}
+                  {wizardStep === 6 && "Give your rule a name and settings."}
+                  {wizardStep === 7 && "Review everything and create the rule."}
                 </div>
               </div>
               {wizardStep > 1 && (
                 <div className="flex justify-end">
-                  <div className="bg-black text-white px-4 py-3 rounded-2xl text-sm max-w-[75%]">
+                  <div className={`px-4 py-3 rounded-2xl text-sm max-w-[75%] ${theme.buttonPrimary}`}>
                     {wizardSummary}
                   </div>
                 </div>
@@ -1999,15 +1488,15 @@ export default function Rules() {
 
             {wizardStep === 1 && (
               <div className="flex justify-end">
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 flex gap-3">
+                <div className={`border rounded-2xl p-4 flex gap-3 ${theme.card}`}>
                   <button
-                    className={`px-4 py-2 border rounded ${wizard.actionEffect === "forbid" ? "bg-gray-900 text-white" : "bg-white"}`}
+                    className={`px-4 py-2 border rounded ${wizard.actionEffect === "forbid" ? theme.buttonPrimary : theme.buttonGhost}`}
                     onClick={() => updateWizard({ actionEffect: "forbid", weight: 0 })}
                   >
                     Block (Hard forbid)
                   </button>
                   <button
-                    className={`px-4 py-2 border rounded ${wizard.actionEffect === "score" ? "bg-gray-900 text-white" : "bg-white"}`}
+                    className={`px-4 py-2 border rounded ${wizard.actionEffect === "score" ? theme.buttonPrimary : theme.buttonGhost}`}
                     onClick={() => updateWizard({ actionEffect: "score" })}
                   >
                     Score (Soft)
@@ -2017,22 +1506,41 @@ export default function Rules() {
             )}
 
             {wizardStep === 2 && (
+              <div className="flex flex-col items-end gap-3">
+                <div className={`border rounded-2xl p-4 flex gap-3 ${theme.card}`}>
+                  <button
+                    className={`px-4 py-2 border rounded ${wizard.target === "single" ? theme.buttonPrimary : theme.buttonGhost}`}
+                    onClick={() => updateWizard({ target: "single" })}
+                  >
+                    Single
+                  </button>
+                  <button
+                    className={`px-4 py-2 border rounded ${wizard.target === "pair" ? theme.buttonPrimary : theme.buttonGhost}`}
+                    onClick={() => updateWizard({ target: "pair" })}
+                  >
+                    Pair
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {wizardStep === 3 && (
               <div className="flex justify-end">
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 w-full max-w-[75%] space-y-2">
-                  <div className="text-xs text-gray-500">
+                <div className={`border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
+                  <div className={`text-xs ${theme.textSoft}`}>
                     Resource A is the main resource the rule is about (the one being evaluated).
                   </div>
                   <div className="flex gap-3">
                     <button
                       type="button"
-                      className={`px-4 py-2 border rounded ${wizard.scopeAMode === "type" ? "bg-gray-900 text-white" : "bg-white"}`}
+                      className={`px-4 py-2 border rounded ${wizard.scopeAMode === "type" ? theme.buttonPrimary : theme.buttonGhost}`}
                       onClick={() => updateWizard({ scopeAMode: "type" })}
                     >
                       All resources of a type
                     </button>
                     <button
                       type="button"
-                      className={`px-4 py-2 border rounded ${wizard.scopeAMode === "resource" ? "bg-gray-900 text-white" : "bg-white"}`}
+                      className={`px-4 py-2 border rounded ${wizard.scopeAMode === "resource" ? theme.buttonPrimary : theme.buttonGhost}`}
                       onClick={() => updateWizard({ scopeAMode: "resource" })}
                     >
                       One specific resource
@@ -2040,7 +1548,7 @@ export default function Rules() {
                   </div>
                   {wizard.scopeAMode === "type" ? (
                     <select
-                      className="w-full p-2 border rounded bg-white"
+                      className={`w-full p-2 border rounded ${theme.input}`}
                       value={wizard.typeAId}
                       onChange={(e) => updateWizard({ typeAId: e.target.value })}
                     >
@@ -2053,7 +1561,7 @@ export default function Rules() {
                     </select>
                   ) : (
                     <select
-                      className="w-full p-2 border rounded bg-white"
+                      className={`w-full p-2 border rounded ${theme.input}`}
                       value={wizard.resourceAId}
                       onChange={(e) => updateWizard({ resourceAId: e.target.value })}
                     >
@@ -2066,111 +1574,86 @@ export default function Rules() {
                     </select>
                   )}
                   {wizard.scopeAMode === "resource" && wizard.resourceAId && (
-                    <div className="text-xs text-gray-500">
+                    <div className={`text-xs ${theme.textSoft}`}>
                       Type: {schemaTypeById.get(String(wizard.typeAId))?.name || "Unknown type"}
                     </div>
                   )}
                   {schemaTypes.length === 0 && (
-                    <div className="text-xs text-gray-500">No resource types found yet.</div>
+                    <div className={`text-xs ${theme.textSoft}`}>No resource types found yet.</div>
                   )}
                 </div>
               </div>
             )}
 
-            {wizardStep === 3 && (
+            {wizardStep === 4 && wizard.target === "pair" && (
               <div className="flex justify-end">
-                <div className="bg-white border border-gray-200 rounded-2xl p-4 w-full max-w-[75%] space-y-2">
-                  <div className="text-xs text-gray-500">
-                    Resource B items are the other resources checked together with Resource A.
+                <div className={`border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
+                  <div className={`text-xs ${theme.textSoft}`}>
+                    Resource B is the second resource checked together with Resource A.
                   </div>
-                  {wizardBSelections.map((selection, idx) => (
-                    <div key={selection.id} className="rounded-xl border border-gray-200 p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-medium text-gray-800">Resource B{idx + 1}</div>
-                        <button
-                          type="button"
-                          className="px-3 py-2 border rounded hover:bg-gray-50"
-                          onClick={() => removeWizardBSelection(idx)}
-                          disabled={idx === 0 && wizardBSelections.length === 1}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          className={`px-4 py-2 border rounded ${selection.scopeMode === "type" ? "bg-gray-900 text-white" : "bg-white"}`}
-                          onClick={() => updateWizardBSelection(idx, { scopeMode: "type" })}
-                        >
-                          All resources of a type
-                        </button>
-                        <button
-                          type="button"
-                          className={`px-4 py-2 border rounded ${selection.scopeMode === "resource" ? "bg-gray-900 text-white" : "bg-white"}`}
-                          onClick={() => updateWizardBSelection(idx, { scopeMode: "resource" })}
-                        >
-                          One specific resource
-                        </button>
-                      </div>
-                      {selection.scopeMode === "type" ? (
-                        <select
-                          className="w-full p-2 border rounded bg-white"
-                          value={selection.typeId}
-                          onChange={(e) => updateWizardBSelection(idx, { typeId: e.target.value })}
-                        >
-                          <option value="">Choose type…</option>
-                          {schemaTypes.map((t) => (
-                            <option key={t.type_id} value={t.type_id}>
-                              {t.name} (id={t.type_id})
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <select
-                          className="w-full p-2 border rounded bg-white"
-                          value={selection.resourceId}
-                          onChange={(e) => updateWizardBSelection(idx, { resourceId: e.target.value })}
-                        >
-                          <option value="">Choose resource…</option>
-                          {resourceOptions.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name} (id={r.id}) {r.type_name ? `- ${r.type_name}` : ""}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                      {selection.scopeMode === "resource" && selection.resourceId && (
-                        <div className="text-xs text-gray-500">
-                          Type: {schemaTypeById.get(String(selection.typeId))?.name || "Unknown type"}
-                        </div>
-                      )}
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      className={`px-4 py-2 border rounded ${wizard.scopeBMode === "type" ? theme.buttonPrimary : theme.buttonGhost}`}
+                      onClick={() => updateWizard({ scopeBMode: "type" })}
+                    >
+                      All resources of a type
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-4 py-2 border rounded ${wizard.scopeBMode === "resource" ? theme.buttonPrimary : theme.buttonGhost}`}
+                      onClick={() => updateWizard({ scopeBMode: "resource" })}
+                    >
+                      One specific resource
+                    </button>
+                  </div>
+                  {wizard.scopeBMode === "type" ? (
+                    <select
+                      className={`w-full p-2 border rounded ${theme.input}`}
+                      value={wizard.typeBId}
+                      onChange={(e) => updateWizard({ typeBId: e.target.value })}
+                    >
+                      <option value="">Choose type…</option>
+                      {schemaTypes.map((t) => (
+                        <option key={t.type_id} value={t.type_id}>
+                          {t.name} (id={t.type_id})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <select
+                      className={`w-full p-2 border rounded ${theme.input}`}
+                      value={wizard.resourceBId}
+                      onChange={(e) => updateWizard({ resourceBId: e.target.value })}
+                    >
+                      <option value="">Choose resource…</option>
+                      {resourceOptions.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} (id={r.id}) {r.type_name ? `- ${r.type_name}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {wizard.scopeBMode === "resource" && wizard.resourceBId && (
+                    <div className={`text-xs ${theme.textSoft}`}>
+                      Type: {schemaTypeById.get(String(wizard.typeBId))?.name || "Unknown type"}
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="px-3 py-2 border rounded hover:bg-gray-50"
-                    onClick={addWizardBSelection}
-                  >
-                    + Add another Resource B
-                  </button>
-                  <div className="text-xs text-gray-500">
-                    The same B-side rule will be applied to every selected Resource B. Each B must have a different resource type.
-                  </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {wizardStep === 4 && (
+            {wizardStep === 5 && (
               <div className="space-y-4">
                 <div className="flex justify-end">
-                  <div className="bg-white border border-gray-200 rounded-2xl p-4 w-full max-w-[85%] space-y-3">
+                  <div className={`border rounded-2xl p-4 w-full max-w-[85%] space-y-3 ${theme.card}`}>
                     <div className="text-sm font-medium">Describe the situation you want to block (plain English)</div>
-                    <div className="text-xs text-gray-500">
+                    <div className={`text-xs ${theme.textSoft}`}>
                       Example: “Block if exam needs computers and the room has no computers”
                       or “Block when capacity is smaller than students number”.
                     </div>
                     <textarea
-                      className="w-full p-3 border rounded text-sm"
+                      className={`w-full p-3 border rounded text-sm ${theme.input}`}
                       rows={4}
                       placeholder="Describe the blocked situation in one or two sentences."
                       value={wizard.conditionSentence}
@@ -2179,29 +1662,29 @@ export default function Rules() {
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        className="px-4 py-2 border rounded hover:bg-gray-50"
+                        className={`px-4 py-2 border rounded ${theme.buttonGhost}`}
                         onClick={applySentenceConditions}
                         disabled={wizardBusy}
                       >
                         {wizardBusy ? "Generating..." : "Generate conditions with AI"}
                       </button>
                       {wizard.conditions.length > 0 && (
-                        <span className="text-xs text-gray-500">
+                        <span className={`text-xs ${theme.textSoft}`}>
                           Generated {wizard.conditions.length} condition(s).
                         </span>
                       )}
                     </div>
                     {wizardQuestions.length > 0 && (
                       <div className="mt-3 space-y-2">
-                        <div className="text-xs text-gray-600">
+                        <div className={`text-xs ${theme.textSoft}`}>
                           I need a bit more info:
                         </div>
                         {wizardQuestions.map((q) => (
                           <div key={q} className="text-sm space-y-1">
-                            <div className="text-xs text-gray-500">{q}</div>
+                            <div className={`text-xs ${theme.textSoft}`}>{q}</div>
                             <input
                               type="text"
-                              className="w-full p-2 border rounded text-sm"
+                              className={`w-full p-2 border rounded text-sm ${theme.input}`}
                               value={wizardAnswers[q] || ""}
                               onChange={(e) =>
                                 setWizardAnswers((prev) => ({ ...prev, [q]: e.target.value }))
@@ -2211,7 +1694,7 @@ export default function Rules() {
                         ))}
                         <button
                           type="button"
-                          className="px-3 py-2 border rounded hover:bg-gray-50"
+                          className={`px-3 py-2 border rounded ${theme.buttonGhost}`}
                           onClick={submitClarifications}
                           disabled={wizardBusy}
                         >
@@ -2223,47 +1706,50 @@ export default function Rules() {
                 </div>
 
                 <div className="flex">
-                  <div className="bg-gray-100 px-4 py-3 rounded-2xl text-xs text-gray-600 max-w-[75%]">
-                    <div className="font-medium text-gray-700 mb-1">Fields I can use</div>
+                  <div className={`px-4 py-3 rounded-2xl text-xs max-w-[75%] ${theme.panelSoft} ${theme.textSoft}`}>
+                    <div className={`font-medium mb-1 ${theme.textStrong}`}>Fields I can use</div>
                     <div>Resource A: {wizardFieldsA.map((f) => f.label).join(", ") || "None selected"}</div>
-                    {getConfiguredWizardBSelections().length > 0 && (
-                      <div>Resource B: {wizardFieldsB.map((f) => f.label).join(", ") || "No shared fields across the selected B resources"}</div>
+                    {wizard.target === "pair" && (
+                      <div>Resource B: {wizardFieldsB.map((f) => f.label).join(", ") || "None selected"}</div>
                     )}
                   </div>
                 </div>
 
-                <details className="bg-white border border-gray-200 rounded-2xl p-3">
+                {wizard.target === "pair" && !wizard.typeBId && (
+                  <div className="flex">
+                    <div className="bg-amber-50 border border-amber-200 px-4 py-3 rounded-2xl text-xs text-amber-700 max-w-[75%]">
+                      To use Side B, go back and choose a Resource B type in Step 4.
+                    </div>
+                  </div>
+                )}
+
+                <details className={`border rounded-2xl p-3 ${theme.card}`}>
                   <summary className="text-sm font-medium cursor-pointer">Advanced: edit conditions manually</summary>
                   <div className="mt-3 space-y-3">
-                    <div className="text-xs text-gray-500">
+                    <div className={`text-xs ${theme.textSoft}`}>
                       Use this only if you want to tweak the generated conditions.
                     </div>
                     {wizard.conditions.map((cond, idx) => {
-                  const hasConfiguredB = getConfiguredWizardBSelections().length > 0;
                   const sideFields = cond.side === "B" ? wizardFieldsB : wizardFieldsA;
-                  const refFields = hasConfiguredB
-                    ? (cond.side === "B" ? wizardFieldsA : wizardFieldsB)
-                    : sideFields;
+                  const refFields = cond.side === "B" ? wizardFieldsA : wizardFieldsB;
                   return (
                     <div key={cond.id} className="grid grid-cols-7 gap-3 items-end">
                       <div>
                         <label className="block text-xs font-medium mb-1">Side</label>
                         <select
-                          className="w-full p-2 border rounded bg-white"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={cond.side}
                           onChange={(e) => updateWizardCondition(idx, { side: e.target.value })}
-                          disabled={getConfiguredWizardBSelections().length === 0}
+                          disabled={wizard.target === "single"}
                         >
                           <option value="A">A</option>
-                          {getConfiguredWizardBSelections().length > 0 && <option value="B">B</option>}
+                          {wizard.target === "pair" && wizard.typeBId && <option value="B">B</option>}
                         </select>
                         <div className="text-[11px] text-gray-500 mt-1">
                           {cond.side === "B"
-                            ? `B = all selected Resource B items (${wizardBSelections.map((selection, selectionIdx) =>
-                                selection.scopeMode === "resource"
-                                  ? resourceNameById.get(String(selection.resourceId)) || `B${selectionIdx + 1}`
-                                  : schemaTypeById.get(String(selection.typeId))?.name || `B${selectionIdx + 1}`
-                              ).join(", ") || "none selected"})`
+                            ? `B = ${wizard.scopeBMode === "resource"
+                                ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
+                                : schemaTypeById.get(String(wizard.typeBId))?.name || "Resource B"} (the other resource)`
                             : `A = ${wizard.scopeAMode === "resource"
                                 ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
                                 : schemaTypeById.get(String(wizard.typeAId))?.name || "Resource A"} (main resource)`}
@@ -2273,7 +1759,7 @@ export default function Rules() {
                       <div>
                         <label className="block text-xs font-medium mb-1">Field</label>
                         <select
-                          className="w-full p-2 border rounded bg-white"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={cond.field}
                           onChange={(e) => updateWizardCondition(idx, { field: e.target.value })}
                         >
@@ -2287,7 +1773,7 @@ export default function Rules() {
                       <div>
                         <label className="block text-xs font-medium mb-1">Operator</label>
                         <select
-                          className="w-full p-2 border rounded bg-white"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={cond.op}
                           onChange={(e) => updateWizardCondition(idx, { op: e.target.value })}
                         >
@@ -2300,20 +1786,21 @@ export default function Rules() {
                       <div>
                         <label className="block text-xs font-medium mb-1">Compare</label>
                         <select
-                          className="w-full p-2 border rounded bg-white"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={cond.compare}
                           onChange={(e) => updateWizardCondition(idx, { compare: e.target.value })}
+                          disabled={wizard.target !== "pair"}
                         >
                           <option value="value">Value</option>
-                          <option value="field">Field</option>
+                          <option value="field">Field (other side)</option>
                         </select>
                       </div>
 
-                      {cond.compare === "field" ? (
+                      {cond.compare === "field" && wizard.target === "pair" ? (
                         <div className="col-span-2">
                           <label className="block text-xs font-medium mb-1">Ref field</label>
                           <select
-                            className="w-full p-2 border rounded bg-white"
+                            className={`w-full p-2 border rounded ${theme.input}`}
                             value={cond.refField}
                             onChange={(e) => updateWizardCondition(idx, { refField: e.target.value })}
                           >
@@ -2322,16 +1809,13 @@ export default function Rules() {
                               <option key={f.value} value={f.value}>{f.label}</option>
                             ))}
                           </select>
-                          <div className="text-[11px] text-gray-500 mt-1">
-                            {hasConfiguredB ? "Reference field is taken from the other side." : "Reference field is taken from the same resource."}
-                          </div>
                         </div>
                       ) : (
                         <div className="col-span-2">
                           <label className="block text-xs font-medium mb-1">Value</label>
                           <input
                             type="text"
-                            className="w-full p-2 border rounded"
+                            className={`w-full p-2 border rounded ${theme.input}`}
                             placeholder={cond.op === "in" ? "Example: A,B,C" : "Example: yes / 10 / lab"}
                             value={cond.value}
                             onChange={(e) => updateWizardCondition(idx, { value: e.target.value })}
@@ -2339,21 +1823,21 @@ export default function Rules() {
                           <div className="flex gap-2 mt-2">
                             <button
                               type="button"
-                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                              className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
                               onClick={() => updateWizardCondition(idx, { value: "true" })}
                             >
                               True
                             </button>
                             <button
                               type="button"
-                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                              className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
                               onClick={() => updateWizardCondition(idx, { value: "false" })}
                             >
                               False
                             </button>
                             <button
                               type="button"
-                              className="px-2 py-1 text-xs border rounded hover:bg-gray-50"
+                              className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
                               onClick={() => updateWizardCondition(idx, { value: "" })}
                             >
                               Clear
@@ -2365,7 +1849,7 @@ export default function Rules() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => removeWizardCondition(idx)}
-                          className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300"
+                          className={`px-3 py-2 rounded ${theme.buttonGhost}`}
                           disabled={wizard.conditions.length === 1}
                         >
                           Remove
@@ -2375,7 +1859,7 @@ export default function Rules() {
                   );
                 })}
 
-                    <button onClick={addWizardCondition} className="px-3 py-2 border rounded hover:bg-gray-50">
+                    <button onClick={addWizardCondition} className={`px-3 py-2 border rounded ${theme.buttonGhost}`}>
                       + Add Condition
                     </button>
                   </div>
@@ -2383,14 +1867,14 @@ export default function Rules() {
               </div>
             )}
 
-            {wizardStep === 5 && (
+            {wizardStep === 6 && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Rule Name</label>
                     <input
                       type="text"
-                      className="w-full p-2 border rounded"
+                      className={`w-full p-2 border rounded ${theme.input}`}
                       value={wizard.name}
                       onChange={(e) => updateWizard({ name: e.target.value })}
                     />
@@ -2400,7 +1884,7 @@ export default function Rules() {
                     <label className="block text-sm font-medium mb-1">Description</label>
                     <input
                       type="text"
-                      className="w-full p-2 border rounded"
+                      className={`w-full p-2 border rounded ${theme.input}`}
                       value={wizard.description}
                       onChange={(e) => updateWizard({ description: e.target.value })}
                     />
@@ -2412,7 +1896,7 @@ export default function Rules() {
                     <label className="block text-sm font-medium mb-1">Sort Order</label>
                     <input
                       type="number"
-                      className="w-full p-2 border rounded"
+                      className={`w-full p-2 border rounded ${theme.input}`}
                       value={wizard.sort_order}
                       onChange={(e) => updateWizard({ sort_order: e.target.value })}
                     />
@@ -2422,7 +1906,7 @@ export default function Rules() {
                     <label className="block text-sm font-medium mb-1">Weight</label>
                     <input
                       type="number"
-                      className="w-full p-2 border rounded"
+                      className={`w-full p-2 border rounded ${theme.input}`}
                       value={wizard.actionEffect === "forbid" ? 0 : wizard.weight}
                       disabled={wizard.actionEffect === "forbid"}
                       onChange={(e) => updateWizard({ weight: e.target.value })}
@@ -2434,7 +1918,7 @@ export default function Rules() {
                       <label className="block text-sm font-medium mb-1">Score Value</label>
                       <input
                         type="number"
-                        className="w-full p-2 border rounded"
+                        className={`w-full p-2 border rounded ${theme.input}`}
                         value={wizard.scoreValue}
                         onChange={(e) => updateWizard({ scoreValue: e.target.value })}
                       />
@@ -2453,16 +1937,16 @@ export default function Rules() {
               </div>
             )}
 
-            {wizardStep === 6 && (
+            {wizardStep === 7 && (
               <div className="space-y-4">
-                <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm">
+                <div className={`border rounded p-3 text-sm ${theme.panelSoft} ${theme.textSoft}`}>
                   <div className="font-semibold mb-1">Summary understood</div>
                   <div>{wizardSummary}</div>
                 </div>
 
                 <div>
                   <div className="text-sm font-semibold mb-2">Rule JSON</div>
-                  <pre className="bg-gray-100 p-3 rounded text-xs border overflow-x-auto">
+                  <pre className={`p-3 rounded text-xs border overflow-x-auto ${theme.modalSurface}`}>
                     {JSON.stringify(wizardPayload, null, 2)}
                   </pre>
                 </div>
@@ -2476,14 +1960,14 @@ export default function Rules() {
             <div className="flex justify-between items-center mt-6">
               <button
                 onClick={() => setWizardStep((s) => prevWizardStep(s))}
-                className="px-4 py-2 border rounded"
+                className={`px-4 py-2 border rounded ${theme.buttonGhost}`}
                 disabled={wizardStep === 1}
               >
                 Back
               </button>
 
               <div className="flex gap-2">
-                {wizardStep < 6 && (
+                {wizardStep < 7 && (
                   <button
                     onClick={() => {
                       const err = validateWizardStep(wizardStep);
@@ -2494,13 +1978,13 @@ export default function Rules() {
                       setWizardError("");
                       setWizardStep((s) => nextWizardStep(s));
                     }}
-                    className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800"
+                    className={`px-4 py-2 rounded ${theme.buttonPrimary}`}
                   >
                     Next
                   </button>
                 )}
 
-                {wizardStep === 6 && (
+                {wizardStep === 7 && (
                   <button
                     onClick={createWizardRule}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"

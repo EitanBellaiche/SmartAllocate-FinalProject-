@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
-import { getOrgLabels } from "../orgConfig";
+import { getOrgConfig, getOrgLabels } from "../orgConfig";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 import AutoScheduler from "./AutoScheduler";
 
@@ -10,6 +10,9 @@ const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function Booking() {
   const labels = getOrgLabels();
+  const config = getOrgConfig();
+  const theme = config.theme;
+  const isCinema = config.domain === "cinema";
   const labelsLower = {
     userId: String(labels.userId || "").toLowerCase(),
   };
@@ -610,28 +613,26 @@ export default function Booking() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <section className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#eef4ff_46%,#ffffff_100%)] p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8">
+      <section className={`rounded-[28px] border p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8 ${theme.heroDark}`}>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+            <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${theme.heroEyebrow}`}>
               Booking Workspace
             </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            <h1 className={`mt-4 text-3xl font-semibold tracking-tight ${isCinema ? "text-white" : theme.textStrong} sm:text-4xl`}>
               {mode === "booking" ? "Create New Booking" : "Auto Scheduling"}
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+            <p className={`mt-3 max-w-xl text-sm leading-6 ${isCinema ? theme.textSoft : theme.textSoft} sm:text-base`}>
               A cleaner reservation flow with polished inputs and the existing schedule placed
               beside the form, so users can book with context instead of scrolling back and forth.
             </p>
           </div>
 
-          <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+          <div className={`inline-flex rounded-2xl border p-1 shadow-sm ${theme.panelSoft}`}>
             <button
               type="button"
               className={`rounded-xl px-5 py-2.5 text-sm font-medium transition ${
-                mode === "booking"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50"
+                mode === "booking" ? theme.buttonPrimary : isCinema ? "text-slate-200 hover:bg-white/10" : "text-slate-600 hover:bg-slate-50"
               }`}
               onClick={() => setMode("booking")}
             >
@@ -640,9 +641,7 @@ export default function Booking() {
             <button
               type="button"
               className={`rounded-xl px-5 py-2.5 text-sm font-medium transition ${
-                mode === "auto"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-50"
+                mode === "auto" ? theme.buttonSecondary : isCinema ? "text-slate-200 hover:bg-white/10" : "text-slate-600 hover:bg-slate-50"
               }`}
               onClick={() => setMode("auto")}
             >
@@ -658,7 +657,7 @@ export default function Booking() {
         ) : (
           <>
             {message && (
-              <div className="mb-6 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3 text-sm text-white shadow-lg">
+              <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm shadow-lg ${isCinema ? "border-purple-900/30 bg-[linear-gradient(135deg,#2a1b38_0%,#3a2147_100%)] text-white" : `${theme.card} ${theme.textStrong}`}`}>
                 {message}
               </div>
             )}
@@ -1028,11 +1027,11 @@ export default function Booking() {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_360px]">
               <div className="space-y-6">
-                <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+                <section className={`rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <h2 className="text-xl font-semibold text-slate-900">Booking details</h2>
+                        <h2 className={`text-xl font-semibold ${theme.textStrong}`}>Booking details</h2>
                         <p className="mt-1 text-sm text-slate-500">
                           Choose the date, hours, and whether the reservation should repeat on
                           selected weekdays.
@@ -1155,11 +1154,11 @@ export default function Booking() {
                   </div>
                 </section>
 
-                <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+                <section className={`rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <h2 className="text-xl font-semibold text-slate-900">People assignment</h2>
+                        <h2 className={`text-xl font-semibold ${theme.textStrong}`}>People assignment</h2>
                         <p className="mt-1 text-sm text-slate-500">
                           Keep this optional. Turn it on only when the booking should be tied to a
                           responsible user and additional {userIdPlural.toLowerCase()}.
@@ -1297,10 +1296,10 @@ export default function Booking() {
                   </div>
                 </section>
 
-                <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+                <section className={`rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">
                     <div>
-                      <h2 className="text-xl font-semibold text-slate-900">Select resources</h2>
+                      <h2 className={`text-xl font-semibold ${theme.textStrong}`}>Select resources</h2>
                       <p className="mt-1 text-sm text-slate-500">
                         Mix full resource types and specific resources in one booking when that fits
                         the need best.
@@ -1410,7 +1409,7 @@ export default function Booking() {
                     <button
                       onClick={submitBooking}
                       disabled={submitting}
-                      className="w-full rounded-2xl bg-blue-600 px-5 py-3.5 text-base font-semibold text-white shadow-[0_14px_30px_rgba(37,99,235,0.28)] transition hover:bg-blue-700 disabled:bg-slate-400 disabled:shadow-none"
+                      className={`w-full rounded-2xl px-5 py-3.5 text-base font-semibold transition disabled:bg-slate-400 disabled:shadow-none ${theme.buttonPrimary}`}
                     >
                       {submitting ? "Creating booking..." : "Create Booking"}
                     </button>
@@ -1419,7 +1418,7 @@ export default function Booking() {
               </div>
 
               <aside className="xl:sticky xl:top-6 xl:self-start">
-                <section className="rounded-[26px] border border-slate-200 bg-white p-6 shadow-sm">
+                <section className={`rounded-[26px] border p-6 shadow-sm ${theme.card}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-semibold text-slate-900">Existing Bookings</h2>
@@ -1427,8 +1426,11 @@ export default function Booking() {
                         The live schedule stays visible here while the user fills the form.
                       </p>
                     </div>
-                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-                      Live list
+                    <div className="group relative inline-flex items-center justify-center" aria-label="Live list">
+                      <span className="inline-block h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.16)]" />
+                      <div className="pointer-events-none absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                        Live list
+                      </div>
                     </div>
                   </div>
 
@@ -1485,14 +1487,14 @@ export default function Booking() {
                             <button
                               type="button"
                               onClick={() => openEditBooking(booking)}
-                              className="rounded-xl bg-amber-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-amber-600"
+                              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonWarning}`}
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => deleteBooking(booking.id)}
-                              className="rounded-xl bg-red-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-red-700"
+                              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonDanger}`}
                             >
                               Delete
                             </button>
@@ -1513,7 +1515,7 @@ export default function Booking() {
 
             {editingBooking && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                <div className="w-full max-w-[520px] rounded-3xl bg-white p-5 shadow-xl">
+                <div className={`w-full max-w-[520px] rounded-3xl border p-5 shadow-xl ${theme.modalCard}`}>
                   <h2 className="mb-4 text-xl font-bold text-slate-900">Edit Booking</h2>
 
                   <div className="mb-4">
@@ -1595,7 +1597,7 @@ export default function Booking() {
                     <button
                       type="button"
                       onClick={() => setEditingBooking(null)}
-                      className="rounded-xl border border-slate-200 px-4 py-2 text-slate-700"
+                      className={`rounded-xl border px-4 py-2 ${theme.buttonGhost}`}
                     >
                       Cancel
                     </button>
@@ -1603,7 +1605,7 @@ export default function Booking() {
                       type="button"
                       onClick={saveBookingEdit}
                       disabled={updatingBooking}
-                      className="rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:bg-slate-400"
+                      className={`rounded-xl px-4 py-2 ${theme.buttonPrimary} disabled:bg-slate-400`}
                     >
                       {updatingBooking ? "Saving..." : "Save Changes"}
                     </button>

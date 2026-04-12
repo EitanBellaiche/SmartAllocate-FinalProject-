@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiDelete, apiGet, apiPut } from "../api/api";
+import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { Calendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import IsraelDateInput from "../components/IsraelDateInput";
-
+import { getOrgConfig, rememberPresentation } from "../orgConfig";
 const localizer = momentLocalizer(moment);
 
-const EMPTY_EDIT_MODAL = {
-  open: false,
-  bookingId: null,
-  date: "",
-  start_time: "",
-  end_time: "",
-  user_id: "",
-  selectedResources: [],
-  roles: {},
-};
+const DEFAULT_MOVIES = [
+  "Dune: Part Two",
+  "Inside Out 2",
+  "Oppenheimer",
+  "Barbie",
+  "Spider-Man: Across the Spider-Verse",
+  "The Batman",
+  "Interstellar",
+];
 
 const EMPTY_DAY_MODAL = {
   open: false,
@@ -28,91 +26,87 @@ export default function Availability() {
   const [resourceTypes, setResourceTypes] = useState([]);
   const [events, setEvents] = useState([]);
   const [bookings, setBookings] = useState([]);
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedResource, setSelectedResource] = useState("");
-  const [editModal, setEditModal] = useState(EMPTY_EDIT_MODAL);
+  const [editModal, setEditModal] = useState({
+    open: false,
+    bookingId: null,
+    date: "",
+    start_time: "",
+    end_time: "",
+    user_id: "",
+    selectedResources: [],
+    roles: {},
+    movie: DEFAULT_MOVIES[0],
+  });
   const [dayModal, setDayModal] = useState(EMPTY_DAY_MODAL);
   const [modalMessage, setModalMessage] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      const [resourcesData, typesData] = await Promise.all([
-        apiGet("/resources"),
-        apiGet("/resource-types"),
-      ]);
-      setResources(Array.isArray(resourcesData) ? resourcesData : []);
-      setResourceTypes(Array.isArray(typesData) ? typesData : []);
-    })();
-  }, []);
+  const config = getOrgConfig();
+  const isCinema = config.domain === "cinema";
+  const theme = config.theme;
+  const [movieAssignments, setMovieAssignments] = useState({});
+  const [movieDraft, setMovieDraft] = useState("");
+  const [createModal, setCreateModal] = useState({
+    open: false,
+    date: "",
+    start_time: "",
+    end_time: "",
+    user_id: "",
+    selectedResources: [],
+    roles: {},
+    movie: DEFAULT_MOVIES[0],
+  });
 
-  useEffect(() => {
-    loadBookings();
-  }, [selectedResource]);
-
-  async function loadBookings() {
-    const qs = selectedResource ? `?resource_id=${selectedResource}` : "";
-    const data = await apiGet(`/bookings${qs}`);
-    const list = Array.isArray(data) ? data : [];
-    setBookings(list);
-    buildCalendarEvents(list);
+  function getMovieStorageKey() {
+    const raw = localStorage.getItem("smartallocate.admin.session");
+    try {
+      const session = raw ? JSON.parse(raw) : {};
+      const orgId = String(session?.organization_id || "default").trim() || "default";
+      return `smartallocate.movies.${orgId}`;
+    } catch {
+      return "smartallocate.movies.default";
+    }
   }
 
-  function buildCalendarEvents(list) {
-    const nextEvents = [];
-    list.forEach((booking) => {
-      const dateStr = moment(booking.date).format("YYYY-MM-DD");
-      const start = moment(`${dateStr} ${booking.start_time}`).toDate();
-      const end = moment(`${dateStr} ${booking.end_time}`).toDate();
-      const resourcesList = Array.isArray(booking.resources) ? booking.resources : [];
-      const filteredResources = selectedResource
-        ? resourcesList.filter((resource) => String(resource.id) === String(selectedResource))
-        : resourcesList;
-      if (selectedResource && filteredResources.length === 0) return;
-      const resourceNames =
-        filteredResources.length > 0
-          ? filteredResources.map((resource) => resource.name).join(" / ")
-          : "Resources";
-
-      nextEvents.push({
-        id: `booking-${booking.id}`,
-        booking_id: booking.id,
-        resource_id: selectedResource || null,
-        title: `${resourceNames} (Booking #${booking.id})`,
-        start,
-        end,
-        allDay: false,
-      });
-    });
-
-    setEvents(nextEvents);
+  function persistMovieAssignments(nextAssignments) {
+    setMovieAssignments(nextAssignments);
+    localStorage.setItem(getMovieStorageKey(), JSON.stringify(nextAssignments));
   }
 
-  function openEditModal(event) {
-    const booking = bookings.find((item) => item.id === event.booking_id);
-    if (!booking) return;
-
-    const selectedResources = (booking.resources || []).map((resource) => resource.id);
-    const roles = {};
-    (booking.resources || []).forEach((resource) => {
-      if (resource.role) roles[resource.id] = resource.role;
-    });
-
-    setEditModal({
-      open: true,
-      bookingId: booking.id,
-      date: moment(booking.date).format("YYYY-MM-DD"),
-      start_time: booking.start_time,
-      end_time: booking.end_time,
-      user_id: booking.user_id ?? "",
-      selectedResources,
-      roles,
+  function closeCreateModal() {
+    setCreateModal({
+      open: false,
+      date: "",
+      start_time: "",
+      end_time: "",
+      user_id: "",
+      selectedResources: [],
+      roles: {},
+      movie: DEFAULT_MOVIES[0],
     });
     setModalMessage("");
   }
 
-  function closeEditModal() {
-    setEditModal(EMPTY_EDIT_MODAL);
-    setModalMessage("");
+  function toggleCreateResource(id) {
+    setCreateModal((prev) => {
+      const selected = prev.selectedResources.includes(id);
+      const nextResources = selected
+        ? prev.selectedResources.filter((r) => r !== id)
+        : [...prev.selectedResources, id];
+
+      const nextRoles = { ...prev.roles };
+      if (selected) delete nextRoles[id];
+      return { ...prev, selectedResources: nextResources, roles: nextRoles };
+    });
+  }
+
+  function updateCreateRole(id, value) {
+    setCreateModal((prev) => ({
+      ...prev,
+      roles: { ...prev.roles, [id]: value },
+    }));
   }
 
   function openDayModal(slotInfo) {
@@ -130,7 +124,7 @@ export default function Availability() {
     setEditModal((prev) => {
       const selected = prev.selectedResources.includes(id);
       const nextResources = selected
-        ? prev.selectedResources.filter((resourceId) => resourceId !== id)
+        ? prev.selectedResources.filter((r) => r !== id)
         : [...prev.selectedResources, id];
 
       const nextRoles = { ...prev.roles };
@@ -144,6 +138,108 @@ export default function Availability() {
       ...prev,
       roles: { ...prev.roles, [id]: value },
     }));
+  }
+
+  useEffect(() => {
+    const raw = localStorage.getItem(getMovieStorageKey());
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      setMovieAssignments(parsed && typeof parsed === "object" ? parsed : {});
+    } catch {
+      setMovieAssignments({});
+    }
+  }, []);
+
+useEffect(() => {
+  (async () => {
+    const [resourcesData, typesData] = await Promise.all([
+      apiGet("/resources"),
+      apiGet("/resource-types"),
+    ]);
+
+    const safeResources = Array.isArray(resourcesData) ? resourcesData : [];
+    const safeTypes = Array.isArray(typesData) ? typesData : [];
+
+    setResources(safeResources);
+    setResourceTypes(safeTypes);
+
+    rememberPresentation(safeTypes, safeResources);
+  })();
+}, []);
+
+  useEffect(() => {
+    loadBookings();
+  }, [selectedResource, movieAssignments]);
+
+  async function loadBookings() {
+    const qs = selectedResource ? `?resource_id=${selectedResource}` : "";
+    const data = await apiGet(`/bookings${qs}`);
+    const list = Array.isArray(data) ? data : [];
+    setBookings(list);
+    buildCalendarEvents(list);
+  }
+
+  function buildCalendarEvents(list) {
+    const ev = [];
+    list.forEach((b) => {
+      const dateStr = moment(b.date).format("YYYY-MM-DD");
+      const start = moment(`${dateStr} ${b.start_time}`).toDate();
+      const end = moment(`${dateStr} ${b.end_time}`).toDate();
+      const resourcesList = Array.isArray(b.resources) ? b.resources : [];
+      const filteredResources = selectedResource
+        ? resourcesList.filter((r) => String(r.id) === String(selectedResource))
+        : resourcesList;
+      if (selectedResource && filteredResources.length === 0) return;
+
+      const resourceNames =
+        filteredResources.length > 0
+          ? filteredResources.map((r) => r.name).join(" / ")
+          : isCinema
+            ? "Hall"
+            : "Resources";
+
+      const assignedMovie = movieAssignments[b.id];
+
+      ev.push({
+        id: `booking-${b.id}`,
+        booking_id: b.id,
+        resource_id: selectedResource || null,
+        title: assignedMovie
+          ? `${assignedMovie} · ${resourceNames}`
+          : `${resourceNames} (${isCinema ? "Screening" : `Booking #${b.id}`})`,
+        movie: assignedMovie || "",
+        start,
+        end,
+        allDay: false,
+      });
+    });
+
+    setEvents(ev);
+  }
+
+  function openEditModal(event) {
+    const booking = bookings.find((b) => b.id === event.booking_id);
+    if (!booking) return;
+
+    const selectedResources = (booking.resources || []).map((r) => r.id);
+    const roles = {};
+    (booking.resources || []).forEach((r) => {
+      if (r.role) roles[r.id] = r.role;
+    });
+
+    setEditModal({
+      open: true,
+      bookingId: booking.id,
+      date: moment(booking.date).format("YYYY-MM-DD"),
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      user_id: booking.user_id ?? "",
+      selectedResources,
+      roles,
+      movie: movieAssignments[booking.id] || DEFAULT_MOVIES[0],
+    });
+    setModalMessage("");
   }
 
   async function saveEdit() {
@@ -175,8 +271,25 @@ export default function Availability() {
         end_time: editModal.end_time,
         user_id: userId,
       });
+
+      persistMovieAssignments({
+        ...movieAssignments,
+        [editModal.bookingId]: editModal.movie || DEFAULT_MOVIES[0],
+      });
+
       await loadBookings();
-      closeEditModal();
+      setEditModal({
+        open: false,
+        bookingId: null,
+        date: "",
+        start_time: "",
+        end_time: "",
+        user_id: "",
+        selectedResources: [],
+        roles: {},
+        movie: DEFAULT_MOVIES[0],
+      });
+      setModalMessage("");
     } catch (err) {
       setModalMessage(err?.message || "Failed to update booking.");
     }
@@ -185,11 +298,76 @@ export default function Availability() {
   async function deleteBooking() {
     try {
       await apiDelete(`/bookings/${editModal.bookingId}`);
+
+      const nextAssignments = { ...movieAssignments };
+      delete nextAssignments[editModal.bookingId];
+      persistMovieAssignments(nextAssignments);
+
       await loadBookings();
-      closeEditModal();
+      setEditModal({
+        open: false,
+        bookingId: null,
+        date: "",
+        start_time: "",
+        end_time: "",
+        user_id: "",
+        selectedResources: [],
+        roles: {},
+        movie: DEFAULT_MOVIES[0],
+      });
+      setModalMessage("");
     } catch (err) {
       setModalMessage(err?.message || "Failed to delete booking.");
     }
+  }
+
+  async function createScreening() {
+    if (!createModal.date || !createModal.start_time || !createModal.end_time) {
+      setModalMessage("Date and time are required.");
+      return;
+    }
+    if (createModal.selectedResources.length === 0) {
+      setModalMessage(isCinema ? "Select at least one hall or seat resource." : "Select at least one resource.");
+      return;
+    }
+
+    try {
+      const created = await apiPost("/bookings", {
+        resources: createModal.selectedResources,
+        roles: createModal.roles,
+        date: createModal.date,
+        start_time: createModal.start_time,
+        end_time: createModal.end_time,
+        user_id: createModal.user_id ? Number(createModal.user_id) : undefined,
+      });
+
+      const createdId = created?.id;
+      if (createdId) {
+        persistMovieAssignments({
+          ...movieAssignments,
+          [createdId]: createModal.movie || DEFAULT_MOVIES[0],
+        });
+      }
+
+      await loadBookings();
+      closeCreateModal();
+    } catch (err) {
+      setModalMessage(err?.message || "Failed to create screening.");
+    }
+  }
+
+  function openCreateModalFromSlot(slotInfo) {
+    const startMoment = moment(slotInfo.start);
+    const endMoment = moment(slotInfo.end);
+    setCreateModal((prev) => ({
+      ...prev,
+      open: true,
+      date: startMoment.format("YYYY-MM-DD"),
+      start_time: startMoment.format("HH:mm"),
+      end_time: endMoment.format("HH:mm"),
+      movie: prev.movie || DEFAULT_MOVIES[0],
+    }));
+    setModalMessage("");
   }
 
   const resourceOptions = useMemo(() => {
@@ -198,7 +376,7 @@ export default function Availability() {
 
   const selectedBookingResources = useMemo(() => {
     return editModal.selectedResources
-      .map((id) => resources.find((resource) => resource.id === id))
+      .map((id) => resources.find((r) => r.id === id))
       .filter(Boolean);
   }, [editModal.selectedResources, resources]);
 
@@ -235,55 +413,153 @@ export default function Availability() {
     boxShadow: "0 8px 20px rgba(37, 99, 235, 0.2)",
     fontWeight: 600,
   };
-
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <section className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f8fbff_0%,#f2f6ff_55%,#ffffff_100%)] p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
-              Calendar Studio
-            </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
-              Bookings Calendar
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-              Same calendar workflow, just with cleaner hierarchy, a softer shell, and controls
-              that feel more polished and easier to scan.
-            </p>
-          </div>
+    <div className={`p-6 ${isCinema ? "bg-[linear-gradient(180deg,#09090b_0%,#120a19_100%)] min-h-screen" : ""}`}>
+      {isCinema && (
+        <style>{`
+          .rbc-calendar {
+            color: #1e293b;
+          }
+          .rbc-toolbar {
+            margin-bottom: 1rem;
+            color: #1e293b;
+          }
+          .rbc-toolbar button {
+            color: #5b21b6;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(196, 181, 253, 0.9);
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+          }
+          .rbc-toolbar button:hover,
+          .rbc-toolbar button:focus {
+            background: #f5f3ff;
+            color: #4c1d95;
+          }
+          .rbc-toolbar button.rbc-active {
+            background: #4f46e5;
+            border-color: #4f46e5;
+            color: #fff;
+            box-shadow: none;
+          }
+          .rbc-toolbar-label {
+            color: #312e81;
+            font-weight: 700;
+          }
+          .rbc-month-view,
+          .rbc-time-view,
+          .rbc-agenda-view {
+            border: 1px solid rgba(196, 181, 253, 0.75);
+            border-radius: 18px;
+            overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #faf7ff 100%);
+          }
+          .rbc-header {
+            background: rgba(245, 243, 255, 0.95);
+            color: #a21caf;
+            border-bottom: 1px solid rgba(196, 181, 253, 0.75);
+            padding: 10px 6px;
+            font-weight: 700;
+          }
+          .rbc-month-row + .rbc-month-row,
+          .rbc-day-bg + .rbc-day-bg,
+          .rbc-header + .rbc-header,
+          .rbc-time-header-content,
+          .rbc-time-content,
+          .rbc-time-view,
+          .rbc-timeslot-group,
+          .rbc-time-header.rbc-overflowing,
+          .rbc-time-header-content .rbc-header {
+            border-color: rgba(196, 181, 253, 0.6) !important;
+          }
+          .rbc-day-bg {
+            background: rgba(255, 255, 255, 0.94);
+          }
+          .rbc-off-range-bg {
+            background: rgba(241, 245, 249, 0.9);
+          }
+          .rbc-today {
+            background: rgba(238, 242, 255, 0.8) !important;
+          }
+          .rbc-date-cell {
+            color: #334155;
+            padding-right: 8px;
+            font-weight: 700;
+          }
+          .rbc-off-range .rbc-date-cell,
+          .rbc-off-range {
+            color: #94a3b8;
+          }
+          .rbc-current {
+            color: #111827;
+          }
+          .rbc-event {
+            border: none;
+            border-radius: 10px;
+            padding: 4px 8px;
+            box-shadow: 0 8px 20px rgba(124, 58, 237, 0.18);
+          }
+          .rbc-row-segment {
+            padding: 0 4px 4px 4px;
+          }
+          .rbc-show-more {
+            color: #7c3aed;
+            background: transparent;
+          }
+          .rbc-time-slot,
+          .rbc-label,
+          .rbc-agenda-date-cell,
+          .rbc-agenda-time-cell,
+          .rbc-agenda-event-cell {
+            color: #334155;
+          }
+          .rbc-agenda-view table.rbc-agenda-table {
+            background: linear-gradient(180deg, #ffffff 0%, #faf7ff 100%);
+          }
+          .rbc-agenda-view table.rbc-agenda-table tbody > tr > td,
+          .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+            border-color: rgba(196, 181, 253, 0.6);
+          }
+        `}</style>
+      )}
+      <div className={`mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] ${theme.heroDark}`}>
+        <div>
+          <h1 className={`text-2xl font-bold ${isCinema ? "text-white" : theme.textStrong}`}>{isCinema ? "Screening Calendar" : "Bookings Calendar"}</h1>
+          <p className={`mt-1 text-sm ${isCinema ? theme.textSoft : theme.textSoft}`}>
+            {isCinema
+              ? "Choose which movie is shown in each hall, move screenings by editing them, and plan the full schedule from one calendar."
+              : "Review and manage bookings across all resources."}
+          </p>
+        </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <label className="mb-2 block text-sm font-semibold text-slate-700">Resource</label>
-            <select
-              className="min-w-[280px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 outline-none transition focus:border-blue-500 focus:bg-white"
-              value={selectedResource}
-              onChange={(e) => setSelectedResource(e.target.value)}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className={`text-sm font-medium ${isCinema ? "text-slate-200" : theme.textStrong}`}>{isCinema ? "Hall / Seat" : "Resource"}</label>
+          <select
+            className={`rounded border p-2 ${theme.input}`}
+            value={selectedResource}
+            onChange={(e) => setSelectedResource(e.target.value)}
+          >
+            <option value="">{isCinema ? "All halls and seats" : "All resources"}</option>
+            {resourceOptions.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </select>
+
+          {isCinema && (
+            <button
+              type="button"
+              onClick={() => setCreateModal((prev) => ({ ...prev, open: true }))}
+              className={`rounded px-4 py-2 ${theme.buttonPrimary}`}
             >
-              <option value="">All resources</option>
-              {resourceOptions.map((resource) => (
-                <option key={resource.id} value={resource.id}>
-                  {resource.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              + Add Screening
+            </button>
+          )}
         </div>
-      </section>
+      </div>
 
-      <section className="mt-6 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-7">
-        <div className="mb-5 flex flex-col gap-3 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-900">Calendar View</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Navigate bookings by month, week, day, or agenda and open any event directly for
-              editing.
-            </p>
-          </div>
-          <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
-            Live schedule
-          </div>
-        </div>
+      <div className={`rounded-xl border p-6 shadow-xl ${theme.card}`}>
+        <h2 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Now Showing Planner" : "Calendar View"}</h2>
 
         <div className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-3 shadow-inner sm:p-4">
           <div className="[&_.rbc-toolbar]:mb-5 [&_.rbc-toolbar]:flex-wrap [&_.rbc-toolbar]:gap-3 [&_.rbc-toolbar-label]:text-2xl [&_.rbc-toolbar-label]:font-semibold [&_.rbc-toolbar-label]:text-slate-900 [&_.rbc-btn-group]:overflow-hidden [&_.rbc-btn-group]:rounded-2xl [&_.rbc-btn-group]:border [&_.rbc-btn-group]:border-slate-200 [&_.rbc-btn-group]:bg-white [&_.rbc-btn-group_button]:border-0 [&_.rbc-btn-group_button]:px-4 [&_.rbc-btn-group_button]:py-2.5 [&_.rbc-btn-group_button]:text-sm [&_.rbc-btn-group_button]:font-medium [&_.rbc-btn-group_button]:text-slate-600 [&_.rbc-btn-group_button:hover]:bg-slate-50 [&_.rbc-active]:bg-blue-600 [&_.rbc-active]:text-white [&_.rbc-month-view]:overflow-hidden [&_.rbc-month-view]:rounded-[22px] [&_.rbc-month-view]:border [&_.rbc-month-view]:border-slate-200 [&_.rbc-month-view]:bg-white [&_.rbc-header]:border-b [&_.rbc-header]:border-slate-200 [&_.rbc-header]:bg-slate-50 [&_.rbc-header]:py-3 [&_.rbc-header]:font-semibold [&_.rbc-header]:text-slate-800 [&_.rbc-date-cell]:px-2 [&_.rbc-date-cell]:pt-2 [&_.rbc-date-cell]:text-slate-700 [&_.rbc-off-range-bg]:bg-slate-100 [&_.rbc-today]:bg-blue-50 [&_.rbc-day-bg+_.rbc-day-bg]:border-l-slate-200 [&_.rbc-month-row+_.rbc-month-row]:border-t-slate-200 [&_.rbc-time-view]:overflow-hidden [&_.rbc-time-view]:rounded-[22px] [&_.rbc-time-view]:border [&_.rbc-time-view]:border-slate-200 [&_.rbc-time-view]:bg-white [&_.rbc-time-header]:border-b-slate-200 [&_.rbc-timeslot-group]:border-b-slate-100 [&_.rbc-agenda-view]:rounded-[22px] [&_.rbc-agenda-view]:border [&_.rbc-agenda-view]:border-slate-200 [&_.rbc-agenda-view]:bg-white [&_.rbc-agenda-view_table]:w-full [&_.rbc-agenda-view_table]:text-sm [&_.rbc-agenda-date-cell]:font-medium [&_.rbc-current-time-indicator]:bg-red-400">
@@ -293,7 +569,7 @@ export default function Availability() {
               date={currentDate}
               onNavigate={(date) => setCurrentDate(date)}
               onSelectEvent={openEditModal}
-              onSelectSlot={openDayModal}
+              onSelectSlot={isCinema ? openCreateModalFromSlot : openDayModal}
               startAccessor="start"
               endAccessor="end"
               views={["month", "week", "day", "agenda"]}
@@ -303,12 +579,20 @@ export default function Availability() {
               popup
               selectable
               eventPropGetter={() => ({
-                style: calendarEventStyle,
+                style: isCinema
+                  ? {
+                      backgroundColor: "#7c3aed",
+                      color: "white",
+                      borderRadius: "6px",
+                      padding: "4px",
+                      border: "none",
+                    }
+                  : calendarEventStyle,
               })}
             />
           </div>
         </div>
-      </section>
+      </div>
 
       {dayModal.open && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
@@ -386,93 +670,269 @@ export default function Availability() {
       )}
 
       {editModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
-          <div className="relative z-50 max-h-[90vh] w-full max-w-[720px] overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
-            <div className="mb-6 flex items-start justify-between gap-4">
-              <div>
-                <div className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
-                  Edit Event
-                </div>
-                <h3 className="mt-3 text-2xl font-semibold text-slate-900">Edit Booking</h3>
-              </div>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={`relative z-50 max-h-[90vh] w-[680px] overflow-y-auto rounded-lg border p-6 shadow-2xl ${theme.modalCard}`}>
+            <h3 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Edit Screening" : "Edit Booking"}</h3>
 
             {modalMessage && (
-              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-3 rounded bg-red-100 p-2 text-red-700">
                 {modalMessage}
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="mb-4 grid grid-cols-3 gap-3">
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">Date</label>
-                <IsraelDateInput
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Date</label>
+                <input
+                  type="date"
+                  className={`w-full rounded border p-2 ${theme.input}`}
                   value={editModal.date}
-                  onChange={(nextDate) => setEditModal((prev) => ({ ...prev, date: nextDate }))}
+                  onChange={(e) => setEditModal((p) => ({ ...p, date: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">Start</label>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Start</label>
                 <input
                   type="time"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                  className={`w-full rounded border p-2 ${theme.input}`}
                   value={editModal.start_time}
-                  onChange={(e) =>
-                    setEditModal((prev) => ({ ...prev, start_time: e.target.value }))
-                  }
+                  onChange={(e) => setEditModal((p) => ({ ...p, start_time: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700">End</label>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>End</label>
                 <input
                   type="time"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                  className={`w-full rounded border p-2 ${theme.input}`}
                   value={editModal.end_time}
-                  onChange={(e) =>
-                    setEditModal((prev) => ({ ...prev, end_time: e.target.value }))
-                  }
+                  onChange={(e) => setEditModal((p) => ({ ...p, end_time: e.target.value }))}
                 />
               </div>
             </div>
 
-            <div className="mt-4">
-              <label className="mb-2 block text-sm font-semibold text-slate-700">User ID</label>
+            <div className="mb-4">
+              <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>User ID</label>
               <input
                 type="number"
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                className={`w-full rounded border p-2 ${theme.input}`}
                 value={editModal.user_id}
-                onChange={(e) => setEditModal((prev) => ({ ...prev, user_id: e.target.value }))}
+                onChange={(e) => setEditModal((p) => ({ ...p, user_id: e.target.value }))}
               />
             </div>
 
-            <div className="mt-5">
-              <label className="mb-3 block text-sm font-semibold text-slate-700">Resources</label>
-              <div className="max-h-64 overflow-y-auto rounded-[22px] border border-slate-200 bg-slate-50 p-3">
-                {resourceOptions.map((resource) => {
-                  const type = resourceTypes.find((item) => item.id === resource.type_id);
-                  const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
-                  const checked = editModal.selectedResources.includes(resource.id);
+            {isCinema && (
+              <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr]">
+                <div>
+                  <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Movie</label>
+                  <select
+                    className={`w-full rounded border p-2 ${theme.input}`}
+                    value={editModal.movie || DEFAULT_MOVIES[0]}
+                    onChange={(e) => setEditModal((p) => ({ ...p, movie: e.target.value }))}
+                  >
+                    {DEFAULT_MOVIES.map((movie) => (
+                      <option key={movie} value={movie}>
+                        {movie}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Custom Movie Title</label>
+                  <input
+                    type="text"
+                    className={`w-full rounded border p-2 ${theme.input}`}
+                    value={movieDraft}
+                    onChange={(e) => setMovieDraft(e.target.value)}
+                    placeholder="Type a custom movie title..."
+                  />
+                  <button
+                    type="button"
+                    className="mt-2 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-800"
+                    onClick={() => {
+                      if (!movieDraft.trim()) return;
+                      setEditModal((p) => ({ ...p, movie: movieDraft.trim() }));
+                      setMovieDraft("");
+                    }}
+                  >
+                    Use Custom Title
+                  </button>
+                </div>
+              </div>
+            )}
 
+            <div className="mb-4">
+              <label className={`mb-2 block text-sm font-medium ${theme.textStrong}`}>{isCinema ? "Hall / Seat Resources" : "Resources"}</label>
+              <div className={`max-h-64 overflow-y-auto rounded border p-3 ${theme.modalSurface}`}>
+                {resourceOptions.map((r) => {
+                  const type = resourceTypes.find((t) => t.id === r.type_id);
+                  const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
+                  const checked = editModal.selectedResources.includes(r.id);
                   return (
-                    <div
-                      key={resource.id}
-                      className="mb-2 flex items-center justify-between gap-3 rounded-2xl border border-transparent bg-white px-3 py-3 shadow-sm"
-                    >
+                <div key={r.id} className="mb-2 flex items-center justify-between">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleResource(r.id)}
+                    />
+                    <span>{r.name}</span>
+                  </label>
+
+                      {checked && typeRoles.length > 0 && (
+                        <select
+                          className={`rounded border px-2 py-1 ${theme.input}`}
+                          value={editModal.roles[r.id] || ""}
+                          onChange={(e) => updateRole(r.id, e.target.value)}
+                        >
+                          <option value="">Role (optional)</option>
+                          {typeRoles.map((role) => (
+                            <option key={role} value={role}>
+                              {role}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {selectedBookingResources.length > 0 && (
+              <div className={`mb-4 text-sm ${isCinema ? "text-slate-300" : "text-gray-600"}`}>
+                {isCinema ? "Assigned to:" : "Selected:"} {selectedBookingResources.map((r) => r.name).join(", ")}
+              </div>
+            )}
+
+            <div className="flex justify-between gap-2">
+              <button
+                onClick={deleteBooking}
+                className={`rounded px-4 py-2 ${theme.buttonDanger}`}
+              >
+                Delete
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() =>
+                    setEditModal({
+                      open: false,
+                      bookingId: null,
+                      date: "",
+                      start_time: "",
+                      end_time: "",
+                      user_id: "",
+                      selectedResources: [],
+                      roles: {},
+                      movie: DEFAULT_MOVIES[0],
+                    })
+                  }
+                  className={`rounded border px-4 py-2 ${theme.buttonGhost}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEdit}
+                  className={`rounded px-4 py-2 ${theme.buttonPrimary}`}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={`relative z-50 max-h-[90vh] w-[680px] overflow-y-auto rounded-lg border p-6 shadow-2xl ${theme.modalCard}`}>
+            <h3 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Create Screening" : "Create Booking"}</h3>
+
+            {modalMessage && (
+              <div className="mb-3 rounded bg-red-100 p-2 text-red-700">
+                {modalMessage}
+              </div>
+            )}
+
+            <div className="mb-4 grid grid-cols-3 gap-3">
+              <div>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Date</label>
+                <input
+                  type="date"
+                  className={`w-full rounded border p-2 ${theme.input}`}
+                  value={createModal.date}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, date: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Start</label>
+                <input
+                  type="time"
+                  className={`w-full rounded border p-2 ${theme.input}`}
+                  value={createModal.start_time}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, start_time: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>End</label>
+                <input
+                  type="time"
+                  className={`w-full rounded border p-2 ${theme.input}`}
+                  value={createModal.end_time}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, end_time: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr]">
+              <div>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Movie</label>
+                <select
+                  className={`w-full rounded border p-2 ${theme.input}`}
+                  value={createModal.movie || DEFAULT_MOVIES[0]}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, movie: e.target.value }))}
+                >
+                  {DEFAULT_MOVIES.map((movie) => (
+                    <option key={movie} value={movie}>
+                      {movie}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>User ID (optional)</label>
+                <input
+                  type="number"
+                  className={`w-full rounded border p-2 ${theme.input}`}
+                  value={createModal.user_id}
+                  onChange={(e) => setCreateModal((p) => ({ ...p, user_id: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className={`mb-2 block text-sm font-medium ${theme.textStrong}`}>{isCinema ? "Hall / Seat Resources" : "Resources"}</label>
+              <div className={`max-h-64 overflow-y-auto rounded border p-3 ${theme.modalSurface}`}>
+                {resourceOptions.map((r) => {
+                  const type = resourceTypes.find((t) => t.id === r.type_id);
+                  const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
+                  const checked = createModal.selectedResources.includes(r.id);
+                  return (
+                    <div key={r.id} className="mb-2 flex items-center justify-between">
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => toggleResource(resource.id)}
+                          onChange={() => toggleCreateResource(r.id)}
                         />
-                        <span>{resource.name}</span>
+                        <span>{r.name}</span>
                       </label>
 
                       {checked && typeRoles.length > 0 && (
                         <select
-                          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-                          value={editModal.roles[resource.id] || ""}
-                          onChange={(e) => updateRole(resource.id, e.target.value)}
+                          className={`rounded border px-2 py-1 ${theme.input}`}
+                          value={createModal.roles[r.id] || ""}
+                          onChange={(e) => updateCreateRole(r.id, e.target.value)}
                         >
                           <option value="">Role (optional)</option>
                           {typeRoles.map((role) => (
@@ -488,34 +948,16 @@ export default function Availability() {
               </div>
             </div>
 
-            {selectedBookingResources.length > 0 && (
-              <div className="mb-4 text-sm text-gray-600">
-                Selected: {selectedBookingResources.map((resource) => resource.name).join(", ")}
-              </div>
-            )}
-
-            <div className="mt-6 flex justify-between gap-2">
-              <button
-                onClick={deleteBooking}
-                className="rounded-xl bg-red-600 px-4 py-2.5 text-white transition hover:bg-red-700"
-              >
-                Delete
+            <div className="flex justify-end gap-2">
+              <button onClick={closeCreateModal} className={`rounded border px-4 py-2 ${theme.buttonGhost}`}>
+                Cancel
               </button>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={closeEditModal}
-                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-slate-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveEdit}
-                  className="rounded-xl bg-blue-600 px-4 py-2.5 text-white transition hover:bg-blue-700"
-                >
-                  Save Changes
-                </button>
-              </div>
+              <button
+                onClick={createScreening}
+                className={`rounded px-4 py-2 ${theme.buttonPrimary}`}
+              >
+                {isCinema ? "Create Screening" : "Create Booking"}
+              </button>
             </div>
           </div>
         </div>

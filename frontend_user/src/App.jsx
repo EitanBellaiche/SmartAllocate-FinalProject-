@@ -25,7 +25,124 @@ function parseDateValue(dateStr) {
   }
   return new Date(dateStr);
 }
+function getSeatLabelFromBooking(booking) {
+  const resources = getBookingResources(booking);
+  const seats = resources.filter((r) => {
+    const meta = normalizeMetadata(r?.metadata);
+    return meta.row || meta.number || meta.seat_number || meta.seatNumber;
+  });
 
+  if (seats.length === 0) return "";
+
+  return seats
+    .map((seat) => {
+      const meta = normalizeMetadata(seat?.metadata);
+      const row = meta.row || "";
+      const num = meta.number || meta.seat_number || meta.seatNumber || "";
+      return `${row}${num}`;
+    })
+    .join(", ");
+}
+
+// ---- Cinema helpers (used by search view and seat explorer) ----
+function isCinemaHallResource(resource) {
+  const name = String(resource?.name || "").toLowerCase();
+  const typeName = String(resource?.type_name || "").toLowerCase();
+  const meta = normalizeMetadata(resource?.metadata);
+  const hasSeatObjects = Array.isArray(meta?.seatObjects) && meta.seatObjects.length > 0;
+  const capacity = Number(meta.capacity || meta.Capacity || 0);
+
+  return (
+    hasSeatObjects ||
+    (capacity > 0 &&
+      /(hall|auditorium|screen|theatre|theater|cinema area|imax)/.test(
+        `${name} ${typeName}`
+      ))
+  );
+}
+
+function getSeatObjects(resource) {
+  const meta = normalizeMetadata(resource?.metadata);
+  return Array.isArray(meta?.seatObjects) ? meta.seatObjects : [];
+}
+
+function splitSeatRowIntoSections(rowItems) {
+  if (!Array.isArray(rowItems) || rowItems.length === 0) {
+    return { left: [], center: [], right: [] };
+  }
+
+  const hasSectionData = rowItems.some((seat) => seat?.section);
+  if (!hasSectionData) {
+    return { left: [], center: rowItems, right: [] };
+  }
+
+  const frontOnly = rowItems.every((seat) => seat?.section === "front_center");
+  if (frontOnly) {
+    return { left: [], center: rowItems, right: [] };
+  }
+
+  return {
+    left: rowItems.filter((seat) => seat?.section === "left"),
+    center: rowItems.filter(
+      (seat) => seat?.section === "center" || seat?.section === "front_center"
+    ),
+    right: rowItems.filter((seat) => seat?.section === "right"),
+  };
+}
+
+function getHallSeatRows(resource) {
+  const seats = getSeatObjects(resource);
+  const byRow = seats.reduce((acc, seat) => {
+    const row = String(seat?.row || "?");
+    acc[row] = acc[row] || [];
+    acc[row].push(seat);
+    return acc;
+  }, {});
+
+  return Object.entries(byRow)
+    .sort(([a], [b]) => String(a).localeCompare(String(b)))
+    .map(([rowLabel, items]) => ({
+      rowLabel,
+      items: [...items].sort(
+        (a, b) => Number(a?.number || 0) - Number(b?.number || 0)
+      ),
+    }));
+}
+
+function getUserSeatIdsForHall(hallResource, bookings) {
+  if (!hallResource) return new Set();
+  const seatIds = new Set();
+
+  bookings.forEach((booking) => {
+    const resources = getBookingResources(booking);
+    const bookingHasHall = resources.some((resource) => {
+      if (!isCinemaHallResource(resource)) return false;
+      return (
+        String(resource?.id) === String(hallResource?.id) ||
+        String(resource?.name || "") === String(hallResource?.name || "")
+      );
+    });
+
+    resources.forEach((resource) => {
+      const meta = normalizeMetadata(resource?.metadata);
+      const seatId =
+        meta.seatId ||
+        `${meta.row || ""}${meta.number || meta.seat_number || meta.seatNumber || ""
+        }`;
+      const linkedHallName =
+        meta.hallName || meta.hall || meta.auditorium || meta.screen || "";
+      if (!seatId) return;
+      if (
+        bookingHasHall ||
+        String(linkedHallName) === String(hallResource?.name || "")
+      ) {
+        seatIds.add(String(seatId));
+      }
+    });
+  });
+
+  return seatIds;
+}
 function formatDate(dateStr) {
   if (!dateStr) return "";
   const d = parseDateValue(dateStr);
@@ -159,16 +276,6 @@ function getBookingResources(booking) {
   return booking?.all_resources || booking?.resources || [];
 }
 
-function getAssignedBookingResources(booking) {
-  return booking?.assigned_resources || [];
-}
-
-function getBookingTitle(booking) {
-  const resources = getBookingResources(booking);
-  const names = resources.map((r) => r?.name).filter(Boolean);
-  return names.length > 0 ? names.join(" / ") : `Booking #${booking?.id || ""}`;
-}
-
 function getBookingRoomLine(booking) {
   if (String(booking?.location || "").toLowerCase() === "zoom") {
     return "Location: Zoom";
@@ -176,44 +283,32 @@ function getBookingRoomLine(booking) {
   const resources = getBookingResources(booking);
   const room = resources.find((r) => {
     const meta = normalizeMetadata(r?.metadata);
-    const typeName = String(r?.type_name || "").trim().toLowerCase();
-    if (isPrimaryResource(r) || ["courses", "exam"].includes(typeName)) {
-      return false;
-    }
     return (
       meta.room ||
       meta.location ||
       meta.site ||
       meta.space ||
       meta.building ||
-      meta.floor ||
-      ["classroom", "auditorium", "lab", "studio"].includes(typeName)
+      meta.floor
     );
   });
   if (!room) return "";
   const name = room.name || "On-site";
-  const meta = normalizeMetadata(room.metadata);
-  const details = [
-    meta.building ? `Building: ${meta.building}` : "",
-    meta.floor != null && meta.floor !== "" ? `Floor: ${meta.floor}` : "",
-    meta.room ? `Room: ${meta.room}` : "",
-    meta.location ? `Location: ${meta.location}` : "",
-  ].filter(Boolean);
-  return details.length > 0
-    ? `Location: ${name} (${details.join(" | ")})`
-    : `Location: ${name}`;
+  const meta =
+    room.metadata && Object.keys(room.metadata).length > 0
+      ? Object.entries(room.metadata)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(" | ")
+      : "";
+  return meta ? `Location: ${name} (${meta})` : `Location: ${name}`;
 }
 
 function filterBookingsToPrimaryResources(bookings) {
   return bookings.map((booking) => {
-    const allResources = getBookingResources(booking);
-    const assignedResources = allResources.filter(isPrimaryResource);
-    return {
-      ...booking,
-      resources: allResources,
-      all_resources: allResources,
-      assigned_resources: assignedResources,
-    };
+    const allResources = booking.resources || [];
+    const primaryResources = allResources.filter(isPrimaryResource);
+    const resources = primaryResources.length > 0 ? primaryResources : allResources;
+    return { ...booking, resources, all_resources: allResources };
   });
 }
 
@@ -241,9 +336,6 @@ function normalizeRole(value) {
 }
 
 export default function App() {
-  const [viewportWidth, setViewportWidth] = useState(() =>
-    typeof window === "undefined" ? 1280 : window.innerWidth
-  );
   const [currentUserId, setCurrentUserId] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("user");
@@ -254,10 +346,6 @@ export default function App() {
   const [viewMode, setViewMode] = useState("month"); // month | list
   const [monthDate, setMonthDate] = useState(new Date());
   const [hasUser, setHasUser] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
-  const isTablet = viewportWidth <= 960;
-  const isMobile = viewportWidth <= 640;
 
   // resource search
   const [resources, setResources] = useState([]);
@@ -311,7 +399,6 @@ export default function App() {
   const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
   const [announcementSent, setAnnouncementSent] = useState("");
   const [announcementError, setAnnouncementError] = useState("");
-  const [selectedScheduleDay, setSelectedScheduleDay] = useState(null);
   const [cancelDialog, setCancelDialog] = useState({ open: false, booking: null });
   const [cancelReason, setCancelReason] = useState("");
   const [cancelSenderName, setCancelSenderName] = useState("");
@@ -351,6 +438,24 @@ export default function App() {
     [labels]
   );
 
+  const isCinema = true;
+
+  const cinemaPrimaryButton = {
+    border: "none",
+    background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+    color: "#fff",
+    fontWeight: 800,
+    boxShadow: "0 14px 30px rgba(79,70,229,0.22)",
+  };
+
+  const cinemaSecondaryButton = {
+    border: "1px solid #c4b5fd",
+    background: "#ffffff",
+    color: "#5b21b6",
+    fontWeight: 800,
+    boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+  };
+
   useEffect(() => {
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return;
@@ -364,21 +469,6 @@ export default function App() {
       localStorage.removeItem(SESSION_KEY);
     }
   }, []);
-
-  useEffect(() => {
-    function handleResize() {
-      setViewportWidth(window.innerWidth);
-    }
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
-    if (viewportWidth > 960 && mobileMenuOpen) {
-      setMobileMenuOpen(false);
-    }
-  }, [viewportWidth, mobileMenuOpen]);
 
   async function handleLogin() {
     const id = currentUserId.trim();
@@ -448,7 +538,7 @@ export default function App() {
     const q = filter.trim().toLowerCase();
     if (!q) return scheduleBookings;
     return scheduleBookings.filter((b) => {
-      const resourcesTxt = getBookingResources(b)
+      const resourcesTxt = (b.resources || [])
         .map((r) => `${r.name} ${r.type_name || ""}`)
         .join(" ");
       const haystack = `${b.id} ${b.date} ${resourcesTxt}`.toLowerCase();
@@ -479,13 +569,13 @@ export default function App() {
     [availabilityMonthDate, availabilityBookings]
   );
 
-  const monthLabel = monthDate.toLocaleDateString("en-US", {
+  const monthLabel = monthDate.toLocaleDateString("he-IL", {
     timeZone: "Asia/Jerusalem",
     month: "long",
     year: "numeric",
   });
   const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
-    "en-US",
+    "he-IL",
     {
       timeZone: "Asia/Jerusalem",
       month: "long",
@@ -511,13 +601,7 @@ export default function App() {
 
   const filteredResources = useMemo(() => {
     const visibleResources = resources.filter((r) => {
-      if (
-        role === "manager" &&
-        isPrimaryResource(r) &&
-        !isResourceAssignedToUser(r, currentUserId)
-      ) {
-        return false;
-      }
+      if (role === "manager" && isPrimaryResource(r)) return false;
       return true;
     });
     const sortedResources = [...visibleResources].sort((a, b) =>
@@ -526,22 +610,16 @@ export default function App() {
     if (role === "user" && !resourceQuery.trim()) return sortedResources;
     if (!resourceQuery.trim()) return [];
     return sortedResources.filter((r) => resourceMatchesQuery(r, resourceQuery));
-  }, [resources, resourceQuery, role, currentUserId]);
+  }, [resources, resourceQuery, role]);
 
   const filteredRequestResources = useMemo(() => {
     return resources.filter((r) => {
-      if (
-        role === "manager" &&
-        isPrimaryResource(r) &&
-        !isResourceAssignedToUser(r, currentUserId)
-      ) {
-        return false;
-      }
+      if (role === "manager" && isPrimaryResource(r)) return false;
       if (!resourceMatchesQuery(r, requestQuery)) return false;
       if (onlyAvailable && !isResourceAvailable(r)) return false;
       return true;
     });
-  }, [resources, requestQuery, onlyAvailable, role, currentUserId]);
+  }, [resources, requestQuery, onlyAvailable, role]);
 
   const selectedResource = useMemo(() => {
     if (!selectedResourceId) return null;
@@ -784,7 +862,7 @@ export default function App() {
   const resourceSessions = useMemo(() => {
     const byId = {};
     for (const b of activeBookings) {
-      for (const r of getBookingResources(b)) {
+      for (const r of b.resources || []) {
         byId[r.id] = byId[r.id] || [];
         byId[r.id].push({
           bookingId: b.id,
@@ -808,7 +886,7 @@ export default function App() {
   const allResourceSessions = useMemo(() => {
     const byId = {};
     for (const b of bookings) {
-      for (const r of getBookingResources(b)) {
+      for (const r of b.resources || []) {
         byId[r.id] = byId[r.id] || [];
         byId[r.id].push({
           bookingId: b.id,
@@ -828,6 +906,9 @@ export default function App() {
     );
     return byId;
   }, [bookings]);
+
+  // Sidebar selection
+  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
 
   async function loadUserRequests() {
     const userId = currentUserId.trim();
@@ -932,7 +1013,7 @@ export default function App() {
     setRescheduleDate(booking.date || "");
     setRescheduleStart(booking.start_time || "09:00");
     setRescheduleEnd(booking.end_time || "10:00");
-                    setRescheduleLocation("onsite");
+    setRescheduleLocation("onsite");
   }
 
   async function submitCancellation() {
@@ -977,9 +1058,9 @@ export default function App() {
     } catch (err) {
       setCancelError(
         err?.message ||
-          (rescheduleMode
-            ? `Failed to reschedule ${labelsLower.resource}.`
-            : `Failed to cancel ${labelsLower.resource}.`)
+        (rescheduleMode
+          ? `Failed to reschedule ${labelsLower.resource}.`
+          : `Failed to cancel ${labelsLower.resource}.`)
       );
     } finally {
       setCancelSubmitting(false);
@@ -1199,43 +1280,24 @@ export default function App() {
     return (
       <div className="login-shell">
         <div className="login-card">
-          <div className="login-showcase">
-            <div className="login-brand-badge">SmartAllocate</div>
-            <div className="login-greeting">
-              <div className="login-greeting-title">Welcome back</div>
-              <div className="login-greeting-sub">
-                A calmer workspace for bookings, requests, availability, and daily coordination.
-              </div>
-            </div>
-            <div className="login-showcase-panel">
-              <div className="login-showcase-label">Personal Workspace</div>
-              <div className="login-showcase-heading">Manage your schedule with clarity.</div>
-              <div className="login-showcase-text">
-                Sign in to review bookings, request resources, and keep your availability updated
-                in one refined place.
-              </div>
+          <div className="login-greeting">
+            <div className="login-greeting-title">Welcome</div>
+            <div className="login-greeting-sub">
+              Sign in to manage your bookings with SmartAllocate.
             </div>
           </div>
 
           <div className="login-divider" />
 
           <div className="login-form">
-            <div className="login-form-header">
-              <div className="login-form-title">Sign in</div>
-              <div className="login-form-subtitle">
-                Enter your {labelsLower.userId} and password to continue.
-              </div>
-            </div>
             <label className="login-label">{labels.userId}</label>
             <input
               className="login-input"
               type="text"
+              inputMode="numeric"
               value={currentUserId}
               onChange={(e) => setCurrentUserId(e.target.value)}
               placeholder={`Enter your ${labelsLower.userId}`}
-              autoCapitalize="none"
-              autoCorrect="off"
-              autoComplete="username"
             />
             <label className="login-label">Password</label>
             <input
@@ -1250,7 +1312,7 @@ export default function App() {
               onClick={handleLogin}
               disabled={loading}
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Loading..." : "Sign in"}
             </button>
             {error && <div className="login-error">{error}</div>}
           </div>
@@ -1262,106 +1324,40 @@ export default function App() {
   const requestButtonLabel = "Send request";
   const requestButtonBackground = bookingSubmitting ? "#94a3b8" : "#2563eb";
   const requestButtonColor = "#fff";
-  const hasResourceQuery = resourceQuery.trim().length > 0;
-  const selectedSearchSessions =
-    (selectedResource
-      ? role === "user"
-        ? allResourceSessions[selectedResource.id]
-        : resourceSessions[selectedResource.id]
-      : []) || [];
-  const shouldShowSearchResults = !selectedResource && filteredResources.length > 0;
-  const shouldShowSearchNoMatches =
-    role !== "user" && hasResourceQuery && filteredResources.length === 0 && !resourceLoading;
-  const shouldShowUserSearchEmpty =
-    role === "user" && filteredResources.length === 0 && !resourceLoading;
-  const hasRequestQuery = requestQuery.trim().length > 0;
-  const requestResultsCount = filteredRequestResources.length;
-  const shouldShowRequestEmptyState = resources.length === 0 && !resourceLoading;
-  const shouldShowRequestNoMatches =
-    resources.length > 0 && requestResultsCount === 0 && !resourceLoading;
-  const requestGroupsCount = groupedUserRequests.length;
-  const requestUpdatesCount = filteredUserRequests.length;
-  const hasUserRequestsQuery = userRequestsQuery.trim().length > 0;
-  const heroPadding = isMobile ? 18 : 28;
-  const cardPadding = isMobile ? 16 : 22;
-  const detailPadding = isMobile ? 18 : 24;
-  const responsiveSidebarCardMinWidth = isMobile ? "100%" : 220;
-  const responsiveWideMinWidth = isMobile ? "100%" : 240;
-  const responsiveMediumMinWidth = isMobile ? "100%" : 230;
-  const responsiveInputMinWidth = isMobile ? "100%" : 280;
-  const responsiveCompactMinWidth = isMobile ? "100%" : 160;
-  const twoColumnGrid = isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))";
-  const splitPanelGrid = isTablet ? "1fr" : "minmax(0, 1.1fr) minmax(280px, 0.9fr)";
 
   return (
     <div
-      className="app-shell"
       style={{
         minHeight: "100vh",
         display: "flex",
-        flexDirection: isTablet ? "column" : "row",
-        background: "#f8fafc",
+        background: isCinema ? "#f1f5f9" : "#f8fafc",
       }}
     >
-      {isTablet && (
-        <div className="mobile-topbar">
-          <div className="mobile-topbar__brand">
-            <div style={{ fontWeight: 800, fontSize: 18 }}>SmartAllocate</div>
-            <div style={{ fontSize: 12, color: "#94a3b8" }}>
-              {labels.userId}: {currentUserId}
-            </div>
-          </div>
-          <button
-            type="button"
-            className="mobile-menu-button"
-            onClick={() => setMobileMenuOpen((open) => !open)}
-            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={mobileMenuOpen}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
-        </div>
-      )}
-
-      {isTablet && mobileMenuOpen && (
-        <button
-          type="button"
-          className="mobile-menu-overlay"
-          aria-label="Close menu overlay"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-
       {/* Sidebar */}
       <aside
-        className="app-sidebar"
         style={{
-          width: isTablet ? "min(320px, 84vw)" : 220,
-          background: "#0f172a",
+          width: 220,
+          background: isCinema
+            ? "linear-gradient(180deg,#09090b 0%,#120a19 100%)"
+            : "#0f172a",
           color: "#e2e8f0",
           display: "flex",
           flexDirection: "column",
-          flexWrap: "nowrap",
-          alignItems: "stretch",
           padding: 16,
           gap: 12,
-          position: isTablet ? "fixed" : "static",
-          top: isTablet ? 0 : "auto",
-          left: isTablet ? 0 : "auto",
-          bottom: isTablet ? 0 : "auto",
-          zIndex: isTablet ? 40 : "auto",
-          transform: isTablet
-            ? mobileMenuOpen
-              ? "translateX(0)"
-              : "translateX(-105%)"
-            : "none",
-          transition: isTablet ? "transform 180ms ease" : "none",
-          overflowY: "auto",
+          boxShadow: isCinema ? "inset -1px 0 0 rgba(196,181,253,0.14)" : "none",
         }}
       >
-        <div style={{ fontWeight: 800, fontSize: 18, flexShrink: 0 }}>SmartAllocate</div>
+        <div
+          style={{
+            fontWeight: 900,
+            fontSize: 18,
+            color: isCinema ? "#f5f3ff" : undefined,
+            letterSpacing: isCinema ? "0.02em" : undefined,
+          }}
+        >
+          SmartAllocate
+        </div>
         <div style={{ display: "grid", gap: 6 }}>
           <div
             style={{
@@ -1375,12 +1371,14 @@ export default function App() {
           </div>
           <div
             style={{
-              padding: "6px 8px",
-              borderRadius: 8,
-              border: "1px solid #1e293b",
-              background: "#0b1120",
+              padding: "8px 10px",
+              borderRadius: 12,
+              border: isCinema ? "1px solid rgba(196,181,253,0.24)" : "1px solid #1e293b",
+              background: isCinema
+                ? "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(196,181,253,0.08))"
+                : "#0b1120",
               color: "#e2e8f0",
-              fontWeight: 700,
+              fontWeight: 800,
               textTransform: "capitalize",
               textAlign: "center",
             }}
@@ -1392,79 +1390,103 @@ export default function App() {
           {labels.userId}: {currentUserId}
         </div>
         <button
-          onClick={() => {
-            setSection("schedule");
-            setMobileMenuOpen(false);
-          }}
-          className="app-nav-button"
+          onClick={() => setSection("schedule")}
           style={{
             textAlign: "left",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "none",
-            background: section === "schedule" ? "#1d4ed8" : "transparent",
+            padding: "12px 14px",
+            borderRadius: 14,
+            border: isCinema && section === "schedule" ? "1px solid transparent" : "none",
+            background:
+              section === "schedule"
+                ? isCinema
+                  ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                  : "#1d4ed8"
+                : "transparent",
             color: "#fff",
             cursor: "pointer",
+            fontWeight: 800,
+            boxShadow:
+              isCinema && section === "schedule"
+                ? "0 14px 30px rgba(79,70,229,0.22)"
+                : "none",
           }}
         >
           My Schedule
         </button>
         <button
-          onClick={() => {
-            setSection("search");
-            setMobileMenuOpen(false);
-          }}
-          className="app-nav-button"
+          onClick={() => setSection("search")}
           style={{
             textAlign: "left",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "none",
-            background: section === "search" ? "#1d4ed8" : "transparent",
+            padding: "12px 14px",
+            borderRadius: 14,
+            border: isCinema && section === "search" ? "1px solid transparent" : "none",
+            background:
+              section === "search"
+                ? isCinema
+                  ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                  : "#1d4ed8"
+                : "transparent",
             color: "#fff",
             cursor: "pointer",
+            fontWeight: 800,
+            boxShadow:
+              isCinema && section === "search"
+                ? "0 14px 30px rgba(79,70,229,0.22)"
+                : "none",
           }}
         >
           {role === "user" ? `My ${labels.resources}` : `Find ${labels.resource}`}
         </button>
         {role === "manager" && (
           <button
-            onClick={() => {
-              setSection("requests");
-              setMobileMenuOpen(false);
-            }}
-            className="app-nav-button"
+            onClick={() => setSection("requests")}
             style={{
               textAlign: "left",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "none",
-              background: section === "requests" ? "#1d4ed8" : "transparent",
+              padding: "12px 14px",
+              borderRadius: 14,
+              border: isCinema && section === "requests" ? "1px solid transparent" : "none",
+              background:
+                section === "requests"
+                  ? isCinema
+                    ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                    : "#1d4ed8"
+                  : "transparent",
               color: "#fff",
               cursor: "pointer",
+              fontWeight: 800,
+              boxShadow:
+                isCinema && section === "requests"
+                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                  : "none",
             }}
           >
             {`${labels.resource} ${labels.requests}`}
           </button>
         )}
         <button
-          onClick={() => {
-            setSection("notifications");
-            setMobileMenuOpen(false);
-          }}
-          className="app-nav-button"
+          onClick={() => setSection("notifications")}
           style={{
             textAlign: "left",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "none",
-            background: section === "notifications" ? "#1d4ed8" : "transparent",
+            padding: "12px 14px",
+            borderRadius: 14,
+            border: isCinema && section === "notifications" ? "1px solid transparent" : "none",
+            background:
+              section === "notifications"
+                ? isCinema
+                  ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                  : "#1d4ed8"
+                : "transparent",
             color: "#fff",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 8,
+            fontWeight: 800,
+            boxShadow:
+              isCinema && section === "notifications"
+                ? "0 14px 30px rgba(79,70,229,0.22)"
+                : "none",
           }}
         >
           <span>{role === "user" ? "Notifications" : "Request Updates"}</span>
@@ -1490,19 +1512,25 @@ export default function App() {
         </button>
         {role === "manager" && (
           <button
-            onClick={() => {
-              setSection("availability");
-              setMobileMenuOpen(false);
-            }}
-            className="app-nav-button"
+            onClick={() => setSection("availability")}
             style={{
               textAlign: "left",
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "none",
-              background: section === "availability" ? "#1d4ed8" : "transparent",
+              padding: "12px 14px",
+              borderRadius: 14,
+              border: isCinema && section === "availability" ? "1px solid transparent" : "none",
+              background:
+                section === "availability"
+                  ? isCinema
+                    ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
+                    : "#971dd8ff"
+                  : "transparent",
               color: "#fff",
               cursor: "pointer",
+              fontWeight: 800,
+              boxShadow:
+                isCinema && section === "availability"
+                  ? "0 14px 30px rgba(79,70,229,0.22)"
+                  : "none",
             }}
           >
             My Availability
@@ -1510,103 +1538,63 @@ export default function App() {
         )}
         <button
           onClick={handleLogout}
-          className="app-nav-button"
           style={{
-            marginTop: isTablet ? 0 : 8,
+            marginTop: 8,
             textAlign: "left",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "1px solid #1e293b",
-            background: "#0b1120",
+            padding: "12px 14px",
+            borderRadius: 14,
+            border: isCinema ? "1px solid rgba(196,181,253,0.2)" : "1px solid #1e293b",
+            background: isCinema
+              ? "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(196,181,253,0.06))"
+              : "#0b1120",
             color: "#e2e8f0",
             cursor: "pointer",
+            fontWeight: 700,
           }}
         >
           Sign out
         </button>
-        <div style={{ marginTop: isTablet ? 0 : "auto", fontSize: 12, color: "#94a3b8" }}>
+        <div style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>
           Powered by SmartAllocate
         </div>
       </aside>
 
       {/* Main */}
-      <div
-        className="app-main"
-        style={{
-          flex: 1,
-          width: "100%",
-          padding: isMobile ? 14 : isTablet ? 18 : 24,
-          maxWidth: 1200,
-          margin: "0 auto",
-        }}
-      >
+      <div style={{ flex: 1, padding: 24, maxWidth: 1200, margin: "0 auto" }}>
         {section === "schedule" ? (
           <>
             <header
               style={{
-                marginBottom: 20,
-                border: "1px solid #e2e8f0",
-                borderRadius: 28,
-                padding: isMobile ? 18 : 24,
-                background:
-                  "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92) 45%, rgba(250,245,235,0.86))",
-                boxShadow: "0 22px 60px rgba(15,23,42,0.08)",
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
               }}
             >
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  border: "1px solid rgba(148,163,184,0.25)",
-                  background: "rgba(255,255,255,0.85)",
-                  color: "#7c2d12",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Personal Agenda
-              </div>
-              <h1
-                style={{
-                  margin: "18px 0 0",
-                  color: "#0f172a",
-                  fontSize: isMobile ? 34 : isTablet ? 38 : 44,
-                  lineHeight: 1,
-                  letterSpacing: "-0.04em",
-                }}
-              >
-                My Schedule
+              <h1 style={{ margin: 0, color: "#0f172a" }}>
+                {isCinema ? "My Screenings" : "My Schedule"}
               </h1>
-              <p style={{ margin: "14px 0 0", color: "#475569", maxWidth: 720, lineHeight: 1.7 }}>
-                A calmer, more elegant view of your {labelsLower.resources}. Switch between a
-                polished calendar and a refined agenda list without losing context.
+              <p style={{ margin: 0, color: "#475569" }}>
+                {isCinema
+                  ? "Follow your upcoming screenings in month or list view."
+                  : `Month or list view of your ${labelsLower.resources}.`}
               </p>
             </header>
 
             <div
-              className="schedule-toolbar"
+              className="glass"
               style={{
-                padding: isMobile ? 14 : 18,
-                borderRadius: 24,
+                padding: 16,
+                borderRadius: 18,
                 display: "flex",
                 gap: 12,
                 alignItems: "center",
                 flexWrap: "wrap",
-                border: "1px solid #e2e8f0",
-                background: "rgba(255,255,255,0.92)",
-                boxShadow: "0 16px 40px rgba(15,23,42,0.06)",
               }}
             >
-              <div style={{ flex: 1, minWidth: isMobile ? "100%" : 200 }}>
-                <h3 style={{ margin: 0, color: "#0f172a", fontSize: 24 }}>My {labels.resources}</h3>
-                <p style={{ margin: "6px 0 0", color: "#475569", fontSize: 13, lineHeight: 1.6 }}>
-                  Search by {labelsLower.resource} or tag, then move between calendar and agenda
-                  modes in a more focused layout.
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <h3 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h3>
+                <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
+                  Search by {labelsLower.resource} or tag. Switch between month grid and list.
                 </p>
               </div>
               <input
@@ -1614,24 +1602,21 @@ export default function App() {
                 onChange={(e) => setFilter(e.target.value)}
                 placeholder="Search..."
                 style={{
-                  width: isMobile ? "100%" : 220,
-                  padding: "12px 14px",
-                  borderRadius: 14,
+                  width: 220,
+                  padding: "10px 12px",
+                  borderRadius: 12,
                   border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
+                  background: "#fff",
                   color: "#0f172a",
                 }}
               />
               <div
+                className="glass"
                 style={{
                   display: "flex",
-                  borderRadius: 16,
+                  borderRadius: 12,
                   overflow: "hidden",
                   border: "1px solid #e2e8f0",
-                  background: "#f8fafc",
-                  padding: 4,
-                  gap: 4,
-                  width: isMobile ? "100%" : "auto",
                 }}
               >
                 {[
@@ -1642,16 +1627,15 @@ export default function App() {
                     key={opt.key}
                     onClick={() => setViewMode(opt.key)}
                     style={{
-                      padding: "10px 16px",
+                      padding: "10px 14px",
                       border: "none",
                       background:
                         viewMode === opt.key
-                          ? "linear-gradient(135deg,#0f172a,#1e293b)"
+                          ? "rgba(37,99,235,0.1)"
                           : "transparent",
-                      color: viewMode === opt.key ? "#fff" : "#0f172a",
+                      color: "#0f172a",
                       cursor: "pointer",
                       fontWeight: 700,
-                      borderRadius: 12,
                     }}
                   >
                     {opt.label}
@@ -1662,14 +1646,13 @@ export default function App() {
 
             {scheduleBookings.length === 0 && !loading ? (
               <div
+                className="glass"
                 style={{
                   marginTop: 18,
-                  padding: heroPadding,
-                  borderRadius: 22,
+                  padding: 16,
+                  borderRadius: 16,
                   color: "#475569",
                   textAlign: "center",
-                  border: "1px dashed #cbd5e1",
-                  background: "linear-gradient(180deg,#ffffff,#f8fafc)",
                 }}
               >
                 No {labelsLower.resources} yet. Enter an ID and click "Load bookings".
@@ -1690,37 +1673,37 @@ export default function App() {
                       )
                     }
                     days={monthDays}
-                    onDayClick={(day) => setSelectedScheduleDay(day)}
                     renderBooking={(b) => {
                       const past = isPastBooking(b);
                       const roomLine = getBookingRoomLine(b);
-	                      return (
-	                        <div
-                          className="month-booking-card"
-	                          style={{
-	                            padding: "10px 12px",
-                            borderRadius: 14,
+                      return (
+                        <div
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 10,
                             background:
-                              "linear-gradient(135deg,#0f172a,#1e293b 55%, #334155)",
-                            color: "#f8fafc",
+                              "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                            color: "#fff",
                             fontSize: 12,
-                            boxShadow: "0 12px 24px rgba(15,23,42,0.18)",
+                            boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
                             display: "grid",
                             gap: 6,
-                            border: "1px solid rgba(255,255,255,0.12)",
                           }}
                         >
-	                          <div className="month-booking-title" style={{ fontWeight: 700 }}>
-	                            {getBookingTitle(b)}
+                          <div style={{ fontWeight: 700 }}>
+                            {(b.resources || [])
+                              .map((r) => r.name)
+                              .filter(Boolean)
+                              .join(" / ")}
                           </div>
-	                          <div className="month-booking-time" style={{ opacity: 0.9 }}>
-	                            {formatTime(b.start_time)} - {formatTime(b.end_time)}
-	                          </div>
-	                          {roomLine && (
-	                            <div className="month-booking-location" style={{ fontSize: 11, fontWeight: 700 }}>
-	                              {roomLine}
-	                            </div>
-	                          )}
+                          <div style={{ opacity: 0.9 }}>
+                            {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                          </div>
+                          {roomLine && (
+                            <div style={{ fontSize: 11, fontWeight: 700 }}>
+                              {roomLine}
+                            </div>
+                          )}
                           {role === "manager" && (
                             <button
                               type="button"
@@ -1731,11 +1714,11 @@ export default function App() {
                               disabled={past}
                               style={{
                                 marginTop: 2,
-                                padding: "5px 8px",
-                                borderRadius: 10,
+                                padding: "4px 6px",
+                                borderRadius: 8,
                                 border: "1px solid rgba(255,255,255,0.6)",
-                                background: past ? "rgba(255,255,255,0.18)" : "#fff",
-                                color: past ? "#e2e8f0" : "#0f172a",
+                                background: past ? "rgba(255,255,255,0.3)" : "#fff",
+                                color: past ? "#e2e8f0" : "#1d4ed8",
                                 fontSize: 11,
                                 fontWeight: 700,
                                 cursor: past ? "not-allowed" : "pointer",
@@ -1756,8 +1739,6 @@ export default function App() {
                       items={upcoming}
                       role={role}
                       onCancel={openCancelDialog}
-                      labels={labels}
-                      labelsLower={labelsLower}
                     />
                     <Section
                       title="Past"
@@ -1765,8 +1746,6 @@ export default function App() {
                       items={past}
                       role={role}
                       onCancel={openCancelDialog}
-                      labels={labels}
-                      labelsLower={labelsLower}
                     />
                   </>
                 )}
@@ -1775,139 +1754,118 @@ export default function App() {
           </>
         ) : section === "search" ? (
           <>
-            <div style={{ display: "grid", gap: 20 }}>
-              <section
+            <header
+              style={{
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h1 style={{ margin: 0, color: "#0f172a" }}>
+                {isCinema ? "Seat Explorer" : `Find a ${labelsLower.resource}`}
+              </h1>
+              <p style={{ margin: 0, color: "#475569" }}>
+                {isCinema
+                  ? role === "user"
+                    ? "Browse available seats in the hall and inspect their booking sessions."
+                    : "Search seats by row, number, hall, or metadata to manage assignments."
+                  : role === "user"
+                    ? `Browse all ${labelsLower.resources}, then expand one to see your assignments.`
+                    : "Search by name or tags, then expand to see your dates & times."}
+              </p>
+            </header>
+
+            <div
+              className="glass"
+              style={{
+                padding: 16,
+                borderRadius: 18,
+              }}
+            >
+              <div
                 style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  borderRadius: 28,
-                  border: "1px solid rgba(148,163,184,0.18)",
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(241,245,249,0.95) 55%, rgba(219,234,254,0.78))",
-                  boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: heroPadding,
-                  display: "grid",
-                  gap: 18,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  alignItems: "center",
                 }}
               >
-                <div
+                <input
+                  value={resourceQuery}
+                  onChange={(e) => setResourceQuery(e.target.value)}
+                  placeholder={isCinema ? "e.g. seat A12, row B, hall 1, VIP..." : "e.g. projector, room 103, prep station..."}
                   style={{
-                    position: "absolute",
-                    inset: "auto -80px -90px auto",
-                    width: 220,
-                    height: 220,
-                    borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(37,99,235,0.16), rgba(37,99,235,0))",
+                    flex: 1,
+                    minWidth: 280,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid #e2e8f0",
+                    background: "#fff",
+                    color: "#0f172a",
                   }}
                 />
-                <div
+                <button
+                  onClick={() => loadResources({ allowEmptyQuery: role === "user" })}
+                  disabled={resourceLoading}
                   style={{
-                    position: "relative",
-                    zIndex: 1,
-                    display: "grid",
-                    gap: 14,
+                    padding: "10px 16px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: resourceLoading ? "#94a3b8" : "linear-gradient(135deg, rgb(79, 70, 229), rgb(124, 58, 237))",
+                    color: "#fff",
+                    fontWeight: 700,
+                    cursor: resourceLoading ? "default" : "pointer",
+                    boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
                   }}
                 >
+                  {resourceLoading ? "Searching..." : "Search"}
+                </button>
+              </div>
+              {role !== "user" &&
+                resourceQuery.trim() &&
+                filteredResources.length === 0 &&
+                !resourceLoading && (
                   <div
                     style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      justifyContent: "space-between",
-                      gap: 18,
-                      alignItems: "start",
+                      marginTop: 16,
+                      color: "#475569",
                     }}
                   >
-                    <div style={{ maxWidth: 700 }}>
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          padding: "7px 14px",
-                          borderRadius: 999,
-                          background: "rgba(37,99,235,0.1)",
-                          color: "#1d4ed8",
-                          fontWeight: 800,
-                          fontSize: 12,
-                          letterSpacing: "0.18em",
-                          textTransform: "uppercase",
-                        }}
-                      >
-                        Resource Explorer
-                      </div>
-                      <h1
-                        style={{
-                          margin: "14px 0 8px",
-                          color: "#0f172a",
-                          fontSize: "clamp(2.4rem, 4vw, 2.9rem)",
-                          lineHeight: 1.02,
-                          letterSpacing: "-0.04em",
-                        }}
-                      >
-                        Find a {labelsLower.resource}
-                      </h1>
-                      <p
-                        style={{
-                          margin: 0,
-                          color: "#475569",
-                          fontSize: 18,
-                          lineHeight: 1.7,
-                          maxWidth: 760,
-                        }}
-                      >
-                        {role === "user"
-                          ? `Browse your available ${labelsLower.resources}, review their details, and open the sessions assigned to you in one calm workspace.`
-                          : "Search by name, tags, or metadata, then open a resource to inspect the dates and times connected to it."}
-                      </p>
-                    </div>
-                    <div
-                      style={{
-                        minWidth: responsiveSidebarCardMinWidth,
-                        display: "grid",
-                        gap: 12,
-                        width: isMobile ? "100%" : "auto",
-                      }}
-                    >
-                      <div
-                        style={{
-                          padding: "16px 18px",
-                          borderRadius: 20,
-                          border: "1px solid rgba(37,99,235,0.16)",
-                          background: "rgba(255,255,255,0.72)",
-                          boxShadow: "0 14px 28px rgba(15,23,42,0.05)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: 12,
-                            letterSpacing: "0.16em",
-                            textTransform: "uppercase",
-                            color: "#64748b",
-                            fontWeight: 800,
-                            marginBottom: 8,
-                          }}
-                        >
-                          Search scope
-                        </div>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a" }}>
-                          {role === "user" ? "My access" : "Full search"}
-                        </div>
-                        <div style={{ color: "#64748b", marginTop: 4, fontSize: 13 }}>
-                          {role === "user"
-                            ? `Showing ${labelsLower.resources} available to your account.`
-                            : "Search across matching names, tags, and metadata."}
-                        </div>
-                      </div>
-                    </div>
+                    No matches found. Try another keyword.
                   </div>
+                )}
+              {selectedResource ? (
+                <div
+                  style={{
+                    marginTop: 18,
+                    padding: 18,
+                    borderRadius: 18,
+                    background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
+                    border: "1px solid #ddd6fe",
+                  }}
+                >
+                  <button
+                    onClick={() => setSelectedResourceId(null)}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 14,
+                      cursor: "pointer",
+                      marginBottom: 12,
+                      ...cinemaSecondaryButton,
+                    }}
+                  >
+                    Back to results
+                  </button>
 
                   <div
                     className="glass"
                     style={{
-                      padding: isMobile ? 14 : 18,
-                      borderRadius: 24,
-                      border: "1px solid rgba(148,163,184,0.18)",
-                      background: "rgba(255,255,255,0.82)",
-                      boxShadow: "0 24px 55px rgba(15,23,42,0.06)",
+                      padding: 20,
+                      borderRadius: 22,
+                      border: "1px solid #ddd6fe",
+                      background: "#fff",
+                      display: "grid",
+                      gap: 18,
                     }}
                   >
                     <div
@@ -1916,163 +1874,38 @@ export default function App() {
                         justifyContent: "space-between",
                         alignItems: "center",
                         gap: 12,
-                        marginBottom: 12,
                         flexWrap: "wrap",
                       }}
                     >
                       <div>
                         <div
                           style={{
+                            fontSize: 12,
+                            color: "#7c3aed",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.14em",
                             fontWeight: 800,
+                          }}
+                        >
+                          Hall overview
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 28,
+                            fontWeight: 900,
                             color: "#0f172a",
-                            fontSize: 20,
-                            marginBottom: 4,
+                            marginTop: 4,
                           }}
                         >
-                          Search workspace
-                        </div>
-                        <div style={{ color: "#64748b", fontSize: 14 }}>
-                          Search by resource name, tags, or metadata.
+                          {selectedResource.name}
                         </div>
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                        <span
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            background: "#f8fafc",
-                            border: "1px solid #e2e8f0",
-                            color: "#475569",
-                            fontSize: 12,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {hasResourceQuery
-                            ? `Searching: ${resourceQuery.trim()}`
-                            : "Ready to search"}
-                        </span>
-                        <span
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            background: "rgba(37,99,235,0.08)",
-                            color: "#1d4ed8",
-                            fontSize: 12,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {filteredResources.length} result
-                          {filteredResources.length === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 12,
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        value={resourceQuery}
-                        onChange={(e) => setResourceQuery(e.target.value)}
-                        placeholder="e.g. projector, room 103, prep station..."
-                        style={{
-                          flex: 1,
-                          minWidth: responsiveInputMinWidth,
-                          padding: "16px 18px",
-                          borderRadius: 18,
-                          border: "1px solid #dbe3f0",
-                          background:
-                            "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.96))",
-                          color: "#0f172a",
-                          fontSize: 16,
-                          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.75)",
-                        }}
-                      />
-                      <button
-                        onClick={() => loadResources({ allowEmptyQuery: role === "user" })}
-                        disabled={resourceLoading}
-                        style={{
-                          padding: "16px 22px",
-                          borderRadius: 18,
-                          border: "none",
-                          background: resourceLoading
-                            ? "#94a3b8"
-                            : "linear-gradient(135deg, #2563eb, #1d4ed8)",
-                          color: "#fff",
-                          fontWeight: 800,
-                          fontSize: 15,
-                          cursor: resourceLoading ? "default" : "pointer",
-                          minWidth: isMobile ? "100%" : 138,
-                          boxShadow: "0 18px 40px rgba(37,99,235,0.26)",
-                        }}
-                      >
-                        {resourceLoading ? "Searching..." : "Search"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
 
-              {resourceError && (
-                <div
-                  style={{
-                    padding: "14px 16px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(239,68,68,0.18)",
-                    background: "#fff1f2",
-                    color: "#b91c1c",
-                    fontSize: 14,
-                  }}
-                >
-                  {resourceError}
-                </div>
-              )}
-
-              {selectedResource ? (
-                <section
-                  style={{
-                    borderRadius: 28,
-                    border: "1px solid rgba(148,163,184,0.18)",
-                    background: "#ffffff",
-                    boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                    padding: detailPadding,
-                    display: "grid",
-                    gap: 18,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 16,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <button
-                      onClick={() => setSelectedResourceId(null)}
-                      style={{
-                        border: "1px solid #dbe3f0",
-                        background: "#fff",
-                        color: "#1d4ed8",
-                        fontWeight: 800,
-                        cursor: "pointer",
-                        padding: "10px 14px",
-                        borderRadius: 14,
-                        boxShadow: "0 10px 24px rgba(15,23,42,0.04)",
-                      }}
-                    >
-                      Back to results
-                    </button>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                       <span
                         style={{
                           fontSize: 12,
-                          background: "#e0e7ff",
-                          color: "#1d4ed8",
+                          background: "#ede9fe",
+                          color: "#5b21b6",
                           padding: "8px 12px",
                           borderRadius: 999,
                           fontWeight: 800,
@@ -2080,568 +1913,400 @@ export default function App() {
                       >
                         {formatTypeLabel(selectedResource.type_name, labels)}
                       </span>
-                      <span
-                        style={{
-                          fontSize: 12,
-                          background: "#f8fafc",
-                          color: "#475569",
-                          padding: "8px 12px",
-                          borderRadius: 999,
-                          fontWeight: 700,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      >
-                        {selectedSearchSessions.length} session
-                        {selectedSearchSessions.length === 1 ? "" : "s"}
-                      </span>
                     </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 18,
-                      gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(260px, 1fr))",
-                    }}
-                  >
+                    {selectedResource.metadata &&
+                      Object.keys(selectedResource.metadata).length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                          {Object.entries(selectedResource.metadata)
+                            .filter(([key]) => key !== "seatObjects")
+                            .map(([key, value]) => (
+                              <span
+                                key={key}
+                                style={{
+                                  padding: "8px 12px",
+                                  borderRadius: 999,
+                                  border: "1px solid #ddd6fe",
+                                  background: "#faf5ff",
+                                  color: "#5b21b6",
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {key}: {String(value)}
+                              </span>
+                            ))}
+                        </div>
+                      )}
+
                     <div
-                      className="glass"
                       style={{
-                        padding: cardPadding,
-                        borderRadius: 24,
-                        border: "1px solid #e2e8f0",
-                        background:
-                          "linear-gradient(135deg, rgba(248,250,252,0.96), rgba(255,255,255,0.96))",
-                        display: "grid",
-                        gap: 14,
+                        borderRadius: 22,
+                        border: "1px solid #ddd6fe",
+                        background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
+                        padding: 20,
+                        maxWidth: 1180,
+                        width: "100%",
+                        margin: "0 auto",
                       }}
                     >
-                      <div>
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "16px 18px",
+                          borderRadius: 18,
+                          background: "linear-gradient(180deg,#f8fafc,#e2e8f0)",
+                          fontWeight: 900,
+                          letterSpacing: "0.16em",
+                          color: "#312e81",
+                          marginBottom: 18,
+                          maxWidth: 980,
+                          width: "100%",
+                          marginLeft: "auto",
+                          marginRight: "auto",
+                        }}
+                      >
+                        SCREEN
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 12,
+                          flexWrap: "wrap",
+                          marginBottom: 22,
+                          justifyContent: "center",
+                        }}
+                      >
                         <div
                           style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            background: "#ecfdf5",
+                            border: "1px solid #86efac",
+                            color: "#166534",
+                            padding: "8px 12px",
+                            borderRadius: 999,
                             fontSize: 12,
-                            color: "#64748b",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.16em",
                             fontWeight: 800,
                           }}
                         >
-                          {labels.resource}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: isMobile ? 26 : 32,
-                            fontWeight: 900,
-                            color: "#0f172a",
-                            letterSpacing: "-0.04em",
-                            marginTop: 6,
-                          }}
-                        >
-                          {selectedResource.name}
-                        </div>
-                      </div>
-                      {selectedResource.metadata &&
-                        Object.keys(selectedResource.metadata).length > 0 && (
-                          <div
+                          <span
                             style={{
-                              fontSize: 13,
-                              color: "#475569",
-                              lineHeight: 1.8,
-                              padding: "14px 16px",
-                              borderRadius: 16,
-                              background: "#f8fafc",
-                              border: "1px solid #e2e8f0",
-                            }}
-                          >
-                            {Object.entries(selectedResource.metadata)
-                              .map(([k, v]) => `${k}: ${v}`)
-                              .join(" | ")}
-                          </div>
-                        )}
-                    </div>
-                    <div
-                      style={{
-                        borderRadius: 24,
-                        border: "1px solid #dbeafe",
-                        background:
-                          "linear-gradient(180deg, rgba(239,246,255,0.95), rgba(255,255,255,0.95))",
-                        padding: isMobile ? 16 : 20,
-                        display: "grid",
-                        gap: 8,
-                        alignContent: "start",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                          color: "#1d4ed8",
-                          fontWeight: 800,
-                        }}
-                      >
-                        Availability summary
-                      </div>
-                      <div style={{ fontSize: 34, fontWeight: 900, color: "#0f172a" }}>
-                        {selectedSearchSessions.length}
-                      </div>
-                      <div style={{ color: "#475569", lineHeight: 1.7 }}>
-                        Open the sessions below to review the dates and booking times connected to
-                        this {labelsLower.resource}.
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 24 }}>
-                    Sessions
-                  </div>
-                  {selectedSearchSessions.length === 0 && (
-                    <div
-                      style={{
-                        padding: "28px 20px",
-                        borderRadius: 22,
-                        border: "1px dashed #cbd5e1",
-                        background: "#f8fafc",
-                        color: "#64748b",
-                        textAlign: "center",
-                      }}
-                    >
-                      No sessions found for this {labelsLower.resource}.
-                    </div>
-                  )}
-                  {selectedSearchSessions.length > 0 && (
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: 12,
-                      }}
-                    >
-                      {selectedSearchSessions.map((s) => (
-                        <div
-                          key={`${s.bookingId}-${s.start}`}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "8px 1fr",
-                            gap: 14,
-                            alignItems: "stretch",
-                          }}
-                        >
-                          <div
-                            style={{
+                              width: 10,
+                              height: 10,
                               borderRadius: 999,
-                              background: "linear-gradient(180deg,#1d4ed8,#0f766e)",
+                              background: "#22c55e",
+                              display: "inline-block",
                             }}
                           />
-                          <div
-                            style={{
-                              padding: "16px 18px",
-                              borderRadius: 18,
-                              background: "#fff",
-                              border: "1px solid #e2e8f0",
-                              boxShadow: "0 14px 30px rgba(15,23,42,0.04)",
-                              display: "grid",
-                              gap: 6,
-                            }}
-                          >
-                            <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>
-                              {formatDate(s.date)}
-                            </div>
-                            <div style={{ color: "#475569", fontSize: 13 }}>
-                              {formatTime(s.start)} - {formatTime(s.end)} - Booking #{s.bookingId}
-                            </div>
-                            {s.role && (
-                              <div style={{ color: "#1d4ed8", fontWeight: 800, fontSize: 13 }}>
-                                Role: {s.role}
-                              </div>
-                            )}
-                            {s.cancelled && (
-                              <div style={{ color: "#b45309", fontWeight: 800, fontSize: 13 }}>
-                                Cancelled
-                              </div>
-                            )}
-                          </div>
+                          Your seat
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              ) : shouldShowSearchResults ? (
-                <section
-                  style={{
-                    display: "grid",
-                    gap: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "end",
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                          color: "#64748b",
-                          fontWeight: 800,
-                          marginBottom: 6,
-                        }}
-                      >
-                        Search results
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 30,
-                          fontWeight: 900,
-                          color: "#0f172a",
-                          letterSpacing: "-0.04em",
-                        }}
-                      >
-                        Matching {labels.resources}
-                      </div>
-                    </div>
-                    <div style={{ color: "#64748b", fontSize: 14 }}>
-                      Open a card to review sessions and metadata.
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 14,
-                    }}
-                  >
-                    {filteredResources.map((r) => {
-                      const sessions =
-                        (role === "user"
-                          ? allResourceSessions[r.id]
-                          : resourceSessions[r.id]) || [];
-                      const isAssignedToCurrentUser =
-                        role === "manager" &&
-                        Array.isArray(r.user_ids) &&
-                        r.user_ids.some((id) => Number(id) === Number(currentUserId));
-                      return (
-                        <button
-                          key={r.id}
-                          onClick={() => setSelectedResourceId(r.id)}
-                          className="glass"
+
+                        <div
                           style={{
-                            textAlign: "left",
-                            borderRadius: 24,
-                            padding: 20,
-                            border: "1px solid rgba(148,163,184,0.18)",
-                            background:
-                              "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
-                            cursor: "pointer",
-                            display: "grid",
-                            gap: 12,
-                            boxShadow: "0 18px 40px rgba(15,23,42,0.05)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            background: "#fef3c7",
+                            border: "1px solid #fcd34d",
+                            color: "#92400e",
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 800,
                           }}
                         >
-                          <div
+                          <span
                             style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "start",
-                              gap: 16,
-                              flexWrap: "wrap",
+                              width: 10,
+                              height: 10,
+                              borderRadius: 999,
+                              background: "#facc15",
+                              display: "inline-block",
                             }}
-                          >
-                            <div style={{ display: "grid", gap: 8 }}>
-                              <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 22 }}>
-                                {r.name}
+                          />
+                          Focus / center seat
+                        </div>
+
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            background: "#fef2f2",
+                            border: "1px solid #fca5a5",
+                            color: "#991b1b",
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: 999,
+                              background: "#fca5a5",
+                              display: "inline-block",
+                            }}
+                          />
+                          Broken seat
+                        </div>
+
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            background: "#f5f3ff",
+                            border: "1px solid #c4b5fd",
+                            color: "#5b21b6",
+                            padding: "8px 12px",
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: 999,
+                              background: "#c4b5fd",
+                              display: "inline-block",
+                            }}
+                          />
+                          Available seat
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gap: 14,
+                          overflowX: "auto",
+                          paddingBottom: 4,
+                          justifyContent: "center",
+                        }}
+                      >
+                        {getHallSeatRows(selectedResource).map(({ rowLabel, items }) => {
+                          const sections = splitSeatRowIntoSections(items);
+                          const userSeatIds = getUserSeatIdsForHall(selectedResource, bookings);
+
+                          return (
+                            <div
+                              key={rowLabel}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "64px auto",
+                                gap: 14,
+                                alignItems: "center",
+                                minWidth: "max-content",
+                                margin: "0 auto",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  height: 38,
+                                  width: 56,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  borderRadius: 12,
+                                  background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                                  color: "#fff",
+                                  fontWeight: 900,
+                                  boxShadow: "0 10px 24px rgba(79,70,229,0.18)",
+                                  flex: "0 0 auto",
+                                }}
+                              >
+                                {rowLabel}
                               </div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    background: "#e0e7ff",
-                                    color: "#1d4ed8",
-                                    padding: "6px 11px",
-                                    borderRadius: 999,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  {formatTypeLabel(r.type_name, labels)}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    background: "#f8fafc",
-                                    color: "#475569",
-                                    padding: "6px 11px",
-                                    borderRadius: 999,
-                                    fontWeight: 700,
-                                    border: "1px solid #e2e8f0",
-                                  }}
-                                >
-                                  {sessions.length} session
-                                  {sessions.length === 1 ? "" : "s"}
-                                </span>
-                                {isAssignedToCurrentUser && (
-                                  <span
-                                    style={{
-                                      fontSize: 12,
-                                      background: "#dcfce7",
-                                      color: "#166534",
-                                      padding: "6px 11px",
-                                      borderRadius: 999,
-                                      fontWeight: 800,
-                                    }}
-                                  >
-                                    Assigned to you
-                                  </span>
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "flex-start",
+                                  gap: 18,
+                                  flexWrap: "nowrap",
+                                  minWidth: "max-content",
+                                }}
+                              >
+                                {[sections.left, sections.center, sections.right].map(
+                                  (sectionItems, sectionIdx) => (
+                                    <React.Fragment key={`${rowLabel}-${sectionIdx}`}>
+                                      {sectionItems.length > 0 && (
+                                        <div
+                                          style={{
+                                            display: "grid",
+                                            gridAutoFlow: "column",
+                                            gridAutoColumns: "36px",
+                                            gap: 8,
+                                          }}
+                                        >
+                                          {sectionItems.map((seat) => {
+                                            const seatId = String(
+                                              seat?.seatId || `${seat?.row || ""}${seat?.number || ""}`
+                                            );
+                                            const isMine = userSeatIds.has(seatId);
+                                            const isBroken = Boolean(seat?.isBroken);
+                                            const isFocus =
+                                              seat?.section === "center" ||
+                                              seat?.section === "front_center";
+
+                                            return (
+                                              <div
+                                                key={seatId}
+                                                title={`${selectedResource.name} • Seat ${seatId}`}
+                                                style={{
+                                                  width: 36,
+                                                  height: 36,
+                                                  borderRadius: 12,
+                                                  display: "flex",
+                                                  alignItems: "center",
+                                                  justifyContent: "center",
+                                                  fontSize: 11,
+                                                  fontWeight: 900,
+                                                  color: isMine
+                                                    ? "#14532d"
+                                                    : isBroken
+                                                      ? "#991b1b"
+                                                      : isFocus
+                                                        ? "#92400e"
+                                                        : "#312e81",
+                                                  background: isMine
+                                                    ? "linear-gradient(180deg,#bbf7d0,#86efac)"
+                                                    : isBroken
+                                                      ? "linear-gradient(180deg,#fee2e2,#fecaca)"
+                                                      : isFocus
+                                                        ? "linear-gradient(180deg,#fef3c7,#fde68a)"
+                                                        : "linear-gradient(180deg,#ede9fe,#ddd6fe)",
+                                                  border: isMine
+                                                    ? "1px solid #22c55e"
+                                                    : isBroken
+                                                      ? "1px solid #fca5a5"
+                                                      : isFocus
+                                                        ? "1px solid #fcd34d"
+                                                        : "1px solid #c4b5fd",
+                                                  boxShadow: isMine
+                                                    ? "0 10px 20px rgba(34,197,94,0.18)"
+                                                    : isBroken
+                                                      ? "0 10px 20px rgba(239,68,68,0.12)"
+                                                      : isFocus
+                                                        ? "0 10px 20px rgba(250,204,21,0.18)"
+                                                        : "0 10px 20px rgba(109,40,217,0.12)",
+                                                }}
+                                              >
+                                                {seat?.number}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+
+                                      {sectionIdx < 2 && sections.center.length > 0 && (
+                                        <div
+                                          style={{
+                                            width: 16,
+                                            height: 52,
+                                            borderRadius: 999,
+                                            background: "rgba(148,163,184,0.2)",
+                                            flex: "0 0 auto",
+                                          }}
+                                        />
+                                      )}
+                                    </React.Fragment>
+                                  )
                                 )}
                               </div>
                             </div>
-                            <div
-                              style={{
-                                alignSelf: "center",
-                                color: "#1d4ed8",
-                                fontWeight: 800,
-                                fontSize: 14,
-                              }}
-                            >
-                              Open resource
-                            </div>
-                          </div>
-                          {r.metadata && Object.keys(r.metadata).length > 0 && (
-                            <div
-                              style={{
-                                color: "#64748b",
-                                fontSize: 13,
-                                lineHeight: 1.7,
-                                padding: "14px 16px",
-                                borderRadius: 16,
-                                background: "#f8fafc",
-                                border: "1px solid #e2e8f0",
-                              }}
-                            >
-                              {Object.entries(r.metadata)
-                                .slice(0, 4)
-                                .map(([k, v]) => `${k}: ${v}`)
-                                .join(" | ")}
-                            </div>
-                          )}
-                        </button>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
-                </section>
-              ) : null}
-
-              {shouldShowSearchNoMatches && (
-                <div
-                  style={{
-                    padding: "26px 22px",
-                    borderRadius: 24,
-                    border: "1px dashed #cbd5e1",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.96))",
-                    color: "#475569",
-                    textAlign: "center",
-                  }}
-                >
-                  <div style={{ fontWeight: 800, fontSize: 18, color: "#0f172a", marginBottom: 6 }}>
-                    No matches found
-                  </div>
-                  <div>Try another keyword, a broader tag, or a shorter phrase.</div>
                 </div>
-              )}
+              ) : (
+                <div style={{ marginTop: 16 }}>
+                  {filteredResources.map((r) => {
+                    const userSeats = getUserSeatIdsForHall(r, bookings);
 
-              {shouldShowUserSearchEmpty && (
-                <div
-                  style={{
-                    padding: "26px 22px",
-                    borderRadius: 24,
-                    border: "1px dashed #cbd5e1",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.96))",
-                    color: "#64748b",
-                    textAlign: "center",
-                  }}
-                >
-                  <div style={{ fontWeight: 800, fontSize: 18, color: "#0f172a", marginBottom: 6 }}>
-                    {hasResourceQuery
-                      ? "No matches found"
-                      : `No ${labelsLower.resources} available yet`}
-                  </div>
-                  <div>
-                    {hasResourceQuery
-                      ? "Try another keyword or search with a broader term."
-                      : `When ${labelsLower.resources} become available, they will appear here.`}
-                  </div>
+                    return (
+                      <div
+                        key={r.id}
+                        onClick={() => setSelectedResourceId(r.id)}
+                        style={{
+                          padding: 16,
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 12,
+                          marginBottom: 10,
+                          cursor: "pointer"
+                        }}
+                      >
+                        <div style={{ fontWeight: "bold" }}>{r.name}</div>
+                        <div style={{ fontSize: 12, color: "#666" }}>
+                          {userSeats.size > 0
+                            ? `${userSeats.size} seats yours`
+                            : "No seats assigned"}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </>
+
         ) : section === "requests" ? (
           <>
-            <div style={{ display: "grid", gap: 20 }}>
-              <section
+            <header
+              style={{
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h1 style={{ margin: 0, color: "#0f172a" }}>
+                Request a {labelsLower.resource}
+              </h1>
+              <p style={{ margin: 0, color: "#475569" }}>
+                Browse {labelsLower.resources} and send a request to your admin.
+              </p>
+            </header>
+
+            {requestSent && (
+              <div
+                className="glass"
                 style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  borderRadius: 28,
-                  border: "1px solid rgba(148,163,184,0.18)",
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.95) 48%, rgba(237,233,254,0.8))",
-                  boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: heroPadding,
+                  padding: 12,
+                  borderRadius: 12,
+                  color: "#166534",
+                  marginBottom: 12,
                 }}
               >
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: "-70px auto auto -70px",
-                    width: 220,
-                    height: 220,
-                    borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(99,102,241,0.14), rgba(99,102,241,0))",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "relative",
-                    zIndex: 1,
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "space-between",
-                    gap: 18,
-                    alignItems: "start",
-                  }}
-                >
-                  <div style={{ maxWidth: 720 }}>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "7px 14px",
-                        borderRadius: 999,
-                        background: "rgba(99,102,241,0.12)",
-                        color: "#4338ca",
-                        fontWeight: 800,
-                        fontSize: 12,
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Request Studio
-                    </div>
-                    <h1
-                      style={{
-                        margin: "14px 0 8px",
-                        color: "#0f172a",
-                        fontSize: "clamp(2.35rem, 4vw, 2.85rem)",
-                        lineHeight: 1.02,
-                        letterSpacing: "-0.04em",
-                      }}
-                    >
-                      Request a {labelsLower.resource}
-                    </h1>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#475569",
-                        fontSize: 18,
-                        lineHeight: 1.7,
-                        maxWidth: 760,
-                      }}
-                    >
-                      Browse available options, check the latest availability signal, and send a
-                      clean request to your admin from one focused page.
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      minWidth: responsiveMediumMinWidth,
-                      display: "grid",
-                      gap: 12,
-                      width: isMobile ? "100%" : "auto",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "16px 18px",
-                        borderRadius: 20,
-                        border: "1px solid rgba(99,102,241,0.16)",
-                        background: "rgba(255,255,255,0.72)",
-                        boxShadow: "0 14px 28px rgba(15,23,42,0.05)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                          color: "#64748b",
-                          fontWeight: 800,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Request scope
-                      </div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a" }}>
-                        {requestResultsCount} options
-                      </div>
-                      <div style={{ color: "#64748b", marginTop: 4, fontSize: 13 }}>
-                        Filter by search and availability before sending your request.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {requestSent && (
-                <div
-                  style={{
-                    padding: "14px 16px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(34,197,94,0.18)",
-                    background: "#f0fdf4",
-                    color: "#166534",
-                    boxShadow: "0 10px 24px rgba(34,197,94,0.06)",
-                  }}
-                >
-                  {requestSent}
-                </div>
-              )}
+                {requestSent}
+              </div>
+            )}
 
             {requestView === "form" ? (
               <div
+                className="glass"
                 style={{
-                  padding: cardPadding,
-                  borderRadius: 28,
-                  border: "1px solid rgba(148,163,184,0.18)",
+                  padding: 18,
+                  borderRadius: 18,
+                  border: "1px solid #e2e8f0",
                   background: "#fff",
-                  boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                  display: "grid",
-                  gap: 18,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    alignItems: "start",
-                  }}
-                >
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <div>
-                    <div
-                      style={{
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        fontSize: isMobile ? 24 : 28,
-                        letterSpacing: "-0.04em",
-                      }}
-                    >
+                    <div style={{ fontWeight: 800, color: "#0f172a" }}>
                       Request details
                     </div>
-                    <div style={{ color: "#64748b", fontSize: 14, marginTop: 6, lineHeight: 1.6 }}>
+                    <div style={{ color: "#64748b", fontSize: 12 }}>
                       Fill in the request and send it to your admin.
                     </div>
                   </div>
@@ -2652,13 +2317,17 @@ export default function App() {
                       setRequestError("");
                     }}
                     style={{
-                      padding: "8px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                      background: "#fff",
-                      color: "#0f172a",
-                      fontWeight: 700,
+                      padding: "10px 14px",
+                      borderRadius: 14,
                       cursor: "pointer",
+                      ...(isCinema
+                        ? cinemaSecondaryButton
+                        : {
+                          border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          color: "#0f172a",
+                          fontWeight: 700,
+                        }),
                     }}
                   >
                     Back to {labels.resources}
@@ -2667,58 +2336,14 @@ export default function App() {
 
                 {selectedRequestResource ? (
                   <>
-                    <div
-                      style={{
-                        borderRadius: 22,
-                        border: "1px solid #e2e8f0",
-                        background:
-                          "linear-gradient(135deg, rgba(248,250,252,0.96), rgba(255,255,255,0.98))",
-                        padding: isMobile ? 14 : 18,
-                        display: "grid",
-                        gap: 10,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                          color: "#64748b",
-                          fontWeight: 800,
-                        }}
-                      >
-                        Selected {labels.resource}
-                      </div>
-                      <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 900, color: "#0f172a" }}>
-                        {selectedRequestResource.name}
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        <span
-                          style={{
-                            padding: "7px 12px",
-                            borderRadius: 999,
-                            background: "#eef2ff",
-                            color: "#4338ca",
-                            fontWeight: 800,
-                            fontSize: 12,
-                          }}
-                        >
-                          {selectedRequestResource.type_name
-                            ? formatTypeLabel(selectedRequestResource.type_name, labels)
-                            : labels.resource}
-                        </span>
-                      </div>
+                    <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
+                      {selectedRequestResource.name}{" "}
+                      {selectedRequestResource.type_name
+                        ? `(${formatTypeLabel(selectedRequestResource.type_name, labels)})`
+                        : ""}
                     </div>
                     {requestError && (
-                      <div
-                        style={{
-                          padding: "14px 16px",
-                          borderRadius: 16,
-                          border: "1px solid rgba(239,68,68,0.18)",
-                          background: "#fff1f2",
-                          color: "#b91c1c",
-                        }}
-                      >
+                      <div style={{ marginTop: 10, color: "#b91c1c" }}>
                         {requestError}
                       </div>
                     )}
@@ -2730,31 +2355,38 @@ export default function App() {
                       style={{
                         width: "100%",
                         minHeight: 110,
-                        padding: "14px 16px",
-                        borderRadius: 18,
+                        marginTop: 10,
+                        padding: "10px 12px",
+                        borderRadius: 12,
                         border: "1px solid #e2e8f0",
                         background: "#fff",
                         color: "#0f172a",
-                        lineHeight: 1.6,
-                        fontSize: 15,
                       }}
                     />
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
                       <button
                         onClick={submitResourceRequest}
                         disabled={requestSubmitting}
                         style={{
-                          padding: "12px 16px",
-                          borderRadius: 14,
-                          border: "none",
-                          background:
-                            requestSubmitting
-                              ? "#94a3b8"
-                              : "linear-gradient(135deg, #312e81, #4338ca)",
-                          color: "#fff",
-                          fontWeight: 800,
+                          padding: "12px 18px",
+                          borderRadius: 16,
                           cursor: requestSubmitting ? "default" : "pointer",
-                          boxShadow: "0 18px 36px rgba(67,56,202,0.22)",
+                          ...(requestSubmitting
+                            ? {
+                              border: "none",
+                              background: "#94a3b8",
+                              color: "#fff",
+                              fontWeight: 800,
+                              boxShadow: "none",
+                            }
+                            : isCinema
+                              ? cinemaPrimaryButton
+                              : {
+                                border: "none",
+                                background: "#2563eb",
+                                color: "#fff",
+                                fontWeight: 700,
+                              }),
                         }}
                       >
                         {requestSubmitting ? "Sending..." : "Send request"}
@@ -2767,13 +2399,18 @@ export default function App() {
                         }}
                         disabled={requestSubmitting}
                         style={{
-                          padding: "12px 16px",
-                          borderRadius: 14,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 800,
-                          cursor: requestSubmitting ? "default" : "pointer",
+                          marginTop: 2,
+                          padding: "6px 10px",
+                          borderRadius: 10,
+                          cursor: past ? "not-allowed" : "pointer",
+                          ...(isCinema
+                            ? cinemaSecondaryButton
+                            : {
+                              border: "1px solid rgba(255,255,255,0.6)",
+                              background: past ? "rgba(255,255,255,0.3)" : "#fff",
+                              color: past ? "#e2e8f0" : "#1d4ed8",
+                              fontWeight: 700,
+                            }),
                         }}
                       >
                         Cancel
@@ -2788,14 +2425,10 @@ export default function App() {
               </div>
             ) : (
               <div
+                className="glass"
                 style={{
-                  padding: cardPadding,
-                  borderRadius: 28,
-                  border: "1px solid rgba(148,163,184,0.18)",
-                  background: "#fff",
-                  boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                  display: "grid",
-                  gap: 18,
+                  padding: 16,
+                  borderRadius: 18,
                 }}
               >
                 <div
@@ -2804,177 +2437,86 @@ export default function App() {
                     flexWrap: "wrap",
                     gap: 12,
                     alignItems: "center",
-                    justifyContent: "space-between",
                   }}
                 >
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        fontSize: 28,
-                        letterSpacing: "-0.04em",
-                      }}
-                    >
-                      Available {labels.resources}
-                    </div>
-                    <div style={{ color: "#64748b", fontSize: 14, marginTop: 6 }}>
-                      Search, filter, and pick the right option before sending a request.
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                    <span
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 999,
-                        background: "#f8fafc",
-                        border: "1px solid #e2e8f0",
-                        color: "#475569",
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {hasRequestQuery ? `Searching: ${requestQuery.trim()}` : "Ready to browse"}
-                    </span>
-                    <span
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 999,
-                        background: "rgba(99,102,241,0.08)",
-                        color: "#4338ca",
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {requestResultsCount} result{requestResultsCount === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    borderRadius: 24,
-                    border: "1px solid #e2e8f0",
-                    background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-                    padding: isMobile ? 14 : 18,
-                    display: "grid",
-                    gap: 12,
-                  }}
-                >
-                  <div
+                  <input
+                    value={requestQuery}
+                    onChange={(e) => setRequestQuery(e.target.value)}
+                    placeholder={`Search ${labelsLower.resources}...`}
                     style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 12,
-                      alignItems: "center",
+                      flex: 1,
+                      minWidth: 240,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid #e2e8f0",
+                      background: "#fff",
+                      color: "#0f172a",
+                    }}
+                  />
+                  <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
+                    <input
+                      type="checkbox"
+                      checked={onlyAvailable}
+                      onChange={(e) => setOnlyAvailable(e.target.checked)}
+                    />
+                    Only available
+                  </label>
+                  <button
+                    onClick={() => loadResources({ allowEmptyQuery: true })}
+                    disabled={resourceLoading}
+                    style={{
+                      padding: "12px 18px",
+                      borderRadius: 16,
+                      cursor: resourceLoading ? "default" : "pointer",
+                      ...(resourceLoading
+                        ? {
+                          border: "none",
+                          background: "#94a3b8",
+                          color: "#fff",
+                          fontWeight: 800,
+                          boxShadow: "none",
+                        }
+                        : isCinema
+                          ? cinemaPrimaryButton
+                          : {
+                            border: "none",
+                            background: "#2563eb",
+                            color: "#fff",
+                            fontWeight: 700,
+                            boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
+                          }),
                     }}
                   >
-                    <input
-                      value={requestQuery}
-                      onChange={(e) => setRequestQuery(e.target.value)}
-                      placeholder={`Search ${labelsLower.resources}...`}
-                      style={{
-                        flex: 1,
-                        minWidth: responsiveWideMinWidth,
-                        padding: "14px 16px",
-                        borderRadius: 16,
-                        border: "1px solid #dbe3f0",
-                        background: "#fff",
-                        color: "#0f172a",
-                        fontSize: 15,
-                      }}
-                    />
-                    <label
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        fontSize: 13,
-                        color: "#334155",
-                        padding: "12px 14px",
-                        borderRadius: 14,
-                        border: "1px solid #e2e8f0",
-                        background: "#fff",
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={onlyAvailable}
-                        onChange={(e) => setOnlyAvailable(e.target.checked)}
-                      />
-                      Only available
-                    </label>
-                    <button
-                      onClick={() => loadResources({ allowEmptyQuery: true })}
-                      disabled={resourceLoading}
-                      style={{
-                        padding: "14px 18px",
-                        borderRadius: 16,
-                        border: "none",
-                        background:
-                          resourceLoading
-                            ? "#94a3b8"
-                            : "linear-gradient(135deg, #312e81, #4338ca)",
-                        color: "#fff",
-                        fontWeight: 800,
-                        cursor: resourceLoading ? "default" : "pointer",
-                        boxShadow: "0 18px 36px rgba(67,56,202,0.22)",
-                      }}
-                    >
-                      {resourceLoading ? "Loading..." : `Load ${labelsLower.resources}`}
-                    </button>
-                  </div>
+                    {resourceLoading ? "Loading..." : `Load ${labelsLower.resources}`}
+                  </button>
                 </div>
 
                 {resourceError && (
-                  <div
-                    style={{
-                      padding: "14px 16px",
-                      borderRadius: 16,
-                      border: "1px solid rgba(239,68,68,0.18)",
-                      background: "#fff1f2",
-                      color: "#b91c1c",
-                      fontSize: 14,
-                    }}
-                  >
+                  <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 14 }}>
                     {resourceError}
                   </div>
                 )}
 
-                {shouldShowRequestEmptyState && (
-                  <div
-                    style={{
-                      padding: "28px 22px",
-                      borderRadius: 24,
-                      border: "1px dashed #cbd5e1",
-                      background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-                      color: "#475569",
-                      textAlign: "center",
-                    }}
-                  >
+                {resources.length === 0 && !resourceLoading && (
+                  <div style={{ marginTop: 16, color: "#475569" }}>
                     Load {labelsLower.resources} to get started.
                   </div>
                 )}
 
-                {shouldShowRequestNoMatches && (
-                  <div
-                    style={{
-                      padding: "28px 22px",
-                      borderRadius: 24,
-                      border: "1px dashed #cbd5e1",
-                      background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-                      color: "#475569",
-                      textAlign: "center",
-                    }}
-                  >
-                    No {labelsLower.resources} match your filters.
-                  </div>
-                )}
+                {resources.length > 0 &&
+                  filteredRequestResources.length === 0 &&
+                  !resourceLoading && (
+                    <div style={{ marginTop: 16, color: "#475569" }}>
+                      No {labelsLower.resources} match your filters.
+                    </div>
+                  )}
 
-                {requestResultsCount > 0 && (
+                {filteredRequestResources.length > 0 && (
                   <div
                     style={{
+                      marginTop: 16,
                       display: "grid",
-                      gap: 14,
+                      gap: 12,
                     }}
                   >
                     {filteredRequestResources.map((r) => {
@@ -2982,52 +2524,32 @@ export default function App() {
                       return (
                         <div
                           key={r.id}
+                          className="glass"
                           style={{
-                            borderRadius: 24,
-                            padding: 20,
-                            border: "1px solid rgba(148,163,184,0.18)",
-                            background:
-                              "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
+                            borderRadius: 18,
+                            padding: 16,
+                            border: isCinema ? "1px solid #d1d5db" : "1px solid #e2e8f0",
+                            background: "#fff",
                             display: "grid",
-                            gap: 12,
-                            boxShadow: "0 18px 40px rgba(15,23,42,0.05)",
+                            gap: 10,
+                            boxShadow: isCinema ? "0 10px 24px rgba(15,23,42,0.06)" : "none",
                           }}
                         >
                           <div
                             style={{
                               display: "flex",
                               justifyContent: "space-between",
-                              alignItems: "start",
+                              alignItems: "center",
                               gap: 12,
                               flexWrap: "wrap",
                             }}
                           >
                             <div>
-                              <div
-                                style={{
-                                  fontWeight: 900,
-                                  color: "#0f172a",
-                                  fontSize: 28,
-                                  letterSpacing: "-0.04em",
-                                }}
-                              >
-                                {r.name}
-                              </div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    background: "#eef2ff",
-                                    color: "#4338ca",
-                                    padding: "6px 11px",
-                                    borderRadius: 999,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  {r.type_name
-                                    ? formatTypeLabel(r.type_name, labels)
-                                    : labels.resource}
-                                </span>
+                              <div style={{ fontWeight: 800, color: "#0f172a" }}>{r.name}</div>
+                              <div style={{ color: "#475569", fontSize: 12 }}>
+                                {r.type_name
+                                  ? `Type: ${formatTypeLabel(r.type_name, labels)}`
+                                  : labels.resource}
                               </div>
                             </div>
                             <button
@@ -3035,13 +2557,24 @@ export default function App() {
                               onClick={() => openAvailability(r)}
                               style={{
                                 fontSize: 12,
-                                background: available ? "#dcfce7" : "#e2e8f0",
-                                color: available ? "#166534" : "#475569",
                                 padding: "8px 12px",
                                 borderRadius: 999,
                                 fontWeight: 800,
-                                border: "none",
                                 cursor: "pointer",
+                                ...(isCinema
+                                  ? available
+                                    ? {
+                                      border: "1px solid #86efac",
+                                      background: "#ecfdf5",
+                                      color: "#166534",
+                                      boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
+                                    }
+                                    : cinemaSecondaryButton
+                                  : {
+                                    border: "none",
+                                    background: available ? "#dcfce7" : "#e2e8f0",
+                                    color: available ? "#166534" : "#475569",
+                                  }),
                               }}
                             >
                               {available ? "Available" : "Check availability"}
@@ -3049,17 +2582,7 @@ export default function App() {
                           </div>
 
                           {r.metadata && Object.keys(r.metadata).length > 0 && (
-                            <div
-                              style={{
-                                color: "#64748b",
-                                fontSize: 13,
-                                lineHeight: 1.7,
-                                padding: "14px 16px",
-                                borderRadius: 16,
-                                background: "#f8fafc",
-                                border: "1px solid #e2e8f0",
-                              }}
-                            >
+                            <div style={{ color: "#64748b", fontSize: 12 }}>
                               {Object.entries(r.metadata)
                                 .slice(0, 4)
                                 .map(([k, v]) => `${k}: ${v}`)
@@ -3067,7 +2590,16 @@ export default function App() {
                             </div>
                           )}
 
-                          <div>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 12,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={{ color: "#475569", fontSize: 12 }}>Resource ID: {r.id}</div>
                             <button
                               onClick={() => {
                                 setRequestResourceId(r.id);
@@ -3077,13 +2609,17 @@ export default function App() {
                                 setRequestView("form");
                               }}
                               style={{
-                                padding: "10px 14px",
-                                borderRadius: 14,
-                                border: "none",
-                                background: "#0f172a",
-                                color: "#fff",
-                                fontWeight: 800,
+                                padding: "12px 18px",
+                                borderRadius: 16,
                                 cursor: "pointer",
+                                ...(isCinema
+                                  ? cinemaPrimaryButton
+                                  : {
+                                    border: "none",
+                                    background: "#0f172a",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                  }),
                               }}
                             >
                               Request this {labelsLower.resource}
@@ -3096,658 +2632,338 @@ export default function App() {
                 )}
               </div>
             )}
-            </div>
           </>
         ) : section === "availability" ? (
           <>
-            <div style={{ display: "grid", gap: 20 }}>
-              <section
+            <header
+              style={{
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h1 style={{ margin: 0, color: "#0f172a" }}>My Availability</h1>
+              <p style={{ margin: 0, color: "#475569" }}>
+                Share the hours you can support so the admin can schedule your {labelsLower.resources}.
+              </p>
+            </header>
+
+            {availabilityMessage && (
+              <div
+                className="glass"
                 style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  borderRadius: 28,
-                  border: "1px solid rgba(148,163,184,0.18)",
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94) 50%, rgba(236,253,245,0.86))",
-                  boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: heroPadding,
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 12,
+                  color: "#1d4ed8",
                 }}
               >
+                {availabilityMessage}
+              </div>
+            )}
+
+            <div
+              className="glass"
+              style={{
+                padding: 16,
+                borderRadius: 16,
+                display: "grid",
+                gap: 12,
+                maxWidth: 520,
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>Add availability</div>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Days of week
                 <div
                   style={{
-                    position: "absolute",
-                    inset: "auto -40px -90px auto",
-                    width: 240,
-                    height: 240,
-                    borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(16,185,129,0.14), rgba(16,185,129,0))",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  {[0, 1, 2, 3, 4, 5, 6].map((day) => (
+                    <label
+                      key={day}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #e2e8f0",
+                        background: "#fff",
+                        color: "#0f172a",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={availabilityForm.day_of_week.includes(String(day))}
+                        onChange={() =>
+                          setAvailabilityForm((prev) => {
+                            const exists = prev.day_of_week.includes(String(day));
+                            const nextDays = exists
+                              ? prev.day_of_week.filter((value) => value !== String(day))
+                              : [...prev.day_of_week, String(day)];
+                            return { ...prev, day_of_week: nextDays };
+                          })
+                        }
+                      />
+                      <span>{weekdayLabel(day)}</span>
+                    </label>
+                  ))}
+                </div>
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Start time
+                <input
+                  type="time"
+                  value={availabilityForm.start_time}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      start_time: e.target.value,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
                   }}
                 />
-                <div
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                End time
+                <input
+                  type="time"
+                  value={availabilityForm.end_time}
+                  onChange={(e) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      end_time: e.target.value,
+                    }))
+                  }
                   style={{
-                    position: "relative",
-                    zIndex: 1,
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "space-between",
-                    gap: 18,
-                    alignItems: "start",
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
                   }}
-                >
-                  <div style={{ maxWidth: 720 }}>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "7px 14px",
-                        borderRadius: 999,
-                        background: "rgba(16,185,129,0.1)",
-                        color: "#047857",
-                        fontWeight: 800,
-                        fontSize: 12,
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Personal Planner
-                    </div>
-                    <h1
-                      style={{
-                        margin: "14px 0 8px",
-                        color: "#0f172a",
-                        fontSize: "clamp(2.35rem, 4vw, 2.85rem)",
-                        lineHeight: 1.02,
-                        letterSpacing: "-0.04em",
-                      }}
-                    >
-                      My Availability
-                    </h1>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#475569",
-                        fontSize: 18,
-                        lineHeight: 1.7,
-                        maxWidth: 760,
-                      }}
-                    >
-                      Define the hours you can support, keep your weekly rhythm organized, and
-                      give the admin a clearer picture of when you are available.
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      minWidth: responsiveWideMinWidth,
-                      display: "grid",
-                      gap: 12,
-                      width: isMobile ? "100%" : "auto",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "16px 18px",
-                        borderRadius: 20,
-                        border: "1px solid rgba(16,185,129,0.16)",
-                        background: "rgba(255,255,255,0.72)",
-                        boxShadow: "0 14px 28px rgba(15,23,42,0.05)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                          color: "#64748b",
-                          fontWeight: 800,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Saved slots
-                      </div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a" }}>
-                        {userAvailability.length}
-                      </div>
-                      <div style={{ color: "#64748b", marginTop: 4, fontSize: 13 }}>
-                        Availability blocks currently saved to your profile.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {availabilityMessage && (
-                <div
+                />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                Start date (optional)
+                <IsraelDateInput
+                  value={availabilityForm.start_date}
+                  onChange={(nextDate) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      start_date: nextDate,
+                    }))
+                  }
                   style={{
-                    padding: "14px 16px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(37,99,235,0.16)",
-                    background: "#eff6ff",
-                    color: "#1d4ed8",
-                    boxShadow: "0 10px 24px rgba(37,99,235,0.05)",
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
                   }}
-                >
-                  {availabilityMessage}
-                </div>
-              )}
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: 20,
-                  gridTemplateColumns: splitPanelGrid,
-                  alignItems: "start",
+                />
+              </label>
+              <label style={{ fontSize: 12, color: "#475569" }}>
+                End date (optional)
+                <IsraelDateInput
+                  value={availabilityForm.end_date}
+                  onChange={(nextDate) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      end_date: nextDate,
+                    }))
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #e2e8f0",
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={availabilitySaving}
+                onClick={async () => {
+                  const userId = currentUserId.trim();
+                  if (!userId) return;
+                  if (!availabilityForm.day_of_week.length) {
+                    setAvailabilityMessage("Choose at least one day.");
+                    return;
+                  }
+                  setAvailabilitySaving(true);
+                  setAvailabilityMessage("");
+                  try {
+                    const created = await Promise.all(
+                      availabilityForm.day_of_week.map((day) =>
+                        createUserAvailability({
+                          user_id: userId,
+                          day_of_week: Number(day),
+                          start_time: availabilityForm.start_time,
+                          end_time: availabilityForm.end_time,
+                          start_date: availabilityForm.start_date || null,
+                          end_date: availabilityForm.end_date || null,
+                        })
+                      )
+                    );
+                    setUserAvailability((prev) => [...prev, ...created]);
+                    setAvailabilityMessage("Availability saved.");
+                  } catch (err) {
+                    setAvailabilityMessage(err?.message || "Failed to save availability.");
+                  } finally {
+                    setAvailabilitySaving(false);
+                  }
                 }}
-              >
-                <div
-                  style={{
-                    padding: cardPadding,
-                    borderRadius: 28,
-                    border: "1px solid rgba(148,163,184,0.18)",
-                    background: "#fff",
-                    boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                    display: "grid",
-                    gap: 18,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 900,
-                        color: "#0f172a",
-                        fontSize: 28,
-                        letterSpacing: "-0.04em",
-                      }}
-                    >
-                      Add availability
-                    </div>
-                    <div style={{ color: "#64748b", fontSize: 14, marginTop: 6, lineHeight: 1.6 }}>
-                      Choose the days, time range, and optional date window you want to share.
-                    </div>
-                  </div>
-
-                  <label style={{ fontSize: 12, color: "#475569" }}>
-                    Days of week
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: twoColumnGrid,
-                        gap: 10,
-                        marginTop: 10,
-                      }}
-                    >
-                      {[0, 1, 2, 3, 4, 5, 6].map((day) => {
-                        const isSelected = availabilityForm.day_of_week.includes(String(day));
-                        return (
-                          <label
-                            key={day}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 10,
-                              padding: "12px 14px",
-                              borderRadius: 16,
-                              border: isSelected
-                                ? "1px solid rgba(16,185,129,0.22)"
-                                : "1px solid #e2e8f0",
-                              background: isSelected ? "#ecfdf5" : "#fff",
-                              color: "#0f172a",
-                              fontWeight: isSelected ? 700 : 500,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() =>
-                                setAvailabilityForm((prev) => {
-                                  const exists = prev.day_of_week.includes(String(day));
-                                  const nextDays = exists
-                                    ? prev.day_of_week.filter((value) => value !== String(day))
-                                    : [...prev.day_of_week, String(day)];
-                                  return { ...prev, day_of_week: nextDays };
-                                })
-                              }
-                            />
-                            <span>{weekdayLabel(day)}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </label>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: twoColumnGrid,
-                      gap: 14,
-                    }}
-                  >
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      Start time
-                      <input
-                        type="time"
-                        value={availabilityForm.start_time}
-                        onChange={(e) =>
-                          setAvailabilityForm((prev) => ({
-                            ...prev,
-                            start_time: e.target.value,
-                          }))
-                        }
-                        style={{
-                          display: "block",
-                          marginTop: 8,
-                          width: "100%",
-                          padding: "12px 14px",
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                        }}
-                      />
-                    </label>
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      End time
-                      <input
-                        type="time"
-                        value={availabilityForm.end_time}
-                        onChange={(e) =>
-                          setAvailabilityForm((prev) => ({
-                            ...prev,
-                            end_time: e.target.value,
-                          }))
-                        }
-                        style={{
-                          display: "block",
-                          marginTop: 8,
-                          width: "100%",
-                          padding: "12px 14px",
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: twoColumnGrid,
-                      gap: 14,
-                    }}
-                  >
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      Start date (optional)
-                      <IsraelDateInput
-                        value={availabilityForm.start_date}
-                        onChange={(nextDate) =>
-                          setAvailabilityForm((prev) => ({
-                            ...prev,
-                            start_date: nextDate,
-                          }))
-                        }
-                        style={{
-                          display: "block",
-                          marginTop: 8,
-                          padding: "12px 14px",
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      />
-                    </label>
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      End date (optional)
-                      <IsraelDateInput
-                        value={availabilityForm.end_date}
-                        onChange={(nextDate) =>
-                          setAvailabilityForm((prev) => ({
-                            ...prev,
-                            end_date: nextDate,
-                          }))
-                        }
-                        style={{
-                          display: "block",
-                          marginTop: 8,
-                          padding: "12px 14px",
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      />
-                    </label>
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={availabilitySaving}
-                    onClick={async () => {
-                      const userId = currentUserId.trim();
-                      if (!userId) return;
-                      if (!availabilityForm.day_of_week.length) {
-                        setAvailabilityMessage("Choose at least one day.");
-                        return;
-                      }
-                      setAvailabilitySaving(true);
-                      setAvailabilityMessage("");
-                      try {
-                        const created = await Promise.all(
-                          availabilityForm.day_of_week.map((day) =>
-                            createUserAvailability({
-                              user_id: userId,
-                              day_of_week: Number(day),
-                              start_time: availabilityForm.start_time,
-                              end_time: availabilityForm.end_time,
-                              start_date: availabilityForm.start_date || null,
-                              end_date: availabilityForm.end_date || null,
-                            })
-                          )
-                        );
-                        setUserAvailability((prev) => [...prev, ...created]);
-                        setAvailabilityMessage("Availability saved.");
-                      } catch (err) {
-                        setAvailabilityMessage(err?.message || "Failed to save availability.");
-                      } finally {
-                        setAvailabilitySaving(false);
-                      }
-                    }}
-                    style={{
-                      padding: "14px 18px",
-                      borderRadius: 16,
+                style={{
+                  padding: "12px 18px",
+                  borderRadius: 16,
+                  cursor: availabilitySaving ? "default" : "pointer",
+                  width: isCinema ? "fit-content" : undefined,
+                  ...(availabilitySaving
+                    ? {
                       border: "none",
-                      background:
-                        availabilitySaving
-                          ? "#94a3b8"
-                          : "linear-gradient(135deg, #047857, #10b981)",
+                      background: "#94a3b8",
                       color: "#fff",
                       fontWeight: 800,
-                      boxShadow: "0 18px 36px rgba(16,185,129,0.22)",
-                    }}
-                  >
-                    {availabilitySaving ? "Saving..." : "Save availability"}
-                  </button>
-                </div>
+                      boxShadow: "none",
+                    }
+                    : isCinema
+                      ? cinemaPrimaryButton
+                      : {
+                        border: "none",
+                        background: "#1d4ed8",
+                        color: "#fff",
+                        fontWeight: 700,
+                      }),
+                }}
+              >
+                {availabilitySaving ? "Saving..." : "Save availability"}
+              </button>
+            </div>
 
-                <div
-                  style={{
-                    padding: cardPadding,
-                    borderRadius: 28,
-                    border: "1px solid rgba(148,163,184,0.18)",
-                    background:
-                      "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.95))",
-                    boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
-                    display: "grid",
-                    gap: 14,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 900,
-                      color: "#0f172a",
-                      fontSize: 24,
-                      letterSpacing: "-0.04em",
-                    }}
-                  >
-                    Availability guide
-                  </div>
-                  <div style={{ color: "#475569", lineHeight: 1.7, fontSize: 14 }}>
-                    Use weekly slots for your regular schedule. Add optional dates only when the
-                    availability should apply to a specific period.
-                  </div>
-                  <div
-                    style={{
-                      padding: "14px 16px",
-                      borderRadius: 18,
-                      background: "#f8fafc",
-                      border: "1px solid #e2e8f0",
-                      color: "#475569",
-                      lineHeight: 1.7,
-                      fontSize: 14,
-                    }}
-                  >
-                    Tip: keep your ranges broad and update them only when something changes. That
-                    makes scheduling more accurate and easier to maintain.
-                  </div>
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ marginBottom: 8, color: "#0f172a" }}>
+                Saved availability
+              </h3>
+              {userAvailability.length === 0 ? (
+                <div className="glass" style={{ padding: 12, borderRadius: 12 }}>
+                  No availability saved yet.
                 </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    fontWeight: 900,
-                    fontSize: 30,
-                    color: "#0f172a",
-                    letterSpacing: "-0.04em",
-                    marginBottom: 12,
-                  }}
-                >
-                  Saved availability
-                </div>
-                {userAvailability.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "24px 20px",
-                      borderRadius: 22,
-                      border: "1px dashed #cbd5e1",
-                      background: "#f8fafc",
-                      color: "#475569",
-                    }}
-                  >
-                    No availability saved yet.
-                  </div>
-                ) : (
-                  <div className="grid-auto">
-                    {userAvailability.map((slot) => (
-                      <div
-                        key={slot.id}
+              ) : (
+                <div className="grid-auto">
+                  {userAvailability.map((slot) => (
+                    <div
+                      key={slot.id}
+                      className="glass"
+                      style={{ padding: 12, borderRadius: 12 }}
+                    >
+                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
+                        {weekdayLabel(slot.day_of_week)}
+                      </div>
+                      <div style={{ color: "#475569", fontSize: 13 }}>
+                        {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
+                      </div>
+                      {(slot.start_date || slot.end_date) && (
+                        <div style={{ color: "#94a3b8", fontSize: 12 }}>
+                          {slot.start_date ? formatDate(slot.start_date) : "כל תאריך"} → {slot.end_date ? formatDate(slot.end_date) : "כל תאריך"}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setAvailabilityMessage("");
+                          try {
+                            await deleteUserAvailability(slot.id);
+                            setUserAvailability((prev) =>
+                              prev.filter((item) => item.id !== slot.id)
+                            );
+                          } catch (err) {
+                            setAvailabilityMessage(
+                              err?.message || "Failed to delete availability."
+                            );
+                          }
+                        }}
                         style={{
-                          padding: 18,
-                          borderRadius: 22,
-                          border: "1px solid rgba(148,163,184,0.18)",
-                          background:
-                            "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
-                          boxShadow: "0 14px 30px rgba(15,23,42,0.05)",
+                          marginTop: 8,
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          color: "#0f172a",
                         }}
                       >
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            padding: "7px 12px",
-                            borderRadius: 999,
-                            background: "#ecfdf5",
-                            color: "#047857",
-                            fontWeight: 800,
-                            fontSize: 12,
-                            marginBottom: 12,
-                          }}
-                        >
-                          {weekdayLabel(slot.day_of_week)}
-                        </div>
-                        <div style={{ fontWeight: 900, color: "#0f172a", fontSize: 24 }}>
-                          {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-                        </div>
-                        {(slot.start_date || slot.end_date) && (
-                          <div style={{ color: "#64748b", fontSize: 13, marginTop: 10, lineHeight: 1.6 }}>
-                            {slot.start_date ? formatDate(slot.start_date) : "Any date"} to{" "}
-                            {slot.end_date ? formatDate(slot.end_date) : "Any date"}
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setAvailabilityMessage("");
-                            try {
-                              await deleteUserAvailability(slot.id);
-                              setUserAvailability((prev) =>
-                                prev.filter((item) => item.id !== slot.id)
-                              );
-                            } catch (err) {
-                              setAvailabilityMessage(
-                                err?.message || "Failed to delete availability."
-                              );
-                            }
-                          }}
-                          style={{
-                            marginTop: 14,
-                            padding: "10px 14px",
-                            borderRadius: 14,
-                            border: "1px solid #e2e8f0",
-                            background: "#fff",
-                            color: "#0f172a",
-                            fontWeight: 800,
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         ) : (
           <>
-            <div style={{ display: "grid", gap: 20 }}>
-              <section
-                style={{
-                  position: "relative",
-                  overflow: "hidden",
-                  borderRadius: 28,
-                  border: "1px solid rgba(148,163,184,0.18)",
-                  background:
-                    "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.94) 52%, rgba(224,242,254,0.82))",
-                  boxShadow: "0 28px 70px rgba(15,23,42,0.08)",
-                  padding: heroPadding,
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: "auto -40px -90px auto",
-                    width: 240,
-                    height: 240,
-                    borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(14,165,233,0.14), rgba(14,165,233,0))",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "relative",
-                    zIndex: 1,
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "space-between",
-                    gap: 18,
-                    alignItems: "start",
-                  }}
-                >
-                  <div style={{ maxWidth: 720 }}>
-                    <div
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        padding: "7px 14px",
-                        borderRadius: 999,
-                        background: "rgba(14,165,233,0.1)",
-                        color: "#0369a1",
-                        fontWeight: 800,
-                        fontSize: 12,
-                        letterSpacing: "0.18em",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Status Center
-                    </div>
-                    <h1
-                      style={{
-                        margin: "14px 0 8px",
-                        color: "#0f172a",
-                        fontSize: "clamp(2.35rem, 4vw, 2.85rem)",
-                        lineHeight: 1.02,
-                        letterSpacing: "-0.04em",
-                      }}
-                    >
-                      {role === "user" ? "Notifications" : "Request Updates"}
-                    </h1>
-                    <p
-                      style={{
-                        margin: 0,
-                        color: "#475569",
-                        fontSize: 18,
-                        lineHeight: 1.7,
-                        maxWidth: 760,
-                      }}
-                    >
-                      {role === "user"
-                        ? `Updates from ${labelsLower.managers} about cancelled ${labelsLower.resource}.`
-                        : "Track the status of allocation requests in a cleaner personal inbox."}
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      minWidth: responsiveWideMinWidth,
-                      display: "grid",
-                      gap: 12,
-                      width: isMobile ? "100%" : "auto",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "16px 18px",
-                        borderRadius: 20,
-                        border: "1px solid rgba(14,165,233,0.16)",
-                        background: "rgba(255,255,255,0.72)",
-                        boxShadow: "0 14px 28px rgba(15,23,42,0.05)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 12,
-                          letterSpacing: "0.16em",
-                          textTransform: "uppercase",
-                          color: "#64748b",
-                          fontWeight: 800,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Overview
-                      </div>
-                      <div style={{ fontSize: 24, fontWeight: 800, color: "#0f172a" }}>
-                        {role === "user" ? unreadAnnouncementCount : requestUpdatesCount}
-                      </div>
-                      <div style={{ color: "#64748b", marginTop: 4, fontSize: 13 }}>
-                        {role === "user"
-                          ? "Unread announcement updates"
-                          : "Request updates in the current view"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
+            <header
+              style={{
+                padding: "12px 0",
+                borderBottom: "1px solid #e2e8f0",
+                marginBottom: 16,
+              }}
+            >
+              <h1 style={{ margin: 0, color: "#0f172a" }}>
+                {role === "user" ? "Notifications" : "Request Updates"}
+              </h1>
+              <p style={{ margin: 0, color: "#475569" }}>
+                {role === "user"
+                  ? `Updates from ${labelsLower.managers} about cancelled ${labelsLower.resource}.`
+                  : "Track the status of allocation requests."}
+              </p>
+            </header>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                marginBottom: 12,
+              }}
+            >
               {role === "manager" && (
                 <button
                   type="button"
                   onClick={() => setNotificationTab("requests")}
                   style={{
-                    padding: "10px 14px",
-                    borderRadius: 14,
-                    border: "1px solid #e2e8f0",
-                    background:
-                      notificationTab === "requests"
-                        ? "linear-gradient(135deg,#0f172a,#1e293b)"
-                        : "#fff",
-                    color: notificationTab === "requests" ? "#fff" : "#0f172a",
-                    fontWeight: 800,
+                    padding: "12px 18px",
+                    borderRadius: 16,
                     cursor: "pointer",
-                    boxShadow:
-                      notificationTab === "requests"
-                        ? "0 12px 28px rgba(15,23,42,0.18)"
-                        : "0 8px 18px rgba(15,23,42,0.05)",
+                    ...(notificationTab === "requests"
+                      ? isCinema
+                        ? cinemaPrimaryButton
+                        : {
+                          border: "1px solid #e2e8f0",
+                          background: "#2563eb",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }
+                      : isCinema
+                        ? cinemaSecondaryButton
+                        : {
+                          border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          color: "#0f172a",
+                          fontWeight: 700,
+                        }),
                   }}
                 >
                   Request Updates
@@ -3758,35 +2974,38 @@ export default function App() {
                   type="button"
                   onClick={() => setNotificationTab("announcements")}
                   style={{
-                    padding: "10px 14px",
-                    borderRadius: 14,
-                    border: "1px solid #e2e8f0",
-                    background:
-                      notificationTab === "announcements"
-                        ? "linear-gradient(135deg,#0f172a,#1e293b)"
-                        : "#fff",
-                    color:
-                      notificationTab === "announcements" ? "#fff" : "#0f172a",
-                    fontWeight: 800,
+                    padding: "12px 18px",
+                    borderRadius: 16,
                     cursor: "pointer",
-                    boxShadow:
-                      notificationTab === "announcements"
-                        ? "0 12px 28px rgba(15,23,42,0.18)"
-                        : "0 8px 18px rgba(15,23,42,0.05)",
+                    ...(notificationTab === "announcements"
+                      ? isCinema
+                        ? cinemaPrimaryButton
+                        : {
+                          border: "1px solid #e2e8f0",
+                          background: "#2563eb",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }
+                      : isCinema
+                        ? cinemaSecondaryButton
+                        : {
+                          border: "1px solid #e2e8f0",
+                          background: "#fff",
+                          color: "#0f172a",
+                          fontWeight: 700,
+                        }),
                   }}
                 >
                   {labels.manager} Messages
                 </button>
               )}
-              </div>
+            </div>
 
             <div
+              className="glass"
               style={{
-                padding: cardPadding,
-                borderRadius: 28,
-                border: "1px solid rgba(148,163,184,0.18)",
-                background: "#fff",
-                boxShadow: "0 24px 60px rgba(15,23,42,0.07)",
+                padding: 16,
+                borderRadius: 18,
                 display:
                   role === "manager" && notificationTab === "requests"
                     ? "block"
@@ -3799,7 +3018,7 @@ export default function App() {
                   flexWrap: "wrap",
                   gap: 12,
                   alignItems: "center",
-                  marginBottom: 16,
+                  marginBottom: 12,
                 }}
               >
                 <input
@@ -3808,145 +3027,49 @@ export default function App() {
                   placeholder={`Search by ${labelsLower.resource}, date, or status...`}
                   style={{
                     flex: 1,
-                    minWidth: responsiveSidebarCardMinWidth,
-                    padding: "14px 16px",
-                    borderRadius: 16,
-                    border: "1px solid #dbe3f0",
+                    minWidth: 220,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    border: "1px solid #e2e8f0",
                     background: "#fff",
                     color: "#0f172a",
-                    fontSize: 15,
                   }}
                 />
                 <button
                   onClick={loadUserRequests}
                   disabled={userRequestsLoading}
                   style={{
-                    padding: "14px 16px",
-                    borderRadius: 16,
+                    padding: "10px 14px",
+                    borderRadius: 12,
                     border: "none",
-                    background:
-                      userRequestsLoading
-                        ? "#94a3b8"
-                        : "linear-gradient(135deg,#0f172a,#1e293b)",
+                    background: userRequestsLoading ? "#94a3b8" : "#2563eb",
                     color: "#fff",
-                    fontWeight: 800,
+                    fontWeight: 700,
                     cursor: userRequestsLoading ? "default" : "pointer",
-                    boxShadow: "0 16px 34px rgba(15,23,42,0.16)",
                   }}
                 >
                   {userRequestsLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 10,
-                  marginBottom: 16,
-                }}
-              >
-                <span
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    color: "#475569",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  {hasUserRequestsQuery
-                    ? `Searching: ${userRequestsQuery.trim()}`
-                    : "Showing all updates"}
-                </span>
-                <span
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    background: "rgba(14,165,233,0.08)",
-                    color: "#0369a1",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  {requestGroupsCount} resource{requestGroupsCount === 1 ? "" : "s"}
-                </span>
-                <span
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 999,
-                    background: "rgba(15,23,42,0.06)",
-                    color: "#0f172a",
-                    fontSize: 12,
-                    fontWeight: 700,
-                  }}
-                >
-                  {requestUpdatesCount} update{requestUpdatesCount === 1 ? "" : "s"}
-                </span>
-              </div>
               {userRequestsError && (
-                <div
-                  style={{
-                    color: "#b91c1c",
-                    marginBottom: 12,
-                    padding: "14px 16px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(239,68,68,0.18)",
-                    background: "#fff1f2",
-                  }}
-                >
+                <div style={{ color: "#b91c1c", marginBottom: 12 }}>
                   {userRequestsError}
                 </div>
               )}
               {userRequestsLoading ? (
-                <div
-                  style={{
-                    color: "#475569",
-                    padding: "24px 20px",
-                    borderRadius: 20,
-                    border: "1px dashed #cbd5e1",
-                    background: "#f8fafc",
-                  }}
-                >
-                  Loading requests...
-                </div>
+                <div style={{ color: "#475569" }}>Loading requests...</div>
               ) : userRequests.length === 0 ? (
-                <div
-                  style={{
-                    color: "#475569",
-                    padding: "24px 20px",
-                    borderRadius: 20,
-                    border: "1px dashed #cbd5e1",
-                    background: "#f8fafc",
-                  }}
-                >
+                <div style={{ color: "#475569" }}>
                   No requests yet. Submit one to start the approval flow.
                 </div>
               ) : filteredUserRequests.length === 0 ? (
-                <div
-                  style={{
-                    color: "#475569",
-                    padding: "24px 20px",
-                    borderRadius: 20,
-                    border: "1px dashed #cbd5e1",
-                    background: "#f8fafc",
-                  }}
-                >
+                <div style={{ color: "#475569" }}>
                   No requests match your search.
                 </div>
               ) : (
-                <div
-                  style={{
-                    borderRadius: 24,
-                    overflow: "hidden",
-                    border: "1px solid #e2e8f0",
-                    background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-                    boxShadow: "0 16px 40px rgba(15,23,42,0.06)",
-                  }}
-                >
+                <div className="bg-white shadow rounded-lg overflow-hidden">
                   {!selectedUserGroup ? (
-                    <div style={{ padding: isMobile ? 14 : 18, display: "grid", gap: 14 }}>
+                    <div style={{ padding: 16, display: "grid", gap: 12 }}>
                       {groupedUserRequests.map((group) => {
                         const unreadCount = group.requests.filter(
                           (req) =>
@@ -3965,57 +3088,30 @@ export default function App() {
                             style={{
                               width: "100%",
                               textAlign: "left",
-                              padding: isMobile ? "14px 16px" : "18px 20px",
-                              borderRadius: 20,
-                              border: "1px solid rgba(148,163,184,0.18)",
-                              background:
-                                "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
+                              padding: "16px 18px",
+                              borderRadius: 14,
+                              border: "1px solid #e2e8f0",
+                              background: "#fff",
                               display: "flex",
                               alignItems: "center",
                               gap: 12,
-                              boxShadow: "0 16px 34px rgba(15, 23, 42, 0.06)",
+                              boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
                               cursor: "pointer",
                             }}
                           >
                             <div style={{ flex: 1 }}>
                               <div
                                 style={{
-                                  fontSize: 22,
-                                  fontWeight: 900,
+                                  fontSize: 15,
+                                  fontWeight: 700,
                                   color: "#0f172a",
-                                  letterSpacing: "-0.04em",
                                 }}
                               >
                                 {group.resource_name ||
                                   `${labels.resource} #${group.resource_id}`}
                               </div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    background: "#eef2ff",
-                                    color: "#4338ca",
-                                    padding: "6px 11px",
-                                    borderRadius: 999,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  {group.resource_type || labels.resource}
-                                </span>
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    background: "#f8fafc",
-                                    color: "#475569",
-                                    padding: "6px 11px",
-                                    borderRadius: 999,
-                                    fontWeight: 700,
-                                    border: "1px solid #e2e8f0",
-                                  }}
-                                >
-                                  {group.requests.length} update
-                                  {group.requests.length === 1 ? "" : "s"}
-                                </span>
+                              <div style={{ fontSize: 12, color: "#64748b" }}>
+                                {group.resource_type || labels.resource}
                               </div>
                             </div>
                             {unreadCount > 0 && (
@@ -4042,36 +3138,27 @@ export default function App() {
                       })}
                     </div>
                   ) : (
-                    <div style={{ padding: isMobile ? 16 : 20 }}>
+                    <div className="p-4">
                       <button
                         type="button"
                         onClick={() => setSelectedUserRequestKey(null)}
                         style={{
-                          border: "1px solid #dbe3f0",
-                          background: "#fff",
+                          border: "none",
+                          background: "transparent",
                           color: "#1d4ed8",
-                          fontWeight: 800,
+                          fontWeight: 700,
                           cursor: "pointer",
-                          padding: "10px 14px",
-                          borderRadius: 14,
+                          padding: 0,
                           marginBottom: 12,
                         }}
                       >
                         Back to {labels.resources}
                       </button>
-                      <div
-                        style={{
-                          fontWeight: 900,
-                          fontSize: isMobile ? 24 : 30,
-                          color: "#0f172a",
-                          letterSpacing: "-0.04em",
-                          marginBottom: 8,
-                        }}
-                      >
+                      <div style={{ fontWeight: 700, marginBottom: 8 }}>
                         {selectedUserGroup.resource_name ||
                           `${labels.resource} #${selectedUserGroup.resource_id}`}
                       </div>
-                      <div style={{ display: "grid", gap: 14 }}>
+                      <div style={{ display: "grid", gap: 12 }}>
                         {selectedUserGroup.requests.map((req) => {
                           const status = req.status || "pending";
                           let statusBg = "#fef9c3";
@@ -4087,20 +3174,17 @@ export default function App() {
                             <div
                               key={req.id}
                               style={{
-                                padding: isMobile ? 14 : 18,
-                                borderRadius: 20,
-                                border: "1px solid rgba(148,163,184,0.18)",
-                                background:
-                                  "linear-gradient(135deg, rgba(255,255,255,0.98), rgba(248,250,252,0.96))",
+                                padding: 14,
+                                borderRadius: 14,
+                                border: "1px solid #e2e8f0",
+                                background: "#fff",
                                 display: "flex",
-                                flexWrap: "wrap",
                                 gap: 12,
                                 alignItems: "center",
-                                boxShadow: "0 14px 30px rgba(15,23,42,0.05)",
                               }}
                             >
                               <div style={{ flex: 1 }}>
-                                <div style={{ color: "#64748b", fontSize: 13, marginBottom: 6 }}>
+                                <div style={{ color: "#64748b", fontSize: 13 }}>
                                   {formatDate(req.request_date)}{" "}
                                   {formatTime(req.start_time)} -{" "}
                                   {formatTime(req.end_time)}
@@ -4137,7 +3221,7 @@ export default function App() {
             <div
               className="glass"
               style={{
-                padding: isMobile ? 14 : 16,
+                padding: 16,
                 borderRadius: 18,
                 display:
                   role === "user" && notificationTab === "announcements"
@@ -4160,7 +3244,7 @@ export default function App() {
                   placeholder="Search announcements..."
                   style={{
                     flex: 1,
-                    minWidth: responsiveSidebarCardMinWidth,
+                    minWidth: 220,
                     padding: "10px 12px",
                     borderRadius: 12,
                     border: "1px solid #e2e8f0",
@@ -4172,14 +3256,27 @@ export default function App() {
                   onClick={loadAnnouncements}
                   disabled={announcementsLoading}
                   style={{
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: announcementsLoading ? "#94a3b8" : "#2563eb",
-                    color: "#fff",
-                    fontWeight: 700,
-                    cursor: announcementsLoading ? "default" : "pointer",
+                    padding: "12px 18px",
+                    borderRadius: 16,
+                    cursor: userRequestsLoading ? "default" : "pointer",
+                    ...(userRequestsLoading
+                      ? {
+                        border: "none",
+                        background: "#94a3b8",
+                        color: "#fff",
+                        fontWeight: 800,
+                        boxShadow: "none",
+                      }
+                      : isCinema
+                        ? cinemaPrimaryButton
+                        : {
+                          border: "none",
+                          background: "#2563eb",
+                          color: "#fff",
+                          fontWeight: 700,
+                        }),
                   }}
+
                 >
                   {announcementsLoading ? "Loading..." : "Refresh"}
                 </button>
@@ -4250,7 +3347,7 @@ export default function App() {
                       placeholder={`${labels.resource} name (optional)`}
                       style={{
                         flex: 1,
-                        minWidth: responsiveCompactMinWidth,
+                        minWidth: 160,
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid #e2e8f0",
@@ -4267,7 +3364,7 @@ export default function App() {
                       placeholder={`${labels.userId} (optional)`}
                       style={{
                         flex: 1,
-                        minWidth: responsiveCompactMinWidth,
+                        minWidth: 160,
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid #e2e8f0",
@@ -4284,7 +3381,7 @@ export default function App() {
                       placeholder="Your name"
                       style={{
                         flex: 1,
-                        minWidth: responsiveCompactMinWidth,
+                        minWidth: 160,
                         padding: "10px 12px",
                         borderRadius: 10,
                         border: "1px solid #e2e8f0",
@@ -4391,145 +3488,7 @@ export default function App() {
                 </div>
               )}
             </div>
-            </div>
           </>
-        )}
-
-        {selectedScheduleDay && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 20,
-              zIndex: 58,
-            }}
-            onClick={() => setSelectedScheduleDay(null)}
-          >
-            <div
-              className="glass"
-              style={{
-                width: "min(560px, 92vw)",
-                maxHeight: "80vh",
-                overflowY: "auto",
-                padding: isMobile ? 16 : 20,
-                borderRadius: 18,
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                display: "grid",
-                gap: 12,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 800, color: "#0f172a" }}>Daily schedule</div>
-                  <div style={{ color: "#475569", fontSize: 12, marginTop: 4 }}>
-                    {formatDate(selectedScheduleDay.key)}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedScheduleDay(null)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-              {selectedScheduleDay.bookings.length === 0 ? (
-                <div
-                  style={{
-                    padding: "18px 16px",
-                    borderRadius: 16,
-                    border: "1px dashed #cbd5e1",
-                    background: "#f8fafc",
-                    color: "#475569",
-                  }}
-                >
-                  No sessions on this day.
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {selectedScheduleDay.bookings.map((booking) => {
-                    const roomLine = getBookingRoomLine(booking);
-                    return (
-                      <div
-                        key={booking.id}
-                        style={{
-                          padding: "14px 16px",
-                          borderRadius: 16,
-                          border: "1px solid #e2e8f0",
-                          background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-                          display: "grid",
-                          gap: 8,
-                        }}
-                      >
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-                          <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 16 }}>
-                            {getBookingTitle(booking)}
-                          </div>
-                          <span
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: 999,
-                              background: "#eef2ff",
-                              color: "#4338ca",
-                              fontSize: 12,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-                          </span>
-                        </div>
-                        {roomLine && (
-                          <div style={{ color: "#334155", fontSize: 13, fontWeight: 600 }}>
-                            {roomLine}
-                          </div>
-                        )}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                          {getBookingResources(booking).map((resource) => (
-                            <span
-                              key={resource.id}
-                              style={{
-                                padding: "6px 10px",
-                                borderRadius: 999,
-                                border: "1px solid #e2e8f0",
-                                background: getAssignedBookingResources(booking).some(
-                                  (assigned) => assigned.id === resource.id
-                                )
-                                  ? "#ede9fe"
-                                  : "#fff",
-                                color: getAssignedBookingResources(booking).some(
-                                  (assigned) => assigned.id === resource.id
-                                )
-                                  ? "#5b21b6"
-                                  : "#334155",
-                                fontSize: 12,
-                                fontWeight: 700,
-                              }}
-                            >
-                              {resource.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
         )}
 
         {cancelDialog.open && (
@@ -4550,7 +3509,7 @@ export default function App() {
               className="glass"
               style={{
                 width: "min(560px, 92vw)",
-                padding: isMobile ? 16 : 20,
+                padding: 20,
                 borderRadius: 18,
                 background: "#fff",
                 border: "1px solid #e2e8f0",
@@ -4670,7 +3629,7 @@ export default function App() {
               {cancelSuccess && (
                 <div style={{ color: "#166534" }}>{cancelSuccess}</div>
               )}
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                 <button
                   type="button"
                   onClick={() => setCancelDialog({ open: false, booking: null })}
@@ -4705,8 +3664,8 @@ export default function App() {
                       ? "Rescheduling..."
                       : "Cancelling..."
                     : rescheduleMode
-                    ? "Confirm reschedule"
-                    : "Confirm cancel"}
+                      ? "Confirm reschedule"
+                      : "Confirm cancel"}
                 </button>
               </div>
             </div>
@@ -5010,42 +3969,32 @@ export default function App() {
   );
 }
 
-function Section({ title, color, items, role, onCancel, labels, labelsLower }) {
+function Section({ title, color, items, role, onCancel }) {
   return (
-    <section
-      style={{
-        border: "1px solid #e2e8f0",
-        borderRadius: 24,
-        padding: 20,
-        background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-        boxShadow: "0 14px 36px rgba(15,23,42,0.06)",
-      }}
-    >
+    <section>
       <div
-        style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}
+        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
       >
         <span
           style={{
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             borderRadius: 999,
             background: color,
             display: "inline-block",
-            boxShadow: `0 0 0 6px ${color}1f`,
           }}
         />
-        <h3 style={{ margin: 0, color: "#0f172a", fontSize: 26 }}>{title}</h3>
+        <h3 style={{ margin: 0, color: "#0f172a" }}>{title}</h3>
       </div>
 
       {items.length === 0 ? (
         <div
+          className="glass"
           style={{
-            padding: 18,
-            borderRadius: 18,
+            padding: 14,
+            borderRadius: 14,
             color: "#475569",
             fontSize: 14,
-            border: "1px dashed #cbd5e1",
-            background: "#fff",
           }}
         >
           No bookings in this category.
@@ -5053,14 +4002,7 @@ function Section({ title, color, items, role, onCancel, labels, labelsLower }) {
       ) : (
         <div className="grid-auto">
           {items.map((b) => (
-            <BookingCard
-              key={b.id}
-              booking={b}
-              role={role}
-              onCancel={onCancel}
-              labels={labels}
-              labelsLower={labelsLower}
-            />
+            <BookingCard key={b.id} booking={b} role={role} onCancel={onCancel} />
           ))}
         </div>
       )}
@@ -5068,17 +4010,16 @@ function Section({ title, color, items, role, onCancel, labels, labelsLower }) {
   );
 }
 
-function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
+function BookingCard({ booking, role, onCancel }) {
   const past = isPastBooking(booking);
   const roomLine = getBookingRoomLine(booking);
   return (
     <div
+      className="glass"
       style={{
-        padding: 18,
-        borderRadius: 20,
+        padding: 16,
+        borderRadius: 16,
         border: "1px solid #e2e8f0",
-        background: "linear-gradient(180deg,#ffffff,#f8fafc)",
-        boxShadow: "0 10px 24px rgba(15,23,42,0.05)",
       }}
     >
       <div
@@ -5094,9 +4035,6 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
           <div style={{ color: "#475569", fontSize: 12 }}>
             Booking #{booking.id}
           </div>
-          <div style={{ color: "#0f172a", fontWeight: 800, fontSize: 18, marginTop: 2 }}>
-            {getBookingTitle(booking)}
-          </div>
           <div style={{ color: "#0f172a", fontWeight: 600 }}>
             {formatDate(booking.date)}
           </div>
@@ -5105,10 +4043,10 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
           style={{
             padding: "6px 10px",
             borderRadius: 999,
-            background: "rgba(15, 23, 42, 0.06)",
-            color: "#0f172a",
+            background: "rgba(37, 99, 235, 0.1)",
+            color: "#1d4ed8",
             fontSize: 13,
-            border: "1px solid rgba(148,163,184,0.25)",
+            border: "1px solid rgba(37,99,235,0.25)",
           }}
         >
           {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
@@ -5127,10 +4065,10 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
           style={{
             marginBottom: 10,
             alignSelf: "flex-start",
-            padding: "8px 12px",
-            borderRadius: 12,
+            padding: "6px 10px",
+            borderRadius: 10,
             border: "1px solid #e2e8f0",
-            background: past ? "#e2e8f0" : "#7c2d12",
+            background: past ? "#e2e8f0" : "#0f172a",
             color: past ? "#64748b" : "#fff",
             fontWeight: 700,
             cursor: past ? "not-allowed" : "pointer",
@@ -5141,13 +4079,13 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
       )}
 
       <div style={{ display: "grid", gap: 10 }}>
-        {getBookingResources(booking).map((r) => (
+        {(booking.resources || []).map((r) => (
           <div
             key={r.id}
             style={{
-              padding: 12,
-              borderRadius: 14,
-              background: "#fff",
+              padding: 10,
+              borderRadius: 12,
+              background: "#f8fafc",
               border: "1px solid #e2e8f0",
             }}
           >
@@ -5156,38 +4094,22 @@ function BookingCard({ booking, role, onCancel, labels, labelsLower }) {
               {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels)}` : ""}
               {r.role ? ` - Role: ${r.role}` : ""}
             </div>
-              {getAssignedBookingResources(booking).some((assigned) => assigned.id === r.id) && (
-                <div
-                  style={{
-                    marginTop: 6,
-                    width: "fit-content",
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    background: "#ede9fe",
-                    color: "#5b21b6",
-                    fontSize: 11,
-                    fontWeight: 700,
-                  }}
-                >
-                  Assigned to you
-                </div>
-              )}
-              {r.metadata && Object.keys(r.metadata).length > 0 && (
-                <div
-                  style={{
-                    color: "#64748b",
-                    fontSize: 12,
-                    marginTop: 4,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {Object.entries(r.metadata)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(" | ")}
-                </div>
-              )}
-            </div>
-          ))}
+            {r.metadata && Object.keys(r.metadata).length > 0 && (
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 12,
+                  marginTop: 4,
+                  lineHeight: 1.4,
+                }}
+              >
+                {Object.entries(r.metadata)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(" | ")}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -5198,7 +4120,6 @@ function MonthGrid({
   onPrev,
   onNext,
   days,
-  onDayClick,
   renderBooking,
   maxItems = 3,
   renderDayAction,
@@ -5209,37 +4130,25 @@ function MonthGrid({
   }
 
   return (
-    <div
-      style={{
-        padding: 20,
-        borderRadius: 28,
-        border: "1px solid #e2e8f0",
-        background: "linear-gradient(180deg,#fffdf8,#ffffff 30%,#f8fafc 100%)",
-        boxShadow: "0 18px 42px rgba(15,23,42,0.08)",
-      }}
-    >
+    <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
-          gap: 12,
-          flexWrap: "wrap",
+          marginBottom: 12,
         }}
       >
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             onClick={onPrev}
             style={{
               border: "1px solid #e2e8f0",
-              background: "#ffffff",
+              background: "#fff",
               color: "#0f172a",
-              borderRadius: 14,
-              padding: "9px 14px",
+              borderRadius: 10,
+              padding: "6px 10px",
               cursor: "pointer",
-              fontWeight: 700,
-              boxShadow: "0 8px 18px rgba(15,23,42,0.06)",
             }}
           >
             &lt;
@@ -5248,58 +4157,33 @@ function MonthGrid({
             onClick={onNext}
             style={{
               border: "1px solid #e2e8f0",
-              background: "#ffffff",
+              background: "#fff",
               color: "#0f172a",
-              borderRadius: 14,
-              padding: "9px 14px",
+              borderRadius: 10,
+              padding: "6px 10px",
               cursor: "pointer",
-              fontWeight: 700,
-              boxShadow: "0 8px 18px rgba(15,23,42,0.06)",
             }}
           >
             &gt;
           </button>
-          <div
-            style={{
-              fontWeight: 800,
-              color: "#0f172a",
-              fontSize: 22,
-              letterSpacing: "-0.03em",
-            }}
-          >
-            {monthLabel}
-          </div>
+          <div style={{ fontWeight: 700, color: "#0f172a" }}>{monthLabel}</div>
         </div>
-        <div
-          style={{
-            borderRadius: 999,
-            padding: "9px 14px",
-            border: "1px solid #e2e8f0",
-            background: "rgba(255,255,255,0.92)",
-            color: "#7c2d12",
-            fontSize: 12,
-            fontWeight: 800,
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-          }}
-        >
+        <div className="badge">
+          <span role="img" aria-label="calendar">
+            CAL
+          </span>
           Month view
         </div>
       </div>
 
-      <div className="month-grid-scroll">
-        <div className="calendar-grid month-grid">
+      <div className="calendar-grid">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div
             key={d}
             style={{
               textAlign: "center",
               fontWeight: 700,
-              color: "#64748b",
-              fontSize: 12,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              paddingBottom: 4,
+              color: "#475569",
             }}
           >
             {d}
@@ -5311,10 +4195,8 @@ function MonthGrid({
             <div
               key={`${wi}-${di}`}
               className="calendar-day"
-              onClick={() => onDayClick?.(day)}
               style={{
                 opacity: day.inMonth ? 1 : 0.45,
-                cursor: onDayClick ? "pointer" : "default",
               }}
             >
               <div className="date">{day.date.getDate()}</div>
@@ -5329,17 +4211,19 @@ function MonthGrid({
                     ) : (
                       <div
                         style={{
-                          padding: "10px 12px",
-                          borderRadius: 14,
-                          background: "linear-gradient(135deg,#0f172a,#1e293b 55%, #334155)",
-                          color: "#f8fafc",
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+                          color: "#fff",
                           fontSize: 12,
-                          boxShadow: "0 12px 24px rgba(15,23,42,0.18)",
-                          border: "1px solid rgba(255,255,255,0.12)",
+                          boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
                         }}
                       >
                         <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                          {getBookingTitle(b)}
+                          {(b.resources || [])
+                            .map((r) => r.name)
+                            .filter(Boolean)
+                            .join(" / ")}
                         </div>
                         <div style={{ opacity: 0.9 }}>
                           {formatTime(b.start_time)} - {formatTime(b.end_time)}
@@ -5350,16 +4234,15 @@ function MonthGrid({
                 ))}
                 {typeof maxItems === "number" &&
                   day.bookings.length > maxItems && (
-                  <div style={{ fontSize: 11, color: "#475569" }}>
-                    +{day.bookings.length - maxItems} more
-                  </div>
-                )}
+                    <div style={{ fontSize: 11, color: "#475569" }}>
+                      +{day.bookings.length - maxItems} more
+                    </div>
+                  )}
                 {renderDayAction ? renderDayAction(day) : null}
               </div>
             </div>
           ))
         )}
-        </div>
       </div>
     </div>
   );
