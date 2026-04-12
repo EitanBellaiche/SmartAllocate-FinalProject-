@@ -156,30 +156,46 @@ select {
   align-items: center;
 }
 
+.login-form-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .login-showcase {
   display: grid;
-  gap: 22px;
-  padding: 48px 42px;
+  gap: 28px;
+  padding: 56px 46px;
   border-radius: 34px;
   background:
-    linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(30, 41, 59, 0.94) 58%, rgba(12, 74, 110, 0.9));
+    linear-gradient(145deg, rgba(24, 34, 52, 0.97), rgba(35, 47, 68, 0.95) 62%, rgba(33, 58, 82, 0.93));
   color: #f8fafc;
   position: relative;
   overflow: hidden;
   text-align: left;
-  min-height: 560px;
+  min-height: 540px;
   box-shadow: 0 32px 80px rgba(15, 23, 42, 0.16);
 }
 
 .login-showcase::after {
   content: "";
   position: absolute;
-  right: -60px;
-  bottom: -80px;
-  width: 220px;
-  height: 220px;
+  right: -80px;
+  bottom: -110px;
+  width: 260px;
+  height: 260px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.28), rgba(59, 130, 246, 0));
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.16), rgba(59, 130, 246, 0));
+  pointer-events: none;
+}
+
+.login-showcase::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    radial-gradient(circle at 18% 16%, rgba(125, 211, 252, 0.1), transparent 24%);
   pointer-events: none;
 }
 
@@ -206,30 +222,28 @@ select {
 
 .login-greeting-title {
   font-family: "Libre Baskerville", "Source Sans 3", serif;
-  font-size: clamp(2.7rem, 5vw, 4rem);
+  font-size: clamp(2.8rem, 5vw, 4.15rem);
   color: #f8fafc;
   line-height: 1.02;
   letter-spacing: -0.04em;
+  max-width: 7ch;
 }
 
 .login-greeting-sub {
-  margin-top: 14px;
-  color: rgba(226, 232, 240, 0.82);
-  font-size: 1.02rem;
-  line-height: 1.75;
-  max-width: 520px;
+  margin-top: 18px;
+  color: rgba(226, 232, 240, 0.8);
+  font-size: 1.04rem;
+  line-height: 1.85;
+  max-width: 34rem;
 }
 
 .login-showcase-panel {
   position: relative;
   z-index: 1;
   margin-top: auto;
-  padding: 24px;
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  max-width: 540px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  max-width: 460px;
 }
 
 .login-showcase-label {
@@ -240,30 +254,22 @@ select {
   color: #93c5fd;
 }
 
-.login-showcase-heading {
-  margin-top: 10px;
-  font-size: 1.6rem;
-  font-weight: 700;
-  line-height: 1.2;
-  color: #f8fafc;
-}
-
 .login-showcase-text {
-  margin-top: 10px;
-  color: rgba(226, 232, 240, 0.82);
-  line-height: 1.7;
-  font-size: 0.96rem;
+  margin-top: 12px;
+  color: rgba(226, 232, 240, 0.78);
+  line-height: 1.8;
+  font-size: 1rem;
 }
 
 .login-form {
   display: grid;
   gap: 14px;
-  padding: 30px 28px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.05);
+  padding: 34px 30px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(203, 213, 225, 0.68);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 52px rgba(15, 23, 42, 0.1);
   align-content: center;
   width: 100%;
 }
@@ -290,7 +296,7 @@ select {
 .login-label {
   font-size: 0.88rem;
   font-weight: 700;
-  color: #475569;
+  color: #334155;
 }
 
 .login-divider {
@@ -298,10 +304,10 @@ select {
 }
 
 .login-input {
-  padding: 14px 16px;
+  padding: 15px 16px;
   border-radius: 16px;
-  border: 1px solid #dbe3f0;
-  background: #ffffff;
+  border: 1px solid #d6deea;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   font-size: 1rem;
   color: #1f2937;
   transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
@@ -315,11 +321,11 @@ select {
 }
 
 .login-button {
-  margin-top: 4px;
-  padding: 14px 16px;
+  margin-top: 6px;
+  padding: 15px 16px;
   border-radius: 16px;
   border: none;
-  background: linear-gradient(135deg, #0f172a, #1e293b 55%, #0f766e);
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f766e 100%);
   color: #f9fafb;
   font-weight: 700;
   font-size: 1rem;
@@ -449,6 +455,14 @@ select {
     gap: 18px;
   }
 
+  .login-form-wrap {
+    order: 1;
+  }
+
+  .login-showcase {
+    order: 0;
+  }
+
   .login-showcase,
   .login-form {
     padding: 20px;
@@ -471,6 +485,10 @@ select {
   .login-showcase-panel {
     margin-left: auto;
     margin-right: auto;
+  }
+
+  .login-showcase-metrics {
+    grid-template-columns: 1fr;
   }
 
   .login-form-header {
