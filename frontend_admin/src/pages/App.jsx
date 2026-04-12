@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainLayout from "../layout/MainLayout";
 import { getAdminSession, setAdminSession } from "../api/api";
+import { getOrgConfig } from "../orgConfig";
+import "./AppLogin.css";
 
 import Dashboard from "./Dashboard";
 import Resources from "./Resources";
@@ -25,6 +27,7 @@ function getUserUrl() {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const orgConfig = getOrgConfig();
 
   useEffect(() => {
     let active = true;
@@ -63,14 +66,54 @@ export default function App() {
   }, []);
 
   if (!ready) {
+    const statusText = error || "Checking admin session...";
+    const isRedirecting = Boolean(error);
+
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-        <div style={{ maxWidth: 520 }}>
-          <h1 style={{ fontSize: 28, marginBottom: 8 }}>Admin Login Required</h1>
-          <p style={{ color: "#475569", marginBottom: 16 }}>
-            {error || "Checking admin session..."}
-          </p>
-        </div>
+      <div className="admin-login-shell">
+        <div className="admin-login-orb admin-login-orb-left" aria-hidden="true" />
+        <div className="admin-login-orb admin-login-orb-right" aria-hidden="true" />
+
+        <section className="admin-login-card" aria-live="polite">
+          <div className="admin-login-brand">
+            <span className="admin-login-kicker">Admin workspace</span>
+            <div className="admin-login-mark" aria-hidden="true">
+              SA
+            </div>
+          </div>
+
+          <div className="admin-login-copy">
+            <p className="admin-login-eyebrow">{orgConfig.businessName}</p>
+            <h1>Secure access for your management console</h1>
+            <p className="admin-login-subtitle">
+              {orgConfig.productSubtitle || "Control resources, bookings, and operations from one place."}
+            </p>
+          </div>
+
+          <div className="admin-login-status-panel">
+            <div className="admin-login-status-header">
+              <span
+                className={`admin-login-status-dot ${
+                  isRedirecting ? "admin-login-status-dot-alert" : ""
+                }`}
+                aria-hidden="true"
+              />
+              <strong>{isRedirecting ? "Redirect in progress" : "Validating session"}</strong>
+            </div>
+            <p>{statusText}</p>
+          </div>
+
+          <div className="admin-login-footer">
+            <div>
+              <span className="admin-login-footer-label">Access level</span>
+              <strong>Administrator</strong>
+            </div>
+            <div>
+              <span className="admin-login-footer-label">Platform</span>
+              <strong>SmartAllocate</strong>
+            </div>
+          </div>
+        </section>
       </div>
     );
   }
