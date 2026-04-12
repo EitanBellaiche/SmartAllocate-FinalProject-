@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
+import { getOrgConfig } from "../orgConfig";
 
 function sortTypesAlphabetically(items) {
   return [...items].sort(
@@ -10,11 +11,11 @@ function sortTypesAlphabetically(items) {
   );
 }
 
-function MetricCard({ label, value, tone = "slate" }) {
+function MetricCard({ label, value, tone = "slate", theme }) {
   const tones = {
-    blue: "border-blue-200 bg-blue-50 text-blue-700",
-    slate: "border-slate-200 bg-slate-100 text-slate-700",
-    amber: "border-amber-200 bg-amber-50 text-amber-700",
+    blue: theme.metricCards?.blue || theme.card,
+    slate: theme.card,
+    amber: theme.metricCards?.amber || theme.modalSurface,
   };
 
   return (
@@ -27,9 +28,9 @@ function MetricCard({ label, value, tone = "slate" }) {
 
 function FieldTable({ rows, onChange, onDelete }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+    <div className="overflow-x-auto rounded-2xl border border-purple-900/40 bg-black/20">
       <table className="min-w-[640px] w-full text-left">
-        <thead className="bg-slate-100 text-slate-700">
+        <thead className="bg-black/40 text-slate-200">
           <tr>
             <th className="border-b border-slate-200 px-3 py-3">Name</th>
             <th className="border-b border-slate-200 px-3 py-3">Type</th>
@@ -40,20 +41,20 @@ function FieldTable({ rows, onChange, onDelete }) {
         </thead>
         <tbody>
           {rows.map((field, index) => (
-            <tr key={index} className="bg-white">
+            <tr key={index} className="bg-transparent">
               <td className="border-b border-slate-100 px-3 py-3">
                 <input
                   type="text"
                   value={field.name}
                   onChange={(e) => onChange(index, "name", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  className="w-full rounded-xl border border-purple-900/40 bg-black/40 px-3 py-2 text-slate-100 outline-none focus:border-red-700 focus:bg-black/50 focus:ring-4 focus:ring-red-950/40"
                 />
               </td>
               <td className="border-b border-slate-100 px-3 py-3">
                 <select
                   value={field.type}
                   onChange={(e) => onChange(index, "type", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  className="w-full rounded-xl border border-purple-900/40 bg-black/40 px-3 py-2 text-slate-100 outline-none focus:border-red-700 focus:bg-black/50 focus:ring-4 focus:ring-red-950/40"
                 >
                   <option value="string">String</option>
                   <option value="number">Number</option>
@@ -73,13 +74,13 @@ function FieldTable({ rows, onChange, onDelete }) {
                   type="text"
                   value={field.default}
                   onChange={(e) => onChange(index, "default", e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  className="w-full rounded-xl border border-purple-900/40 bg-black/40 px-3 py-2 text-slate-100 outline-none focus:border-red-700 focus:bg-black/50 focus:ring-4 focus:ring-red-950/40"
                 />
               </td>
               <td className="border-b border-slate-100 px-3 py-3 text-center">
                 <button
                   onClick={() => onDelete(index)}
-                  className="rounded-lg bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                  className="rounded-lg bg-red-900/40 px-3 py-1.5 text-sm font-semibold text-red-200 transition hover:bg-red-900/60"
                 >
                   Remove
                 </button>
@@ -88,7 +89,7 @@ function FieldTable({ rows, onChange, onDelete }) {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
+              <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
                 No fields yet. Add the first field below.
               </td>
             </tr>
@@ -108,11 +109,11 @@ function RoleEditor({ roles, roleInput, setRoleInput, onAddRole, onRemoveRole })
           placeholder="Role name"
           value={roleInput}
           onChange={(e) => setRoleInput(e.target.value)}
-          className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+          className="flex-1 rounded-2xl border border-purple-900/40 bg-black/40 px-4 py-3 text-slate-100 outline-none focus:border-red-700 focus:bg-black/50 focus:ring-4 focus:ring-red-950/40"
         />
         <button
           onClick={onAddRole}
-          className="rounded-2xl bg-slate-200 px-4 py-3 font-semibold text-slate-700 transition hover:bg-slate-300"
+          className="rounded-2xl bg-red-700 px-4 py-3 font-semibold text-white transition hover:bg-red-800"
         >
           Add Role
         </button>
@@ -122,24 +123,27 @@ function RoleEditor({ roles, roleInput, setRoleInput, onAddRole, onRemoveRole })
         {roles.map((role, index) => (
           <span
             key={`${role}-${index}`}
-            className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700"
+            className="inline-flex items-center rounded-full border border-purple-900/40 bg-black/30 px-3 py-1.5 text-sm font-medium text-slate-200"
           >
             {role}
             <button
               onClick={() => onRemoveRole(index)}
-              className="ml-2 text-red-600 transition hover:text-red-700"
+              className="ml-2 text-red-300 transition hover:text-red-200"
             >
               x
             </button>
           </span>
         ))}
-        {roles.length === 0 && <div className="text-sm text-slate-500">No roles defined yet.</div>}
+        {roles.length === 0 && <div className="text-sm text-slate-400">No roles defined yet.</div>}
       </div>
     </>
   );
 }
 
 export default function ResourceTypes() {
+  const config = getOrgConfig();
+  const theme = config.theme;
+  const isCinema = config.domain === "cinema";
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -268,18 +272,18 @@ export default function ResourceTypes() {
   const totalFields = types.reduce((sum, type) => sum + (type.fields?.length || 0), 0);
   const totalRoles = types.reduce((sum, type) => sum + (type.roles?.length || 0), 0);
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
+  if (loading) return <p className={theme.textSoft}>Loading...</p>;
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-amber-50 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8">
+      <section className={`rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${theme.heroDark}`}>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className="mb-3 inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+            <div className={`mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${theme.heroEyebrow}`}>
               Schema Manager
             </div>
-            <h1 className="text-4xl font-black tracking-tight text-slate-900">Resource Types</h1>
-            <p className="mt-3 text-base leading-7 text-slate-600">
+            <h1 className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}>Resource Types</h1>
+            <p className={`mt-3 text-base leading-7 ${isCinema ? theme.textSoft : theme.textSoft}`}>
               Define the resource blueprints used across the platform, including their
               fields, rules, and role assignments.
             </p>
@@ -287,20 +291,20 @@ export default function ResourceTypes() {
 
           <button
             onClick={() => setShowAdd(true)}
-            className="inline-flex h-fit items-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+            className={`inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${theme.buttonPrimary}`}
           >
             + Add Type
           </button>
         </div>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Total Types" value={types.length} tone="blue" />
-          <MetricCard label="Total Fields" value={totalFields} tone="slate" />
-          <MetricCard label="Total Roles" value={totalRoles} tone="amber" />
+          <MetricCard label="Total Types" value={types.length} tone="blue" theme={theme} />
+          <MetricCard label="Total Fields" value={totalFields} tone="slate" theme={theme} />
+          <MetricCard label="Total Roles" value={totalRoles} tone="amber" theme={theme} />
         </div>
       </section>
 
-      <section className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6">
+      <section className={`rounded-[26px] border p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6 ${theme.card}`}>
         <div className="grid gap-4">
           {sortTypesAlphabetically(types).map((type) => {
             const fieldPreview = Array.isArray(type.fields) ? type.fields.slice(0, 3) : [];
@@ -311,75 +315,75 @@ export default function ResourceTypes() {
             return (
               <article
                 key={type.id}
-                className="rounded-[24px] border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md"
+                className={`rounded-[24px] border p-5 shadow-sm transition hover:shadow-md ${theme.card}`}
               >
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-2xl font-bold text-slate-900">{type.name}</h2>
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                      <h2 className={`text-2xl font-bold ${theme.textStrong}`}>{type.name}</h2>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${theme.tag}`}>
                         Blueprint
                       </span>
                     </div>
 
-                    <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                    <p className={`mt-3 max-w-3xl text-sm leading-7 ${theme.textSoft}`}>
                       {type.description || "No description provided."}
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>
                         {type.fields?.length || 0} fields
                       </span>
-                      <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600">
+                      <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>
                         {type.roles?.length || 0} roles
                       </span>
                     </div>
 
                     <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <div className={`rounded-2xl border p-4 ${theme.modalSurface}`}>
+                        <div className={`mb-3 text-xs font-semibold uppercase tracking-[0.16em] ${theme.modalMuted}`}>
                           Field Preview
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {fieldPreview.map((field, index) => (
                             <span
                               key={`${type.id}-field-${index}`}
-                              className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
+                              className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tag}`}
                             >
                               {field.name || "Unnamed"}: {field.type || "string"}
                             </span>
                           ))}
                           {extraFields > 0 && (
-                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                            <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>
                               +{extraFields} more
                             </span>
                           )}
                           {fieldPreview.length === 0 && (
-                            <div className="text-sm text-slate-500">No fields defined.</div>
+                            <div className={`text-sm ${theme.modalMuted}`}>No fields defined.</div>
                           )}
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <div className={`rounded-2xl border p-4 ${theme.modalSurface}`}>
+                        <div className={`mb-3 text-xs font-semibold uppercase tracking-[0.16em] ${theme.modalMuted}`}>
                           Role Preview
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {rolePreview.map((role, index) => (
                             <span
                               key={`${type.id}-role-${index}`}
-                              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700"
+                              className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.highlightTag}`}
                             >
                               {role}
                             </span>
                           ))}
                           {extraRoles > 0 && (
-                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                            <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>
                               +{extraRoles} more
                             </span>
                           )}
                           {rolePreview.length === 0 && (
-                            <div className="text-sm text-slate-500">No roles assigned.</div>
+                            <div className={`text-sm ${theme.modalMuted}`}>No roles assigned.</div>
                           )}
                         </div>
                       </div>
@@ -389,13 +393,13 @@ export default function ResourceTypes() {
                   <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
                     <button
                       onClick={() => openEditModal(type)}
-                      className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600"
+                      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonWarning}`}
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => deleteType(type.id)}
-                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+                      className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonDanger}`}
                     >
                       Delete
                     </button>
@@ -409,8 +413,8 @@ export default function ResourceTypes() {
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-xl sm:p-6">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">Add Resource Type</h2>
+          <div className={`max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
+            <h2 className={`mb-4 text-2xl font-bold ${theme.textStrong}`}>Add Resource Type</h2>
 
             <div className="mb-6 space-y-3">
               <input
@@ -418,7 +422,7 @@ export default function ResourceTypes() {
                 placeholder="Type name"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className={`w-full rounded-2xl border px-4 py-3 outline-none ${theme.input}`}
               />
 
               <input
@@ -426,21 +430,21 @@ export default function ResourceTypes() {
                 placeholder="Description"
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className={`w-full rounded-2xl border px-4 py-3 outline-none ${theme.input}`}
               />
             </div>
 
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">Fields</h3>
+            <h3 className={`mb-2 text-lg font-semibold ${theme.textStrong}`}>Fields</h3>
             <FieldTable rows={form.fields} onChange={handleAddFieldChange} onDelete={deleteFieldRow} />
 
             <button
               onClick={addFieldRow}
-              className="mb-6 mt-3 rounded-2xl bg-slate-200 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-300"
+              className={`mb-6 mt-3 rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonNeutral}`}
             >
               + Add Field
             </button>
 
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">Roles</h3>
+            <h3 className={`mb-2 text-lg font-semibold ${theme.textStrong}`}>Roles</h3>
             <RoleEditor
               roles={form.roles}
               roleInput={roleInput}
@@ -464,14 +468,14 @@ export default function ResourceTypes() {
             <div className="mt-6 flex justify-end gap-2">
               <button
                 onClick={() => setShowAdd(false)}
-                className="rounded-2xl border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className={`rounded-2xl border px-4 py-2 font-semibold ${theme.buttonGhost}`}
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveNewType}
-                className="rounded-2xl bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-700"
+                className={`rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonPrimary}`}
               >
                 Save Type
               </button>
@@ -482,8 +486,8 @@ export default function ResourceTypes() {
 
       {editModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] bg-white p-5 shadow-xl sm:p-6">
-            <h2 className="mb-4 text-2xl font-bold text-slate-900">
+          <div className={`max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
+            <h2 className={`mb-4 text-2xl font-bold ${theme.textStrong}`}>
               Edit Resource Type - {editModal.type.name}
             </h2>
 
@@ -497,7 +501,7 @@ export default function ResourceTypes() {
                     type: { ...prev.type, name: e.target.value },
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className={`w-full rounded-2xl border px-4 py-3 outline-none ${theme.input}`}
               />
 
               <input
@@ -509,11 +513,11 @@ export default function ResourceTypes() {
                     type: { ...prev.type, description: e.target.value },
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 outline-none focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className={`w-full rounded-2xl border px-4 py-3 outline-none ${theme.input}`}
               />
             </div>
 
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">Fields</h3>
+            <h3 className={`mb-2 text-lg font-semibold ${theme.textStrong}`}>Fields</h3>
             <FieldTable
               rows={editModal.fields}
               onChange={handleEditFieldChange}
@@ -522,12 +526,12 @@ export default function ResourceTypes() {
 
             <button
               onClick={addEditFieldRow}
-              className="mb-6 mt-3 rounded-2xl bg-slate-200 px-4 py-2 font-semibold text-slate-700 transition hover:bg-slate-300"
+              className={`mb-6 mt-3 rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonNeutral}`}
             >
               + Add Field
             </button>
 
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">Roles</h3>
+            <h3 className={`mb-2 text-lg font-semibold ${theme.textStrong}`}>Roles</h3>
             <RoleEditor
               roles={editModal.roles}
               roleInput={editModal.roleInput}
@@ -559,14 +563,14 @@ export default function ResourceTypes() {
                 onClick={() =>
                   setEditModal({ open: false, type: null, fields: [], roles: [], roleInput: "" })
                 }
-                className="rounded-2xl border border-slate-200 px-4 py-2 font-semibold text-slate-700"
+                className={`rounded-2xl border px-4 py-2 font-semibold ${theme.buttonGhost}`}
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveEditType}
-                className="rounded-2xl bg-green-600 px-4 py-2 font-semibold text-white transition hover:bg-green-700"
+                className={`rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonPrimary}`}
               >
                 Save Changes
               </button>

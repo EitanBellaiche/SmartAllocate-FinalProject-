@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../api/api";
-import { getOrgLabels } from "../orgConfig";
+import { getOrgConfig, getOrgLabels } from "../orgConfig";
 import {
   formatIsraelDate as formatDate,
   formatIsraelDateTime as formatDateTime,
@@ -16,6 +16,9 @@ function formatTimeRange(start, end) {
 
 export default function ResourceRequests() {
   const labels = getOrgLabels();
+  const config = getOrgConfig();
+  const theme = config.theme;
+  const isCinema = config.domain === "cinema";
   const labelsLower = {
     user: String(labels.user || "").toLowerCase(),
     users: String(labels.users || "").toLowerCase(),
@@ -122,32 +125,32 @@ export default function ResourceRequests() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-slate-200 bg-[linear-gradient(135deg,#f9fbff_0%,#eef5ff_52%,#ffffff_100%)] p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-8">
+      <section className={`rounded-[28px] border p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-8 ${theme.heroDark}`}>
         <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700">
+            <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${theme.heroEyebrow}`}>
               Review Inbox
             </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            <h1 className={`mt-4 text-3xl font-semibold tracking-tight ${isCinema ? "text-white" : theme.textStrong} sm:text-4xl`}>
               Resource Requests
             </h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-base">
+            <p className={`mt-2 text-sm leading-6 ${isCinema ? theme.textSoft : theme.textSoft} sm:text-base`}>
               Review and respond to {labelsLower.user} resource requests with a cleaner queue and
               easier navigation between resources and request history.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <div className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-sm ${theme.panelSoft}`}>
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={`Search by resource, ${labelsLower.user}, note...`}
-              className="min-w-[240px] rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
+              className={`min-w-[240px] rounded-xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
+              className={`rounded-xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -159,7 +162,7 @@ export default function ResourceRequests() {
             </select>
             <button
               onClick={loadRequests}
-              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:bg-slate-400"
+              className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${theme.buttonPrimary} disabled:bg-slate-400`}
               disabled={loading}
             >
               {loading ? "Loading..." : "Refresh"}
@@ -169,19 +172,19 @@ export default function ResourceRequests() {
       </section>
 
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className={`rounded-2xl border px-4 py-3 text-sm ${theme.buttonDanger.replace("bg-red-600 hover:bg-red-700 text-white", "border-red-200 bg-red-50 text-red-700").replace("bg-red-700 hover:bg-red-800 text-white", "border-red-200 bg-red-50 text-red-700")}`}>
           {error}
         </div>
       )}
 
-      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
+      <section className={`overflow-hidden rounded-[28px] border shadow-[0_18px_45px_rgba(15,23,42,0.08)] ${theme.card}`}>
         {loading ? (
-          <div className="px-6 py-8 text-sm text-slate-500">Loading requests...</div>
+          <div className={`px-6 py-8 text-sm ${theme.textSoft}`}>Loading requests...</div>
         ) : groupedRequests.length === 0 ? (
           <div className="px-6 py-10">
-            <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-              <div className="text-lg font-semibold text-slate-800">No requests found</div>
-              <div className="mt-2 text-sm text-slate-500">
+            <div className={`rounded-[24px] border border-dashed px-6 py-10 text-center ${theme.modalSurface}`}>
+              <div className={`text-lg font-semibold ${theme.textStrong}`}>No requests found</div>
+              <div className={`mt-2 text-sm ${theme.textSoft}`}>
                 New resource requests will appear here once users start submitting them.
               </div>
             </div>
@@ -190,12 +193,12 @@ export default function ResourceRequests() {
           <div className="p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-slate-900">Resources Queue</h2>
-                <p className="mt-1 text-sm text-slate-500">
+                <h2 className={`text-xl font-semibold ${theme.textStrong}`}>Resources Queue</h2>
+                <p className={`mt-1 text-sm ${theme.textSoft}`}>
                   Pick a resource to review all related requests together.
                 </p>
               </div>
-              <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
+              <div className={`rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] ${theme.tagMuted}`}>
                 {groupedRequests.length} resources
               </div>
             </div>
@@ -211,21 +214,21 @@ export default function ResourceRequests() {
                     key={group.key}
                     type="button"
                     onClick={() => setSelectedResourceKey(group.key)}
-                    className="flex w-full items-center gap-4 rounded-[22px] border border-slate-200 bg-slate-50/70 px-5 py-5 text-left transition hover:border-slate-300 hover:bg-white"
+                    className={`flex w-full items-center gap-4 rounded-[22px] border px-5 py-5 text-left transition hover:bg-white ${theme.modalSurface}`}
                   >
                     <div className="flex-1">
-                      <div className="text-base font-semibold text-slate-900">
+                      <div className={`text-base font-semibold ${theme.textStrong}`}>
                         {group.resource_name || `Resource #${group.resource_id}`}
                       </div>
-                      <div className="mt-1 text-sm text-slate-500">
+                      <div className={`mt-1 text-sm ${theme.textSoft}`}>
                         {group.resource_type || "Resource"}
                       </div>
                     </div>
-                    <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
+                    <div className={`text-xs font-medium uppercase tracking-[0.16em] ${theme.modalMuted}`}>
                       {group.requests.length} requests
                     </div>
                     {pendingCount > 0 && (
-                      <span className="ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-red-500 px-2 text-xs font-semibold text-white">
+                      <span className={`ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${theme.buttonDanger}`}>
                         {pendingCount}
                       </span>
                     )}
@@ -239,16 +242,16 @@ export default function ResourceRequests() {
             <button
               type="button"
               onClick={() => setSelectedResourceKey(null)}
-              className="mb-4 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700"
+              className={`mb-4 inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold ${theme.buttonGhost}`}
             >
               Back to resources
             </button>
 
-            <div className="mb-5 rounded-[24px] border border-slate-200 bg-slate-50/70 p-5">
-              <div className="text-lg font-semibold text-slate-900">
+            <div className={`mb-5 rounded-[24px] border p-5 ${theme.modalSurface}`}>
+              <div className={`text-lg font-semibold ${theme.textStrong}`}>
                 {selectedGroup.resource_name || `Resource #${selectedGroup.resource_id}`}
               </div>
-              <div className="mt-1 text-sm text-slate-500">
+              <div className={`mt-1 text-sm ${theme.textSoft}`}>
                 {selectedGroup.resource_type || "Resource"} · {selectedGroup.requests.length} requests
               </div>
             </div>
@@ -257,19 +260,19 @@ export default function ResourceRequests() {
               {selectedGroup.requests.map((req) => (
                 <div
                   key={req.id}
-                  className="flex flex-wrap items-center gap-4 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"
+                  className={`flex flex-wrap items-center gap-4 rounded-[22px] border p-5 shadow-sm ${theme.card}`}
                 >
                   <div className="min-w-[220px]">
-                    <div className="text-sm font-semibold text-slate-900">{req.user_id}</div>
-                    <div className="mt-1 text-xs text-slate-500">
+                    <div className={`text-sm font-semibold ${theme.textStrong}`}>{req.user_id}</div>
+                    <div className={`mt-1 text-xs ${theme.textSoft}`}>
                       {formatDate(req.request_date)} · {formatTimeRange(req.start_time, req.end_time)}
                     </div>
-                    <div className="mt-1 text-xs text-slate-400">
+                    <div className={`mt-1 text-xs ${theme.modalMuted}`}>
                       {formatDateTime(req.created_at)}
                     </div>
                   </div>
 
-                  <div className="flex-1 text-sm text-slate-600">
+                  <div className={`flex-1 text-sm ${theme.textSoft}`}>
                     {req.note || "No note provided."}
                   </div>
 
@@ -278,7 +281,7 @@ export default function ResourceRequests() {
                       value={req.status || "pending"}
                       onChange={(e) => updateStatus(req.id, e.target.value)}
                       disabled={updatingId === req.id}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white"
+                      className={`w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${theme.input}`}
                     >
                       {STATUS_OPTIONS.filter((opt) => opt !== "all").map((option) => (
                         <option key={option} value={option}>
