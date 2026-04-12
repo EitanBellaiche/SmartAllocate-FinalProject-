@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut } from "../api/api";
 import { formatIsraelDate, getIsraelDateValue } from "../utils/datetime";
+import { getOrgConfig, rememberPresentation } from "../orgConfig";
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -8,6 +9,9 @@ export default function Dashboard() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const config = getOrgConfig();
+  const theme = config.theme;
+  const isCinema = config.domain === "cinema";
 
   const [editModal, setEditModal] = useState({
     open: false,
@@ -39,14 +43,8 @@ export default function Dashboard() {
 
         const today = getIsraelDateValue();
 
-        // ממיינים הזמנות לפי היום
-        const bookingsToday = bookings.filter(
-          (b) => b.date.startsWith(today)
-        );
-
-        const pending = bookings.filter(
-          (b) => b.status === "pending"
-        );
+        const bookingsToday = bookings.filter((b) => b.date.startsWith(today));
+        const pending = bookings.filter((b) => b.status === "pending");
 
         setStats({
           totalResources: resourcesData.length,
@@ -57,6 +55,7 @@ export default function Dashboard() {
         });
         setResources(resourcesData);
         setTypes(typeData);
+        rememberPresentation(typeData, resourcesData);
       } catch (err) {
         console.error("Dashboard load error:", err);
       } finally {
@@ -88,7 +87,7 @@ export default function Dashboard() {
     });
   }, [hasSearchQuery, normalizedSearchQuery, resources]);
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
+  if (loading) return <p className="text-gray-500">Loading dashboard...</p>;
   if (!stats) return <p className="text-red-500">Failed to load data.</p>;
 
   function openEdit(resource) {
@@ -140,10 +139,7 @@ export default function Dashboard() {
         metadata: editForm.metadata,
       };
 
-      const updated = await apiPut(
-        `/resources/${editForm.id}`,
-        payload
-      );
+      const updated = await apiPut(`/resources/${editForm.id}`, payload);
 
       setResources((prev) =>
         prev.map((r) => (r.id === updated.id ? updated : r))
@@ -156,8 +152,17 @@ export default function Dashboard() {
 
   function metadataSummary(metadata) {
     if (!metadata || Object.keys(metadata).length === 0) return "—";
+
     return Object.entries(metadata)
-      .map(([key, value]) => `${key}: ${String(value)}`)
+      .map(([key, value]) => {
+        if (Array.isArray(value)) {
+          return `${key}: ${value.length} items`;
+        }
+        if (value && typeof value === "object") {
+          return `${key}: object`;
+        }
+        return `${key}: ${String(value)}`;
+      })
       .join(", ");
   }
 
@@ -201,143 +206,193 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[30px] border border-sky-100 bg-[linear-gradient(135deg,#ffffff,#f8fbff,#eef6ff)] p-6 shadow-[0_18px_45px_rgba(59,130,246,0.08)] sm:p-8">
+      <section
+        className={`rounded-[30px] border ${config.theme.panelBorder} bg-gradient-to-br ${config.theme.hero} p-6 shadow-[0_18px_45px_rgba(59,130,246,0.08)] sm:p-8`}
+      >
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <div className="mb-3 inline-flex items-center rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-              Executive Overview
+            <div
+              className={`mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${theme.heroEyebrow}`}
+            >
+              {config.dashboard.eyebrow}
             </div>
-            <h1 className="text-4xl font-black tracking-tight text-slate-900">Dashboard</h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-              A clean operational snapshot of resources, activity, and booking volume across the system.
+            <h1
+              className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}
+            >
+              {config.dashboard.title}
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-200">
+              {config.dashboard.subtitle}
             </p>
           </div>
-          <div className="rounded-2xl border border-sky-100 bg-white/80 px-4 py-3 text-sm text-slate-600 shadow-sm">
+          <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-slate-100 shadow-sm backdrop-blur-sm">
             System overview updated from live resources and bookings.
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard title="Total Resources" value={stats.totalResources} tone="blue" />
-          <StatCard title="Resource Types" value={stats.totalResourceTypes} tone="sky" />
-          <StatCard title="Bookings Today" value={stats.bookingsToday} tone="emerald" />
-          <StatCard title="Pending Approvals" value={stats.pending} tone="amber" />
-          <StatCard title="Total Bookings" value={stats.totalBookings} tone="violet" />
+        <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <StatCard
+            title={config.labels.resources}
+            value={stats.totalResources}
+            tone="blue"
+            theme={theme}
+          />
+          <StatCard
+            title={config.navigation.resourceTypes}
+            value={stats.totalResourceTypes}
+            tone="sky"
+            theme={theme}
+          />
+          <StatCard
+            title={
+              config.labels.bookings
+                ? `Today's ${config.labels.bookings}`
+                : "Bookings Today"
+            }
+            value={stats.bookingsToday}
+            tone="emerald"
+            theme={theme}
+          />
+          <StatCard
+            title="Pending Approvals"
+            value={stats.pending}
+            tone="amber"
+            theme={theme}
+          />
+          <StatCard
+            title={config.labels.bookings || "Bookings"}
+            value={stats.totalBookings}
+            tone="violet"
+            theme={theme}
+          />
         </div>
       </section>
 
-      <section className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)]">
+      <section
+        className={`rounded-[26px] border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)] ${theme.card}`}
+      >
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">Find Resources</h2>
-            <div className="mt-1 text-sm text-slate-500">
+            <h2 className={`text-2xl font-bold ${theme.textStrong}`}>
+              {config.dashboard.searchTitle}
+            </h2>
+            <div className={`mt-1 text-sm ${theme.textSoft}`}>
               Search the resource inventory without overwhelming the page by default.
             </div>
           </div>
-          <div className="rounded-full bg-slate-100 px-3 py-1.5 text-sm text-slate-600">
+          <div className={`rounded-full px-3 py-1.5 text-sm ${theme.tagMuted}`}>
             {hasSearchQuery
               ? `Showing ${filteredResources.length} of ${resources.length}`
               : `Search across ${resources.length} resources`}
           </div>
         </div>
 
-        <div className="mb-5 rounded-[24px] border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4">
+        <div className={`mb-5 rounded-[24px] border p-4 ${theme.modalSurface}`}>
           <input
             type="text"
-            placeholder="Search by name, type, id, or metadata..."
-            className="w-full rounded-2xl border border-transparent bg-white px-5 py-4 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-sky-200 focus:ring-4 focus:ring-sky-100"
+            placeholder={config.dashboard.searchPlaceholder}
+            className={`w-full rounded-2xl border px-5 py-4 outline-none transition ${theme.input}`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-[920px] w-full text-left">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
-                <th className="p-3">ID</th>
-                <th className="p-3">Name</th>
-                <th className="p-3">Type</th>
-                <th className="p-3">Metadata</th>
-                <th className="p-3 w-[170px]">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!hasSearchQuery && (
+        {!hasSearchQuery ? (
+          <div className={`rounded-[22px] border px-4 py-10 shadow-sm ${theme.card}`}>
+            <div
+              className={`mx-auto max-w-md rounded-2xl border border-dashed px-6 py-8 text-center ${theme.modalSurface}`}
+            >
+              <div className={`text-lg font-semibold ${theme.textStrong}`}>
+                {config.dashboard.emptyTitle}
+              </div>
+              <div className={`mt-2 text-sm ${theme.textSoft}`}>
+                {config.dashboard.emptySubtitle}
+              </div>
+            </div>
+          </div>
+        ) : filteredResources.length === 0 ? (
+          <div className={`rounded-[22px] border px-4 py-10 shadow-sm ${theme.card}`}>
+            <div
+              className={`mx-auto max-w-md rounded-2xl border border-dashed px-6 py-8 text-center ${theme.modalSurface}`}
+            >
+              <div className={`text-lg font-semibold ${theme.textStrong}`}>
+                {config.dashboard.noResultsTitle}
+              </div>
+              <div className={`mt-2 text-sm ${theme.textSoft}`}>
+                {config.dashboard.noResultsSubtitle}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            className={`overflow-x-auto rounded-[22px] border px-4 py-3 shadow-sm ${theme.card}`}
+          >
+            <table className="w-full table-fixed text-left">
+              <thead className={`${theme.modalSurface} ${theme.textStrong}`}>
                 <tr>
-                  <td
-                    colSpan="5"
-                    className="px-6 py-16 text-center text-slate-500"
-                  >
-                    <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
-                      <div className="text-lg font-semibold text-slate-800">Search to reveal results</div>
-                      <div className="mt-2 text-sm text-slate-500">
-                        Start typing to search for a resource and keep the dashboard focused.
+                  <th className="w-[90px] px-3 py-3 text-left">ID</th>
+                  <th className="w-[240px] px-3 py-3 text-left">Name</th>
+                  <th className="w-[190px] px-3 py-3 text-center">Type</th>
+                  <th className="px-3 py-3 text-left">Metadata</th>
+                  <th className="w-[170px] px-3 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredResources.map((r) => (
+                  <tr key={r.id} className="border-t border-slate-100">
+                    <td className={`px-3 py-3 align-top ${theme.textSoft}`}>{r.id}</td>
+                    <td className={`px-3 py-3 align-top font-semibold ${theme.textStrong}`}>
+                      {r.name}
+                    </td>
+                    <td className="px-3 py-3 align-top text-center">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${theme.tag}`}
+                      >
+                        {r.type_name}
+                      </span>
+                    </td>
+                    <td className={`px-3 py-3 align-top text-sm ${theme.textSoft}`}>
+                      <div className="line-clamp-4 break-words leading-6">
+                        {metadataSummary(r.metadata)}
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
-
-              {hasSearchQuery && filteredResources.map((r) => (
-                <tr key={r.id} className="border-t border-slate-100">
-                  <td className="p-3 text-slate-600">{r.id}</td>
-                  <td className="p-3 font-semibold text-slate-900">{r.name}</td>
-                  <td className="p-3">
-                    <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-                      {r.type_name}
-                    </span>
-                  </td>
-                  <td className="p-3 text-sm text-slate-600">
-                    {metadataSummary(r.metadata)}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex items-center gap-2 whitespace-nowrap">
-                      <button
-                        onClick={() => openView(r)}
-                        className="min-w-[72px] rounded-xl bg-slate-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-                      >
-                        View
-                      </button>
-                      <button
-                        onClick={() => openEdit(r)}
-                        className="min-w-[72px] rounded-xl bg-sky-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-sky-700"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {hasSearchQuery && filteredResources.length === 0 && (
-                <tr>
-                  <td
-                    colSpan="5"
-                    className="p-10 text-center text-slate-500"
-                  >
-                    <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8">
-                      No resources match your search.
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                    </td>
+                    <td className="px-3 py-3 align-top text-center">
+                      <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                        <button
+                          onClick={() => openView(r)}
+                          className={`min-w-[84px] rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonNeutral}`}
+                        >
+                          View
+                        </button>
+                        <button
+                          onClick={() => openEdit(r)}
+                          className={`min-w-[84px] rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonWarning}`}
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {editModal.open && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
-          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">
+          <div
+            className={`p-4 sm:p-6 rounded-lg w-full max-w-[600px] shadow-xl max-h-[90vh] overflow-y-auto border ${theme.modalCard}`}
+          >
+            <h2 className={`text-xl font-bold mb-4 ${theme.textStrong}`}>
               Edit Resource – {editForm.name || "Untitled"}
             </h2>
 
             <label className="block mb-2 font-medium">Resource Name</label>
             <input
               type="text"
-              className="w-full p-2 border rounded mb-4"
+              className={`w-full p-2 border rounded mb-4 ${theme.input}`}
               value={editForm.name}
               onChange={(e) =>
                 setEditForm((prev) => ({
@@ -349,7 +404,7 @@ export default function Dashboard() {
 
             <label className="block mb-2 font-medium">Resource Type</label>
             <select
-              className="w-full p-2 border rounded mb-4"
+              className={`w-full p-2 border rounded mb-4 ${theme.input}`}
               value={editForm.type_id}
               onChange={(e) => handleEditTypeChange(e.target.value)}
             >
@@ -378,22 +433,16 @@ export default function Dashboard() {
                           type="checkbox"
                           checked={editForm.metadata[field.name] || false}
                           onChange={(e) =>
-                            handleEditMetadataChange(
-                              field.name,
-                              e.target.checked
-                            )
+                            handleEditMetadataChange(field.name, e.target.checked)
                           }
                         />
                       ) : (
                         <input
                           type={field.type === "number" ? "number" : "text"}
-                          className="w-full p-2 border rounded"
+                          className={`w-full p-2 border rounded ${theme.input}`}
                           value={editForm.metadata[field.name] ?? ""}
                           onChange={(e) =>
-                            handleEditMetadataChange(
-                              field.name,
-                              e.target.value
-                            )
+                            handleEditMetadataChange(field.name, e.target.value)
                           }
                         />
                       )}
@@ -408,14 +457,14 @@ export default function Dashboard() {
                   setEditModal({ open: false, item: null });
                   setSelectedType(null);
                 }}
-                className="px-4 py-2 border rounded"
+                className={`px-4 py-2 border rounded ${theme.buttonGhost}`}
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveEdit}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className={`px-4 py-2 rounded ${theme.buttonPrimary}`}
               >
                 Save Changes
               </button>
@@ -426,12 +475,14 @@ export default function Dashboard() {
 
       {viewModal.open && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center p-4">
-          <div className="bg-white p-4 sm:p-6 rounded-lg w-full max-w-[700px] shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">
+          <div
+            className={`p-4 sm:p-6 rounded-lg w-full max-w-[700px] shadow-xl max-h-[90vh] overflow-y-auto border ${theme.modalCard}`}
+          >
+            <h2 className={`text-xl font-bold mb-4 ${theme.textStrong}`}>
               Resource Details – {viewModal.item?.name || "Untitled"}
             </h2>
 
-            <div className="text-sm text-gray-700 mb-4">
+            <div className={`text-sm mb-4 ${theme.textSoft}`}>
               <div>
                 <strong>ID:</strong> {viewModal.item?.id}
               </div>
@@ -449,20 +500,18 @@ export default function Dashboard() {
                 )}
             </div>
 
-            <h3 className="font-semibold mb-2">Bookings</h3>
+            <h3 className={`font-semibold mb-2 ${theme.textStrong}`}>Bookings</h3>
 
-            {viewModal.loading && (
-              <p className="text-gray-500">Loading bookings...</p>
-            )}
-            {viewModal.error && (
-              <p className="text-red-600">{viewModal.error}</p>
-            )}
+            {viewModal.loading && <p className={theme.textSoft}>Loading bookings...</p>}
+            {viewModal.error && <p className="text-red-600">{viewModal.error}</p>}
 
             {!viewModal.loading && !viewModal.error && (
               <div className="space-y-4 max-h-[420px] overflow-auto pr-1">
                 {viewModal.bookings.map((b) => (
-                  <div key={b.id} className="border rounded-lg p-4 bg-gray-50">
-                    <div className="flex flex-wrap justify-between gap-2 text-sm mb-3">
+                  <div key={b.id} className={`border rounded-lg p-4 ${theme.modalSurface}`}>
+                    <div
+                      className={`flex flex-wrap justify-between gap-2 text-sm mb-3 ${theme.textSoft}`}
+                    >
                       <div>
                         <strong>Booking ID:</strong> {b.id}
                       </div>
@@ -482,28 +531,28 @@ export default function Dashboard() {
                     </div>
 
                     <div className="mb-3">
-                      <div className="text-xs font-semibold text-gray-600 mb-1">
+                      <div className={`text-xs font-semibold mb-1 ${theme.textSoft}`}>
                         Resources
                       </div>
                       <div className="grid gap-2 text-sm">
                         {(b.resources || []).map((r) => (
-                          <div key={r.id} className="border rounded p-2 bg-white">
-                            <div className="font-medium">
+                          <div key={r.id} className={`border rounded p-2 ${theme.card}`}>
+                            <div className={`font-medium ${theme.textStrong}`}>
                               {r.name}
                               {r.type_name && (
-                                <span className="text-xs text-gray-500">
+                                <span className={`text-xs ${theme.textSoft}`}>
                                   {" "}
                                   ({r.type_name})
                                 </span>
                               )}
                             </div>
                             {r.role && (
-                              <div className="text-xs text-gray-500">
+                              <div className={`text-xs ${theme.textSoft}`}>
                                 Role: {r.role}
                               </div>
                             )}
                             {formatMetadataList(r.metadata).length > 0 && (
-                              <div className="text-xs text-gray-600 mt-1">
+                              <div className={`text-xs mt-1 ${theme.textSoft}`}>
                                 {formatMetadataList(r.metadata).map((line, idx) => (
                                   <div key={`${r.id}-${idx}`}>{line}</div>
                                 ))}
@@ -513,12 +562,11 @@ export default function Dashboard() {
                         ))}
                       </div>
                     </div>
-
                   </div>
                 ))}
 
                 {viewModal.bookings.length === 0 && (
-                  <div className="text-center p-4 text-gray-500">
+                  <div className={`text-center p-4 ${theme.textSoft}`}>
                     No bookings for this resource.
                   </div>
                 )}
@@ -536,7 +584,7 @@ export default function Dashboard() {
                     error: null,
                   })
                 }
-                className="px-4 py-2 border rounded"
+                className={`px-4 py-2 border rounded ${theme.buttonGhost}`}
               >
                 Close
               </button>
@@ -548,19 +596,14 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, tone = "blue" }) {
-  const tones = {
-    blue: "border-blue-100 bg-white text-blue-600 shadow-blue-100/60",
-    sky: "border-sky-100 bg-white text-sky-600 shadow-sky-100/60",
-    emerald: "border-emerald-100 bg-white text-emerald-600 shadow-emerald-100/60",
-    amber: "border-amber-100 bg-white text-amber-600 shadow-amber-100/60",
-    violet: "border-violet-100 bg-white text-violet-600 shadow-violet-100/60",
-  };
+function StatCard({ title, value, tone = "blue", theme }) {
+  const tones = theme.metricCards || {};
+  const toneClass = tones[tone] || theme.card;
 
   return (
-    <div className={`rounded-[24px] border p-5 shadow-[0_14px_30px] ${tones[tone] || tones.blue}`}>
-      <p className="text-sm font-medium text-slate-500">{title}</p>
-      <p className="mt-3 text-4xl font-black">{value}</p>
+    <div className={`rounded-[24px] border p-5 shadow-[0_14px_30px] ${toneClass}`}>
+      <p className={`text-sm font-medium ${theme.textSoft}`}>{title}</p>
+      <p className={`mt-3 text-4xl font-black ${theme.textStrong}`}>{value}</p>
     </div>
   );
 }
