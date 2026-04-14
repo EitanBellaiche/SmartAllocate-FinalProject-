@@ -61,7 +61,7 @@ export default function useResourceExplorerState({
   );
 
   const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
-    "he-IL",
+    "en-US",
     {
       timeZone: "Asia/Jerusalem",
       month: "long",

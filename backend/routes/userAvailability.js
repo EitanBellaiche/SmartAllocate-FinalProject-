@@ -1,5 +1,6 @@
 import express from "express";
 import pool from "../db.js";
+import { assertAvailabilityNotLocked } from "../services/autoScheduleJobs.js";
 
 const router = express.Router();
 let tableReady = false;
@@ -112,6 +113,7 @@ router.post("/", async (req, res) => {
   }
 
   try {
+    await assertAvailabilityNotLocked({ orgId, responsibleUserId: userId });
     const result = await pool.query(
       `
       INSERT INTO user_availability
@@ -148,6 +150,7 @@ router.put("/:id", async (req, res) => {
   }
 
   try {
+    await assertAvailabilityNotLocked({ orgId, responsibleUserId: userId });
     const params = [userId, dayOfWeek, startTime, endTime, startDate || null, endDate || null, id];
     let where = "WHERE id = $7";
     if (orgId) {
@@ -226,6 +229,7 @@ router.post("/overrides", async (req, res) => {
   }
 
   try {
+    await assertAvailabilityNotLocked({ orgId, responsibleUserId: userId });
     const result = await pool.query(
       `
       INSERT INTO user_availability_overrides
@@ -264,6 +268,7 @@ router.put("/overrides/:id", async (req, res) => {
   }
 
   try {
+    await assertAvailabilityNotLocked({ orgId, responsibleUserId: userId });
     const params = [userId, date, startTime || null, endTime || null, isAvailable, id];
     let where = "WHERE id = $6";
     if (orgId) {
@@ -297,6 +302,15 @@ router.delete("/overrides/:id", async (req, res) => {
   const orgId = getOrgId(req);
 
   try {
+    // We need the user_id to enforce lock; fetch it first.
+    const { rows: overrideRows } = await pool.query(
+      `SELECT user_id FROM user_availability_overrides WHERE id = $1`,
+      [id]
+    );
+    const userId = String(overrideRows?.[0]?.user_id || "").trim();
+    if (userId) {
+      await assertAvailabilityNotLocked({ orgId, responsibleUserId: userId });
+    }
     const params = [id];
     let where = "WHERE id = $1";
     if (orgId) {
@@ -325,6 +339,15 @@ router.delete("/:id", async (req, res) => {
   const orgId = getOrgId(req);
 
   try {
+    // We need the user_id to enforce lock; fetch it first.
+    const { rows: availabilityRows } = await pool.query(
+      `SELECT user_id FROM user_availability WHERE id = $1`,
+      [id]
+    );
+    const userId = String(availabilityRows?.[0]?.user_id || "").trim();
+    if (userId) {
+      await assertAvailabilityNotLocked({ orgId, responsibleUserId: userId });
+    }
     const params = [id];
     let where = "WHERE id = $1";
     if (orgId) {

@@ -1,5 +1,5 @@
 import React from "react";
-import { MonthGrid } from "./BookingViews";
+import { MobileMonthAgenda, MonthGrid } from "./BookingViews";
 import { formatDate, formatTime, formatTypeLabel } from "../utils/appHelpers";
 
 export default function ResourceAvailabilityModal({
@@ -27,6 +27,7 @@ export default function ResourceAvailabilityModal({
 
   const requestDisabled = bookingSubmitting;
   const requestButtonLabel = "Send request";
+  const selectedDayKey = String(bookingDraft?.date || "");
 
   return (
     <div className="availability-modal" onClick={() => setAvailabilityResource(null)}>
@@ -68,8 +69,13 @@ export default function ResourceAvailabilityModal({
           <div className="availability-modal__loading">Loading availability...</div>
         ) : (
           <>
-            <MonthGrid
+            <MobileMonthAgenda
               monthLabel={availabilityMonthLabel}
+              days={availabilityDays}
+              selectedDayKey={selectedDayKey}
+              onSelectDay={(day) => {
+                pickBookingDate(day);
+              }}
               onPrev={() =>
                 setAvailabilityMonthDate(
                   (date) => new Date(date.getFullYear(), date.getMonth() - 1, 1)
@@ -80,36 +86,30 @@ export default function ResourceAvailabilityModal({
                   (date) => new Date(date.getFullYear(), date.getMonth() + 1, 1)
                 )
               }
-              days={availabilityDays}
-              maxItems={null}
-              renderBooking={(booking) => (
-                <div className="availability-modal__booking-card">
-                  <div className="availability-modal__booking-time">
-                    {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+              emptyAgendaText="No bookings for the selected day."
+              renderAgendaItem={(booking) => (
+                <div className="mobile-agenda__item" style={{ cursor: "default" }}>
+                  <div>
+                    <div className="mobile-agenda__title">{formatDate(booking.date)}</div>
+                    <div className="mobile-agenda__sub">Reserved by: {booking.user_id}</div>
                   </div>
-                  <div className="availability-modal__booking-user">Reserved by: {booking.user_id}</div>
+                  <div className="mobile-agenda__time">
+                    {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
+                  </div>
                 </div>
               )}
-              renderDayAction={(day) => {
+              renderSelectedDayFooter={(day) => {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const isPast = day.date < today;
-                const isSelected = bookingDraft.date === day.key;
-                const disabled = !day.inMonth || isPast || bookingSubmitting;
-
-                let label = "Select";
-                let background = "#fff";
-                let color = "#0f172a";
-
-                if (isSelected) {
-                  label = "Send request";
-                  background = "#2563eb";
-                  color = "#fff";
-                }
-
+                const disabled = !day.inMonth || isPast || bookingSubmitting || !day?.key;
+                const isSelected = String(day.key) === selectedDayKey;
+                const label = isSelected ? requestButtonLabel : "Select this day";
                 return (
                   <button
                     type="button"
+                    className="btn btn-primary btn-block"
+                    disabled={disabled || (!isSelected && requestDisabled)}
                     onClick={() => {
                       if (!day?.key) return;
                       if (!isSelected) {
@@ -117,18 +117,6 @@ export default function ResourceAvailabilityModal({
                         return;
                       }
                       submitBookingRequest(day.key);
-                    }}
-                    disabled={disabled}
-                    style={{
-                      marginTop: 6,
-                      padding: "4px 8px",
-                      borderRadius: 8,
-                      border: "1px solid #e2e8f0",
-                      background: disabled ? "#f1f5f9" : background,
-                      color: disabled ? "#94a3b8" : color,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      cursor: disabled ? "not-allowed" : "pointer",
                     }}
                   >
                     {label}

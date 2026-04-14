@@ -22,6 +22,7 @@ import {
   getUserAvailability,
   createUserAvailability,
   deleteUserAvailability,
+  getResponsibleSchedulingDeadline,
 } from "./api";
 import { getOrgLabels, getSessionOrgId } from "./orgConfig";
 import {
@@ -38,7 +39,28 @@ import {
 
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || "http://localhost:5174";
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatCountdown(msLeft) {
+  if (!Number.isFinite(msLeft)) return "";
+  if (msLeft <= 0) return "00:00:00";
+  const totalSeconds = Math.floor(msLeft / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = totalHours % 24;
+  const days = Math.floor(totalHours / 24);
+  const hh = pad2(hours);
+  const mm = pad2(minutes);
+  const ss = pad2(seconds);
+  return days > 0 ? `${days}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
+}
+
 export default function App() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [filter, setFilter] = useState("");
   const [viewMode, setViewMode] = useState("month"); // month | list
@@ -75,6 +97,8 @@ export default function App() {
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
+  const [deadlineInfo, setDeadlineInfo] = useState(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const sessionLabels = getOrgLabels(getSessionOrgId(SESSION_KEY));
   const {
     currentUserId,
@@ -259,7 +283,7 @@ export default function App() {
     () => buildMonthGrid(monthDate, filteredBookings),
     [monthDate, filteredBookings]
   );
-  const monthLabel = monthDate.toLocaleDateString("he-IL", {
+  const monthLabel = monthDate.toLocaleDateString("en-US", {
     timeZone: "Asia/Jerusalem",
     month: "long",
     year: "numeric",
@@ -466,6 +490,51 @@ export default function App() {
   }, [role, section]);
 
   useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!hasUser || role !== "manager") {
+      setDeadlineInfo(null);
+      return;
+    }
+    const id = currentUserId.trim();
+    if (!id) return;
+    let active = true;
+
+    const load = async () => {
+      try {
+        const info = await getResponsibleSchedulingDeadline(id);
+        if (active) setDeadlineInfo(info);
+      } catch {
+        if (active) setDeadlineInfo(null);
+      }
+    };
+
+    load();
+    const interval = setInterval(load, 30_000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [hasUser, role, currentUserId]);
+
+  useEffect(() => {
+    if (!deadlineInfo?.scheduling_range) return;
+    if (role !== "manager") return;
+    const { start_date, end_date } = deadlineInfo.scheduling_range || {};
+    if (!start_date || !end_date) return;
+    setAvailabilityForm((prev) => {
+      // Only auto-fill when the user hasn't picked custom dates yet.
+      const nextStart = prev.start_date || start_date;
+      const nextEnd = prev.end_date || end_date;
+      if (nextStart === prev.start_date && nextEnd === prev.end_date) return prev;
+      return { ...prev, start_date: nextStart, end_date: nextEnd };
+    });
+  }, [deadlineInfo, role]);
+
+  useEffect(() => {
     if (!hasUser || role !== "manager") return;
     const id = currentUserId.trim();
     if (!id) return;
@@ -498,6 +567,18 @@ export default function App() {
       />
     );
   }
+
+  const deadlineRunAt = deadlineInfo?.run_at ? new Date(deadlineInfo.run_at) : null;
+  const hasDeadline =
+    Boolean(deadlineInfo?.has_deadline) &&
+    deadlineRunAt &&
+    !Number.isNaN(deadlineRunAt.getTime());
+  const lockedAvailability = Boolean(deadlineInfo?.locked);
+  const mustFillAvailability = Boolean(deadlineInfo?.must_fill_availability);
+  const deadlineCountdown = hasDeadline
+    ? formatCountdown(deadlineRunAt.getTime() - nowTick)
+    : "";
+
   return (
     <div
       style={{
@@ -506,6 +587,7 @@ export default function App() {
         background: isCinema ? "#f1f5f9" : "#f8fafc",
       }}
     >
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <AppSidebar
         isCinema={isCinema}
         role={role}
@@ -516,10 +598,143 @@ export default function App() {
         setSection={setSection}
         unreadNotificationCount={unreadNotificationCount}
         handleLogout={handleLogout}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       {/* Main */}
-      <div style={{ flex: 1, padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+      <div className="app-main">
+        <div className="mobile-topbar">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+          >
+            Menu
+          </button>
+          <div style={{ fontWeight: 900, color: "#0f172a" }}>
+            SmartAllocate
+          </div>
+          <div className="badge-soft badge-info" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
+            {currentUserId}
+          </div>
+        </div>
+        {role === "manager" && hasDeadline && !lockedAvailability && (
+          <div
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 30,
+              marginBottom: 16,
+            }}
+          >
+            <div
+              className="glass"
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                border: mustFillAvailability
+                  ? "1px solid rgba(239,68,68,0.25)"
+                  : "1px solid rgba(59,130,246,0.25)",
+                background: mustFillAvailability
+                  ? "linear-gradient(135deg, rgba(239,68,68,0.10), rgba(249,115,22,0.08))"
+                  : "linear-gradient(135deg, rgba(59,130,246,0.10), rgba(99,102,241,0.08))",
+              }}
+            >
+              <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                Scheduling will start at {deadlineRunAt.toLocaleString()}.
+              </div>
+              <div style={{ marginTop: 6, color: "#334155", fontWeight: 600 }}>
+                Time left to fill availability:{" "}
+                <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 900 }}>
+                  {deadlineCountdown || "—"}
+                </span>
+              </div>
+              <div style={{ marginTop: 6, color: "#475569" }}>
+                {mustFillAvailability
+                  ? "Please set your availability now. After the deadline, availability will be locked."
+                  : "You can still update availability until the deadline. After that it will be locked."}
+              </div>
+              {section !== "availability" && (
+                <button
+                  type="button"
+                  onClick={() => setSection("availability")}
+                  style={{
+                    marginTop: 10,
+                    padding: "10px 14px",
+                    borderRadius: 14,
+                    border: "none",
+                    background: mustFillAvailability ? "#ef4444" : "#2563eb",
+                    color: "#fff",
+                    fontWeight: 900,
+                    cursor: "pointer",
+                  }}
+                >
+                  Go to My Availability
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {role === "manager" && hasDeadline && mustFillAvailability && section !== "availability" && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 80,
+              background: "rgba(15, 23, 42, 0.55)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 16,
+            }}
+          >
+            <div
+              className="glass"
+              style={{
+                width: "min(560px, 100%)",
+                borderRadius: 20,
+                padding: 18,
+                border: "1px solid rgba(239,68,68,0.25)",
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.75), rgba(254,226,226,0.55))",
+              }}
+            >
+              <div style={{ fontSize: 18, fontWeight: 900, color: "#0f172a" }}>
+                Action required: fill your availability
+              </div>
+              <div style={{ marginTop: 8, color: "#334155", fontWeight: 700 }}>
+                Scheduling starts at {deadlineRunAt.toLocaleString()}.
+              </div>
+              <div style={{ marginTop: 6, color: "#0f172a", fontWeight: 900, fontSize: 24, fontVariantNumeric: "tabular-nums" }}>
+                {deadlineCountdown || "—"}
+              </div>
+              <div style={{ marginTop: 8, color: "#475569" }}>
+                The admin will start scheduling at the deadline. After that, you won’t be able to edit availability.
+              </div>
+              <button
+                type="button"
+                onClick={() => setSection("availability")}
+                style={{
+                  marginTop: 12,
+                  padding: "12px 16px",
+                  borderRadius: 16,
+                  border: "none",
+                  background: "#ef4444",
+                  color: "#fff",
+                  fontWeight: 900,
+                  cursor: "pointer",
+                  width: "100%",
+                }}
+              >
+                Open My Availability
+              </button>
+            </div>
+          </div>
+        )}
+
         {section === "schedule" ? (
           <ScheduleSection
             isCinema={isCinema}
@@ -604,6 +819,8 @@ export default function App() {
             setAvailabilityMessage={setAvailabilityMessage}
             userAvailability={userAvailability}
             deleteUserAvailability={deleteUserAvailability}
+            deadlineInfo={deadlineInfo}
+            lockedAvailability={lockedAvailability}
           />
         ) : (
           <NotificationsSection

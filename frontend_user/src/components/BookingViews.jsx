@@ -7,6 +7,141 @@ import {
   isPastBooking,
 } from "../utils/appHelpers";
 
+function MobileMonthAgenda({
+  monthLabel,
+  days,
+  onPrev,
+  onNext,
+  selectedDayKey,
+  onSelectDay,
+  getDotCount,
+  renderAgendaItem,
+  renderSelectedDayFooter,
+  emptyAgendaText = "No items for this day.",
+  weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  locale = "en-US",
+}) {
+  const selectedDay =
+    (Array.isArray(days) ? days : []).find((d) => d?.key === selectedDayKey) || null;
+
+  const selectedLabel = (() => {
+    if (!selectedDay?.date) return "";
+    try {
+      return selectedDay.date.toLocaleDateString(locale);
+    } catch {
+      return "";
+    }
+  })();
+
+  return (
+    <div className="mobile-calendar glass">
+      <div className="mobile-calendar__top">
+        <div className="mobile-calendar__top-row">
+          <div className="mobile-calendar__nav">
+            <button type="button" onClick={onPrev} aria-label="Previous month">
+              ‹
+            </button>
+            <button type="button" onClick={onNext} aria-label="Next month">
+              ›
+            </button>
+          </div>
+          <div className="mobile-calendar__month">{monthLabel}</div>
+          <div
+            className="badge-soft"
+            style={{
+              background: "rgba(255,255,255,0.18)",
+              borderColor: "rgba(255,255,255,0.25)",
+              color: "#fff",
+            }}
+          >
+            Month
+          </div>
+        </div>
+        <div className="mobile-calendar__weekdays">
+          {weekdays.map((d) => (
+            <div key={d}>{d}</div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mobile-calendar__body">
+        <div className="mobile-calendar__grid">
+          {(Array.isArray(days) ? days : []).map((day) => {
+            const inMonth = Boolean(day?.inMonth);
+            const isSelected = Boolean(selectedDayKey && day?.key === selectedDayKey);
+            const dotCountRaw =
+              typeof getDotCount === "function"
+                ? getDotCount(day)
+                : Array.isArray(day?.bookings)
+                  ? day.bookings.length
+                  : 0;
+            const hasAny = (Number(dotCountRaw) || 0) > 0;
+            const dotCount = hasAny ? 1 : 0;
+
+            return (
+              <div
+                key={day.key}
+                className={`mobile-day ${isSelected ? "selected" : ""}`}
+                role="button"
+                tabIndex={inMonth ? 0 : -1}
+                aria-disabled={!inMonth}
+                onClick={() => {
+                  if (!inMonth) return;
+                  onSelectDay?.(day);
+                }}
+                onKeyDown={(e) => {
+                  if (!inMonth) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectDay?.(day);
+                  }
+                }}
+              >
+                <div className="mobile-day__num">{day.date.getDate()}</div>
+                <div className="mobile-day__dots" aria-hidden="true">
+                  {Array.from({ length: dotCount }).map((_, idx) => (
+                    <span key={idx} className="mobile-dot" />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mobile-agenda">
+          <div className="mobile-agenda__header">
+            <div>{selectedLabel ? `Agenda • ${selectedLabel}` : "Agenda"}</div>
+            <div className="badge-soft">Tap a day</div>
+          </div>
+
+          {selectedDay ? (
+            <>
+              {(Array.isArray(selectedDay.bookings) ? selectedDay.bookings : []).length ===
+              0 ? (
+                <div className="glass" style={{ padding: 12, borderRadius: 14 }}>
+                  <div style={{ color: "#475569", fontWeight: 700 }}>{emptyAgendaText}</div>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {(Array.isArray(selectedDay.bookings) ? selectedDay.bookings : []).map(
+                    (b) => (
+                      <div key={b.id}>{renderAgendaItem ? renderAgendaItem(b, selectedDay) : null}</div>
+                    )
+                  )}
+                </div>
+              )}
+
+              {renderSelectedDayFooter ? (
+                <div style={{ marginTop: 10 }}>{renderSelectedDayFooter(selectedDay)}</div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Section({ title, color, items, role, onCancel, labels, labelsLower }) {
   return (
     <section>
@@ -168,6 +303,7 @@ export function MonthGrid({
   renderBooking,
   maxItems = 3,
   renderDayAction,
+  onDaySelect,
 }) {
   const weeks = [];
   for (let i = 0; i < days.length; i += 7) {
@@ -240,8 +376,22 @@ export function MonthGrid({
             <div
               key={`${wi}-${di}`}
               className="calendar-day"
+              role={onDaySelect ? "button" : undefined}
+              tabIndex={onDaySelect ? 0 : undefined}
+              onClick={() => {
+                if (!onDaySelect) return;
+                onDaySelect(day);
+              }}
+              onKeyDown={(e) => {
+                if (!onDaySelect) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onDaySelect(day);
+                }
+              }}
               style={{
                 opacity: day.inMonth ? 1 : 0.45,
+                cursor: onDaySelect ? "pointer" : undefined,
               }}
             >
               <div className="date">{day.date.getDate()}</div>
@@ -292,3 +442,5 @@ export function MonthGrid({
     </div>
   );
 }
+
+export { MobileMonthAgenda };

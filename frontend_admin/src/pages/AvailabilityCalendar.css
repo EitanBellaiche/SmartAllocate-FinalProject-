@@ -1,0 +1,47 @@
+.availability-rbc {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+@media (max-width: 820px) {
+  .availability-rbc .rbc-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .availability-rbc .rbc-toolbar-label {
+    font-weight: 900;
+  }
+
+  .availability-rbc .rbc-btn-group button {
+    padding: 6px 10px;
+  }
+
+  .availability-rbc .rbc-event,
+  .availability-rbc .rbc-day-slot .rbc-event {
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .availability-rbc .rbc-time-view {
+    min-height: 70vh;
+  }
+
+  .availability-rbc .rbc-month-view,
+  .availability-rbc .rbc-agenda-view {
+    min-height: 70vh;
+  }
+
+  .availability-rbc .rbc-header {
+    font-size: 11px;
+  }
+
+  .availability-rbc .rbc-date-cell {
+    font-size: 11px;
+  }
+}
+

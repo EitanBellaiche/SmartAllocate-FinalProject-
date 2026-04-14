@@ -12,6 +12,8 @@ import { executeAutoSchedule, normalizeOrgId } from "../services/autoScheduleSer
 import {
   cancelAutoScheduleJob,
   createAutoScheduleJob,
+  getOrgSchedulingDeadlineInfo,
+  getResponsibleSchedulingDeadlineInfo,
   listAutoScheduleJobs,
 } from "../services/autoScheduleJobs.js";
 
@@ -153,6 +155,30 @@ router.post("/jobs/:id/cancel", async (req, res) => {
     console.error("Failed to cancel auto schedule job:", err);
     const code = Number(err?.statusCode) || 500;
     res.status(code).json({ error: err?.message || "Failed to cancel job" });
+  }
+});
+
+router.get("/responsible-deadline", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const responsibleUserId = String(req.query?.responsible_user_id || "").trim();
+    const info = await getResponsibleSchedulingDeadlineInfo({ orgId, responsibleUserId });
+    res.json(info);
+  } catch (err) {
+    console.error("Failed to load responsible deadline:", err);
+    res.status(500).json({ error: "Failed to load scheduling deadline" });
+  }
+});
+
+router.get("/deadline", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const responsibleUserId = String(req.query?.responsible_user_id || "").trim();
+    const info = await getOrgSchedulingDeadlineInfo({ orgId, responsibleUserId });
+    res.json(info);
+  } catch (err) {
+    console.error("Failed to load org deadline:", err);
+    res.status(500).json({ error: "Failed to load scheduling deadline" });
   }
 });
 

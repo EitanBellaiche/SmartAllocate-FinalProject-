@@ -224,3 +224,16 @@ export async function deleteUserAvailability(id) {
   }
   return data;
 }
+
+export async function getResponsibleSchedulingDeadline(userId) {
+  const id = String(userId || "").trim();
+  const qs = new URLSearchParams();
+  if (id) qs.set("responsible_user_id", id);
+  const path = `${API_BASE}/auto-schedule/deadline?${qs.toString()}`;
+  const res = await fetch(withOrgQuery(path));
+  const data = await safeJson(res);
+  if (!res.ok) {
+    throw new Error(data?.error || "Failed to load scheduling deadline");
+  }
+  return data;
+}

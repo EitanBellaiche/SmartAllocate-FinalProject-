@@ -1,5 +1,5 @@
-import React from "react";
-import { MonthGrid, Section } from "./BookingViews";
+import React, { useEffect, useMemo, useState } from "react";
+import { MobileMonthAgenda, MonthGrid, Section } from "./BookingViews";
 import { formatTime, getBookingShortLocation, isPastBooking } from "../utils/appHelpers";
 
 export default function ScheduleSection({
@@ -21,6 +21,42 @@ export default function ScheduleSection({
   upcoming,
   past,
 }) {
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [mobileMonthKey, setMobileMonthKey] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+  const selectedDayKey = selectedDay?.key || "";
+  const selectedDayLabel = useMemo(() => {
+    if (!selectedDay?.date) return "";
+    try {
+      return selectedDay.date.toLocaleDateString("en-US");
+    } catch {
+      return "";
+    }
+  }, [selectedDay]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsMobile(Boolean(mq.matches));
+    update();
+    if (mq.addEventListener) mq.addEventListener("change", update);
+    else mq.addListener(update);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener("change", update);
+      else mq.removeListener(update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!Array.isArray(monthDays) || monthDays.length === 0) return;
+    // Reset the selected day when month changes.
+    const firstInMonth = monthDays.find((d) => d.inMonth) || monthDays[0];
+    const key = `${firstInMonth?.date?.getFullYear?.() || ""}-${firstInMonth?.date?.getMonth?.() || ""}`;
+    if (key && key !== mobileMonthKey) {
+      setMobileMonthKey(key);
+      setSelectedDay(null);
+    }
+  }, [monthDays, mobileMonthKey]);
+
   return (
     <>
       <header
@@ -118,88 +154,38 @@ export default function ScheduleSection({
       ) : (
         <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
           {viewMode === "month" ? (
-            <MonthGrid
+            <MobileMonthAgenda
               monthLabel={monthLabel}
+              days={monthDays}
+              selectedDayKey={selectedDayKey}
+              onSelectDay={(day) => setSelectedDay(day)}
               onPrev={() =>
                 setMonthDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
               }
               onNext={() =>
                 setMonthDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
               }
-              days={monthDays}
-              renderBooking={(b) => {
-                const pastBooking = isPastBooking(b);
+              emptyAgendaText="No bookings for the selected day."
+              renderAgendaItem={(b) => {
                 const shortLocation = getBookingShortLocation(b);
                 return (
-                  <div
-                    role="button"
-                    tabIndex={0}
+                  <button
+                    type="button"
+                    className="mobile-agenda__item"
                     onClick={() => setSelectedScheduleBooking(b)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedScheduleBooking(b);
-                      }
-                    }}
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 10,
-                      background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
-                      color: "#fff",
-                      fontSize: 12,
-                      boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
-                      display: "grid",
-                      gap: 4,
-                      cursor: "pointer",
-                    }}
+                    style={{ cursor: "pointer" }}
                   >
-                    <div style={{ fontWeight: 700 }}>
-                      {(b.resources || [])
-                        .map((r) => r.name)
-                        .filter(Boolean)
-                        .join(" / ")}
-                    </div>
-                    <div style={{ opacity: 0.9 }}>
-                      {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                    </div>
-                    {shortLocation && (
-                      <div
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          opacity: 0.92,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {shortLocation}
+                    <div>
+                      <div className="mobile-agenda__title">
+                        {(b.resources || []).map((r) => r.name).filter(Boolean).join(" / ") ||
+                          "Booking"}
                       </div>
-                    )}
-                    {role === "manager" && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openCancelDialog(b);
-                        }}
-                        disabled={pastBooking}
-                        style={{
-                          marginTop: 2,
-                          padding: "4px 6px",
-                          borderRadius: 8,
-                          border: "1px solid rgba(255,255,255,0.6)",
-                          background: pastBooking ? "rgba(255,255,255,0.3)" : "#fff",
-                          color: pastBooking ? "#e2e8f0" : "#1d4ed8",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          cursor: pastBooking ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        Cancel {labelsLower.resource}
-                      </button>
-                    )}
-                  </div>
+                      {shortLocation ? <div className="mobile-agenda__sub">{shortLocation}</div> : null}
+                    </div>
+                    <div className="mobile-agenda__time">
+                      {formatTime(b.start_time)}–{formatTime(b.end_time)}
+                    </div>
+                  </button>
                 );
               }}
             />
@@ -225,6 +211,86 @@ export default function ScheduleSection({
               />
             </>
           )}
+        </div>
+      )}
+
+      {selectedDay && (
+        <div
+          onClick={() => setSelectedDay(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 120,
+            background: "rgba(15, 23, 42, 0.55)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+            padding: 12,
+          }}
+        >
+          <div
+            className="glass"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(720px, 100%)",
+              borderRadius: 18,
+              padding: 14,
+              maxHeight: "80vh",
+              overflow: "auto",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                {selectedDayLabel ? `Bookings on ${selectedDayLabel}` : "Bookings"}
+              </div>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setSelectedDay(null)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {Array.isArray(selectedDay.bookings) && selectedDay.bookings.length > 0 ? (
+                selectedDay.bookings.map((b) => {
+                  const shortLocation = getBookingShortLocation(b);
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className="btn"
+                      onClick={() => {
+                        setSelectedScheduleBooking(b);
+                        setSelectedDay(null);
+                      }}
+                      style={{
+                        textAlign: "left",
+                        background: "#fff",
+                        borderRadius: 14,
+                        padding: 12,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                        {(b.resources || []).map((r) => r.name).filter(Boolean).join(" / ") || "Booking"}
+                      </div>
+                      <div style={{ marginTop: 4, color: "#475569", fontWeight: 700 }}>
+                        {formatTime(b.start_time)} - {formatTime(b.end_time)}
+                      </div>
+                      {shortLocation && (
+                        <div style={{ marginTop: 2, color: "#64748b", fontSize: 12 }}>
+                          {shortLocation}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <div style={{ color: "#475569" }}>No bookings on this day.</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </>

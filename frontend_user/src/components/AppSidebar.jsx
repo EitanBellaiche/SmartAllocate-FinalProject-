@@ -10,9 +10,12 @@ export default function AppSidebar({
   setSection,
   unreadNotificationCount,
   handleLogout,
+  isOpen = true,
+  onClose,
 }) {
   return (
     <aside
+      className={`app-sidebar ${isOpen ? "open" : ""}`}
       style={{
         width: 220,
         background: isCinema
@@ -26,6 +29,25 @@ export default function AppSidebar({
         boxShadow: isCinema ? "inset -1px 0 0 rgba(196,181,253,0.14)" : "none",
       }}
     >
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            alignSelf: "flex-end",
+            border: "1px solid rgba(226,232,240,0.16)",
+            background: "rgba(255,255,255,0.06)",
+            color: "#e2e8f0",
+            borderRadius: 12,
+            padding: "8px 10px",
+            cursor: "pointer",
+            fontWeight: 800,
+          }}
+          aria-label="Close menu"
+        >
+          Close
+        </button>
+      )}
       <div
         style={{
           fontWeight: 900,
@@ -69,7 +91,11 @@ export default function AppSidebar({
       </div>
 
       <button
-        onClick={() => setSection("schedule")}
+        onClick={() => {
+          setSection("schedule");
+          onClose?.();
+        }}
+        className="app-nav-button"
         style={{
           textAlign: "left",
           padding: "12px 14px",
@@ -94,7 +120,11 @@ export default function AppSidebar({
       </button>
 
       <button
-        onClick={() => setSection("search")}
+        onClick={() => {
+          setSection("search");
+          onClose?.();
+        }}
+        className="app-nav-button"
         style={{
           textAlign: "left",
           padding: "12px 14px",
@@ -120,7 +150,11 @@ export default function AppSidebar({
 
       {role === "manager" && (
         <button
-          onClick={() => setSection("requests")}
+          onClick={() => {
+            setSection("requests");
+            onClose?.();
+          }}
+          className="app-nav-button"
           style={{
             textAlign: "left",
             padding: "12px 14px",
@@ -146,7 +180,11 @@ export default function AppSidebar({
       )}
 
       <button
-        onClick={() => setSection("notifications")}
+        onClick={() => {
+          setSection("notifications");
+          onClose?.();
+        }}
+        className="app-nav-button"
         style={{
           textAlign: "left",
           padding: "12px 14px",
@@ -195,7 +233,11 @@ export default function AppSidebar({
 
       {role === "manager" && (
         <button
-          onClick={() => setSection("availability")}
+          onClick={() => {
+            setSection("availability");
+            onClose?.();
+          }}
+          className="app-nav-button"
           style={{
             textAlign: "left",
             padding: "12px 14px",
@@ -221,7 +263,11 @@ export default function AppSidebar({
       )}
 
       <button
-        onClick={handleLogout}
+        onClick={() => {
+          handleLogout();
+          onClose?.();
+        }}
+        className="app-nav-button"
         style={{
           marginTop: 8,
           textAlign: "left",
