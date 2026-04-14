@@ -37,6 +37,33 @@ function extractGroupSuggestions(item) {
   return Array.isArray(item?.suggestions) ? item.suggestions : [];
 }
 
+function toRunAt(deadlineDate, deadlineTime) {
+  if (!deadlineDate || !deadlineTime) return null;
+  const runAt = new Date(`${deadlineDate}T${deadlineTime}:00`);
+  if (Number.isNaN(runAt.getTime())) return null;
+  return runAt;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatCountdown(msLeft) {
+  if (!Number.isFinite(msLeft)) return "";
+  if (msLeft <= 0) return "00:00:00";
+  const totalSeconds = Math.floor(msLeft / 1000);
+  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = totalMinutes % 60;
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = totalHours % 24;
+  const days = Math.floor(totalHours / 24);
+  const hh = pad2(hours);
+  const mm = pad2(minutes);
+  const ss = pad2(seconds);
+  return days > 0 ? `${days}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
+}
+
 export default function AutoScheduler({ embedded = false }) {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
@@ -61,6 +88,10 @@ export default function AutoScheduler({ embedded = false }) {
   const [rangeEnd, setRangeEnd] = useState(() =>
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
   );
+  const [runMode, setRunMode] = useState("manual"); // manual | deadline
+  const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
+  const [deadlineTime, setDeadlineTime] = useState("23:59");
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [selection, setSelection] = useState({
     typeIds: [],
     resourceIds: [],
@@ -73,6 +104,8 @@ export default function AutoScheduler({ embedded = false }) {
   const [lastRun, setLastRun] = useState({ scheduled: [], skipped: [] });
   const [allocations, setAllocations] = useState([]);
   const [allocationsLoading, setAllocationsLoading] = useState(false);
+  const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -96,6 +129,29 @@ export default function AutoScheduler({ embedded = false }) {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    loadJobs();
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function loadJobs() {
+    setJobsLoading(true);
+    try {
+      const data = await apiGet("/auto-schedule/jobs?limit=25");
+      setJobs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setJobs([]);
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to load scheduled jobs.");
+    } finally {
+      setJobsLoading(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -386,6 +442,118 @@ export default function AutoScheduler({ embedded = false }) {
     }
   }
 
+  async function scheduleAtDeadline() {
+    if (running) return;
+    if (groups.length === 0) {
+      setMessageTone("error");
+      setMessage("Add at least one allocation before scheduling a deadline run.");
+      return;
+    }
+    if (!rangeStart || !rangeEnd) {
+      setMessageTone("error");
+      setMessage("Choose both range start and range end.");
+      return;
+    }
+    if (!deadlineDate || !deadlineTime) {
+      setMessageTone("error");
+      setMessage("Choose both deadline date and time.");
+      return;
+    }
+
+    const runAt = toRunAt(deadlineDate, deadlineTime);
+    if (!runAt) {
+      setMessageTone("error");
+      setMessage("Invalid deadline date/time.");
+      return;
+    }
+
+    setRunning(true);
+    setMessage("");
+    try {
+      const job = await apiPost("/auto-schedule/jobs", {
+        run_at: runAt.toISOString(),
+        start_date: rangeStart,
+        end_date: rangeEnd,
+        groups,
+      });
+      setMessageTone("success");
+      setMessage(
+        `Auto schedule job created (ID ${job?.id || "?"}). It will run after the deadline.`
+      );
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to create auto schedule job.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function cancelJob(jobId) {
+    if (!jobId) return;
+    try {
+      await apiPost(`/auto-schedule/jobs/${jobId}/cancel`, {});
+      setMessageTone("success");
+      setMessage("Job cancelled.");
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to cancel job.");
+    }
+  }
+
+  const nextScheduledJob = useMemo(() => {
+    const scheduledJobs = jobs
+      .filter((job) => job?.status === "scheduled" && job?.run_at)
+      .map((job) => {
+        const dt = new Date(job.run_at);
+        return Number.isNaN(dt.getTime()) ? null : { job, runAt: dt };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.runAt.getTime() - b.runAt.getTime());
+
+    return scheduledJobs[0] || null;
+  }, [jobs]);
+
+  const selectedRunAt = useMemo(() => toRunAt(deadlineDate, deadlineTime), [deadlineDate, deadlineTime]);
+
+  const deadlineDisabledReason = useMemo(() => {
+    if (running) return "Scheduler is currently working.";
+    if (groups.length === 0) return "Add at least one allocation first.";
+    if (!rangeStart || !rangeEnd) return "Select range start and range end.";
+    if (!deadlineDate || !deadlineTime) return "Select deadline date and time.";
+    if (!selectedRunAt) return "Invalid deadline date/time.";
+    return "";
+  }, [running, groups.length, rangeStart, rangeEnd, deadlineDate, deadlineTime, selectedRunAt]);
+
+  const canScheduleAtDeadline = !deadlineDisabledReason;
+
+  const countdownTarget = useMemo(() => {
+    if (nextScheduledJob?.runAt) return nextScheduledJob.runAt;
+    if (runMode === "deadline") return selectedRunAt;
+    return null;
+  }, [nextScheduledJob, runMode, selectedRunAt]);
+
+  const countdownText = useMemo(() => {
+    if (!countdownTarget) return "";
+    const msLeft = countdownTarget.getTime() - nowTick;
+    return formatCountdown(msLeft);
+  }, [countdownTarget, nowTick]);
+
+  useEffect(() => {
+    if (runMode !== "deadline") return;
+    if (!countdownTarget) return;
+
+    const msLeft = countdownTarget.getTime() - nowTick;
+    const shouldPoll = msLeft <= 2 * 60_000; // 2 minutes before/after deadline
+    if (!shouldPoll) return;
+
+    const id = setInterval(() => {
+      loadJobs();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [runMode, countdownTarget, nowTick]);
+
   return (
     <div className={embedded ? "" : "p-6"}>
       {!embedded && (
@@ -445,6 +613,159 @@ export default function AutoScheduler({ embedded = false }) {
             {running ? "Running..." : "Run auto schedule"}
           </button>
         </div>
+
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm font-semibold text-slate-800">Run mode</div>
+            <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1">
+              <button
+                type="button"
+                onClick={() => setRunMode("manual")}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                  runMode === "manual" ? "bg-blue-600 text-white" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Immediate scheduling
+              </button>
+              <button
+                type="button"
+                onClick={() => setRunMode("deadline")}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                  runMode === "deadline" ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                Time-based scheduling
+              </button>
+            </div>
+          </div>
+
+          {runMode === "deadline" && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Deadline date
+            </label>
+            <IsraelDateInput
+              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+              value={deadlineDate}
+              onChange={setDeadlineDate}
+            />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-slate-700">
+              Deadline time
+            </label>
+            <input
+              type="time"
+              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+              value={deadlineTime}
+              onChange={(e) => setDeadlineTime(e.target.value)}
+            />
+          </div>
+          <div className="md:col-span-2">
+            {canScheduleAtDeadline ? (
+              <button
+                type="button"
+                onClick={scheduleAtDeadline}
+                className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-base font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
+                disabled={running}
+              >
+                {running ? "Working..." : "Schedule after deadline"}
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Can’t schedule yet
+                </div>
+                <div className="mt-1">{deadlineDisabledReason}</div>
+              </div>
+            )}
+          </div>
+              <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Countdown
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">
+                    {countdownText || "—"}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    {countdownTarget
+                      ? `Target: ${countdownTarget.toLocaleString("he-IL")}`
+                      : "Pick a deadline to start the countdown."}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                  After the deadline passes, the backend will automatically run the scheduler once with the current allocations.
+                  If you created a job, the countdown follows the nearest scheduled job.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold text-slate-900">Scheduled jobs</h2>
+          <button
+            type="button"
+            onClick={loadJobs}
+            className="rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-50"
+            disabled={jobsLoading}
+          >
+            {jobsLoading ? "Loading..." : "Refresh jobs"}
+          </button>
+        </div>
+        {jobsLoading ? (
+          <div className="text-sm text-slate-500">Loading jobs...</div>
+        ) : jobs.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+            No scheduled jobs yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {jobs.map((job) => {
+              const runAt = job?.run_at ? new Date(job.run_at) : null;
+              const runAtLabel = runAt && !Number.isNaN(runAt.getTime())
+                ? runAt.toLocaleString("he-IL")
+                : String(job?.run_at || "");
+              const status = String(job?.status || "").toUpperCase() || "UNKNOWN";
+              const allocationCount = Array.isArray(job?.payload?.groups)
+                ? job.payload.groups.length
+                : 0;
+              return (
+                <div
+                  key={job.id}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="font-semibold text-slate-900">
+                      Job #{job.id} · {status}
+                    </div>
+                    {job.status === "scheduled" && (
+                      <button
+                        type="button"
+                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                        onClick={() => cancelJob(job.id)}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs leading-6 text-slate-600">
+                    Run at: {runAtLabel} | Allocations: {allocationCount}
+                  </div>
+                  {job.error && (
+                    <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {job.error}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">

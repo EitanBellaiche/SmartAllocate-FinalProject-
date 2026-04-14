@@ -14,6 +14,7 @@ import autoScheduleRoutes from "./routes/autoSchedule.js";
 import schemaRoutes from "./routes/schema.js";
 import ruleWizardRoutes from "./routes/ruleWizard.js";
 import { env, getAllowedOrigins } from "./config/env.js";
+import { processDueAutoScheduleJobs } from "./services/autoScheduleJobs.js";
 
 console.log("➡ server.js LOADED");
 console.log("➡ SERVER BASE PATH:", process.cwd());
@@ -59,3 +60,29 @@ app.listen(env.port, () => {
   console.log(`🚀 SmartAllocate backend running on port ${env.port}`);
   console.log("🌐 Allowed CORS origins:", allowedOrigins.join(", "));
 });
+
+// Auto schedule job runner (deadline-based scheduling)
+let autoScheduleRunnerStarted = false;
+function startAutoScheduleRunner() {
+  if (autoScheduleRunnerStarted) return;
+  autoScheduleRunnerStarted = true;
+
+  let delayMs = 30_000;
+
+  const loop = async () => {
+    try {
+      await processDueAutoScheduleJobs({ maxPerTick: 1 });
+      delayMs = 30_000;
+    } catch (err) {
+      console.error("Auto schedule job runner failed:", err);
+      delayMs = Math.min(delayMs * 2, 60_000);
+    } finally {
+      setTimeout(loop, delayMs);
+    }
+  };
+
+  // Run once at boot, then keep polling.
+  loop();
+}
+
+startAutoScheduleRunner();

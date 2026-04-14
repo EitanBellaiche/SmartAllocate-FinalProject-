@@ -6,10 +6,14 @@ import {
   parseDate,
   roundDurationToGrid,
 } from "./autoSchedule/timeUtils.js";
+import { ensureAvailabilityTables } from "./autoSchedule/availabilityUtils.js";
+import { diagnoseGroupFailure } from "./autoSchedule/core.js";
+import { executeAutoSchedule, normalizeOrgId } from "../services/autoScheduleService.js";
 import {
-  ensureAvailabilityTables,
-} from "./autoSchedule/availabilityUtils.js";
-import { diagnoseGroupFailure, scheduleGroup } from "./autoSchedule/core.js";
+  cancelAutoScheduleJob,
+  createAutoScheduleJob,
+  listAutoScheduleJobs,
+} from "../services/autoScheduleJobs.js";
 
 const router = express.Router();
 
@@ -19,6 +23,12 @@ function getOrgId(req) {
     req.query?.organization_id ||
     req.body?.org_id ||
     req.body?.organization_id;
+  const trimmed = String(value || "").trim();
+  return trimmed || null;
+}
+
+function getCreatedBy(req) {
+  const value = req.body?.created_by || req.query?.created_by;
   const trimmed = String(value || "").trim();
   return trimmed || null;
 }
@@ -85,75 +95,64 @@ router.post("/diagnose", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
-  const startDateValue = String(req.body?.start_date || "").trim();
-  const endDateValue = String(req.body?.end_date || "").trim();
-  const groups = Array.isArray(req.body?.groups) ? req.body.groups : [];
-  const orgId = getOrgId(req);
-
-  const startDate = parseDate(startDateValue);
-  const endDate = parseDate(endDateValue);
-  if (!startDate || !endDate || startDate > endDate) {
-    return res.status(400).json({ error: "Invalid date range" });
-  }
-  if (!Array.isArray(groups) || groups.length === 0) {
-    return res.status(400).json({ error: "No resource groups provided" });
-  }
-
-  const client = await pool.connect();
   try {
-    await ensureAvailabilityTables(client);
-    const ruleParams = [];
-    let ruleWhere = "WHERE is_active = true";
-    if (orgId) {
-      ruleParams.push(orgId);
-      ruleWhere += ` AND organization_id = $${ruleParams.length}`;
-    }
-    const { rows: ruleRows } = await client.query(
-      `SELECT * FROM rules ${ruleWhere} ORDER BY sort_order ASC, id ASC`,
-      ruleParams
-    );
-
-    const scheduled = [];
-    const skipped = [];
-
-    await client.query("BEGIN");
-
-    for (const group of groups) {
-      const daysPerWeek = clampDaysPerWeek(group?.days_per_week ?? 1);
-      const hoursPerDay = Number(group?.hours_per_day);
-      const weeklyHours = Number(group?.weekly_hours || 0);
-      const perSessionHours = Number.isFinite(hoursPerDay) && hoursPerDay > 0
-        ? hoursPerDay
-        : (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
-      const durationMinutes = roundDurationToGrid(Math.round(perSessionHours * 60));
-
-      const result = await scheduleGroup({
-        client,
-        group,
-        startDate,
-        endDate,
-        orgId,
-        ruleRows,
-        durationMinutes,
-        daysPerWeek,
-      });
-
-      if (Array.isArray(result?.scheduled) && result.scheduled.length > 0) {
-        scheduled.push(...result.scheduled);
-      }
-      if (result?.skipped) {
-        skipped.push(result.skipped);
-      }
-    }
-
-    await client.query("COMMIT");
-    res.json({ scheduled, skipped });
+    const orgId = getOrgId(req);
+    const data = await executeAutoSchedule({
+      start_date: req.body?.start_date,
+      end_date: req.body?.end_date,
+      groups: req.body?.groups,
+      orgId,
+    });
+    res.json(data);
   } catch (err) {
-    await client.query("ROLLBACK");
     console.error("Auto scheduling failed:", err);
-    res.status(500).json({ error: "Auto schedule failed" });
-  } finally {
-    client.release();
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Auto schedule failed" });
+  }
+});
+
+router.get("/jobs", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const status = String(req.query?.status || "").trim() || null;
+    const limit = Number(req.query?.limit);
+    const jobs = await listAutoScheduleJobs({ status, orgId, limit });
+    res.json(jobs);
+  } catch (err) {
+    console.error("Failed to list auto schedule jobs:", err);
+    res.status(500).json({ error: "Failed to list jobs" });
+  }
+});
+
+router.post("/jobs", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const createdBy = getCreatedBy(req);
+    const job = await createAutoScheduleJob({
+      run_at: req.body?.run_at,
+      start_date: req.body?.start_date,
+      end_date: req.body?.end_date,
+      groups: req.body?.groups,
+      orgId,
+      createdBy,
+    });
+    res.status(201).json(job);
+  } catch (err) {
+    console.error("Failed to create auto schedule job:", err);
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Failed to create job" });
+  }
+});
+
+router.post("/jobs/:id/cancel", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const job = await cancelAutoScheduleJob({ id: req.params.id, orgId });
+    res.json(job);
+  } catch (err) {
+    console.error("Failed to cancel auto schedule job:", err);
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Failed to cancel job" });
   }
 });
 
