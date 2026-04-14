@@ -257,15 +257,18 @@ async function pickLockedSlot({
   ruleRows,
   orgId,
   client,
+  excludedDayOfWeeks = [],
   }) {
   const weekStarts = getWeekStartsInRange(startDate, endDate);
   const candidatesMap = new Map();
   let lastFailure = "No available slot found";
   let firstCandidateFailure = null;
+  const excluded = new Set((excludedDayOfWeeks || []).map((d) => Number(d)));
 
   for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
     const dayKey = formatDate(day);
     const dayOfWeek = day.getDay();
+    if (excluded.has(dayOfWeek)) continue;
     const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
     for (const window of windows) {
       const slotStartMin = timeToMinutes(window.start_time);
@@ -950,9 +953,10 @@ async function diagnoseGroupFailure({
     new Set(rawUserIds.map((id) => String(id).trim()).filter(Boolean))
   ).filter((id) => id && id !== responsibleId);
   const weeklyHours = Number(group?.weekly_hours || 0);
-  const durationMinutes = Math.round((Number.isFinite(weeklyHours) && weeklyHours > 0
-    ? weeklyHours
-    : 3) * 60);
+  const daysPerWeek = clampDaysPerWeek(group?.days_per_week ?? 1);
+  const perSessionHours =
+    (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
+  const durationMinutes = roundDurationToGrid(Math.round(perSessionHours * 60));
 
   let resourceRows = [];
   if (resourceIds.length > 0) {
@@ -1214,6 +1218,18 @@ function pickBestResourceCombination({ fixedResources, candidatePools, rules, bo
   return { best, bestBlocked };
 }
 
+function clampDaysPerWeek(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(7, Math.max(1, Math.round(n)));
+}
+
+function roundDurationToGrid(durationMinutes) {
+  const min = Number.isFinite(durationMinutes) ? durationMinutes : 0;
+  const rounded = Math.round(min / 30) * 30;
+  return Math.max(30, rounded);
+}
+
 async function hasExactBooking(client, userId, resourceIds, date, startTime, endTime, orgId) {
   if (!userId || resourceIds.length === 0) return false;
   const params = [userId, date, startTime, endTime, resourceIds, resourceIds.length];
@@ -1373,9 +1389,10 @@ router.post("/", async (req, res) => {
         (id) => id && id !== responsibleId
       );
       const weeklyHours = Number(group?.weekly_hours || 0);
-      const durationMinutes = Math.round((Number.isFinite(weeklyHours) && weeklyHours > 0
-        ? weeklyHours
-        : 3) * 60);
+      const daysPerWeek = clampDaysPerWeek(group?.days_per_week ?? 1);
+      const perSessionHours =
+        (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
+      const durationMinutes = roundDurationToGrid(Math.round(perSessionHours * 60));
 
       if (resourceIds.length === 0 && typeIds.length === 0) {
         skipped.push({ group_id: group?.group_id || null, reason: "No resources or resource types selected" });
@@ -1457,27 +1474,33 @@ router.post("/", async (req, res) => {
       let userConflicts = 0;
       let resourceConflicts = 0;
       let ruleConflicts = 0;
-      let lockedSlot = null;
+      let lockedSlots = [];
       let failureContext = null;
 
-      const lockedCandidate = await pickLockedSlot({
-        availability,
-        availabilityOverrides,
-        durationMinutes,
-        startDate,
-        endDate,
-        responsibleId,
-        userIds: uniqueUserIds,
-        resourceIds,
-        resourceRows,
-        ruleRows,
-        orgId,
-        client,
-      });
-      if (lockedCandidate?.slot) {
-        lockedSlot = lockedCandidate.slot;
-      } else if (lockedCandidate?.reason) {
-        lastFailure = lockedCandidate.reason;
+      for (let lockIndex = 0; lockIndex < daysPerWeek; lockIndex += 1) {
+        const lockedCandidate = await pickLockedSlot({
+          availability,
+          availabilityOverrides,
+          durationMinutes,
+          startDate,
+          endDate,
+          responsibleId,
+          userIds: uniqueUserIds,
+          resourceIds,
+          resourceRows,
+          ruleRows,
+          orgId,
+          client,
+          excludedDayOfWeeks: lockedSlots.map((slot) => slot.day_of_week),
+        });
+        if (lockedCandidate?.slot) {
+          lockedSlots = [...lockedSlots, lockedCandidate.slot];
+          continue;
+        }
+        if (lockedCandidate?.reason) {
+          lastFailure = lockedCandidate.reason;
+        }
+        break;
       }
 
       const weekStarts = getWeekStartsInRange(startDate, endDate);
@@ -1491,7 +1514,7 @@ router.post("/", async (req, res) => {
         const weekStartBound = new Date(Math.max(weekStart.getTime(), startDate.getTime()));
         const weekEndBound = new Date(Math.min(weekEnd.getTime(), endDate.getTime()));
 
-        let scheduledThisWeek = false;
+        let scheduledThisWeekCount = 0;
         let weekFailure = lastFailure;
         let weekSlots = 0;
         for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
@@ -1507,13 +1530,16 @@ router.post("/", async (req, res) => {
           if (dayAvailability.length === 0) continue;
           availabilityDays += 1;
 
-          if (lockedSlot) {
-            if (lockedSlot.day_of_week !== dayOfWeek) continue;
-            const matchesWindow = dayAvailability.some((slot) => {
-              const slotStart = String(slot.start_time).slice(0, 5);
-              const slotEnd = String(slot.end_time).slice(0, 5);
-              return lockedSlot.start_time >= slotStart && lockedSlot.end_time <= slotEnd;
-            });
+          if (lockedSlots.length > 0) {
+            const dayLocks = lockedSlots.filter((slot) => slot.day_of_week === dayOfWeek);
+            if (dayLocks.length === 0) continue;
+            const matchesWindow = dayLocks.some((locked) =>
+              dayAvailability.some((slot) => {
+                const slotStart = String(slot.start_time).slice(0, 5);
+                const slotEnd = String(slot.end_time).slice(0, 5);
+                return locked.start_time >= slotStart && locked.end_time <= slotEnd;
+              })
+            );
             if (!matchesWindow) continue;
           }
 
@@ -1530,10 +1556,14 @@ router.post("/", async (req, res) => {
               weekSlots += 1;
               const startTime = addMinutes("00:00", candidate);
               const endTime = addMinutes("00:00", candidate + durationMinutes);
-              if (lockedSlot) {
-                if (lockedSlot.start_time !== startTime || lockedSlot.end_time !== endTime) {
-                  continue;
-                }
+              if (lockedSlots.length > 0) {
+                const matchesAnyLock = lockedSlots.some(
+                  (locked) =>
+                    locked.day_of_week === dayOfWeek &&
+                    locked.start_time === startTime &&
+                    locked.end_time === endTime
+                );
+                if (!matchesAnyLock) continue;
               }
 
               attemptedSlots += 1;
@@ -1725,8 +1755,9 @@ router.post("/", async (req, res) => {
                   orgId
                 );
                 if (alreadyExists) {
-                  scheduledThisWeek = true;
-                  break;
+                  scheduledThisWeekCount += 1;
+                  if (scheduledThisWeekCount >= daysPerWeek) break;
+                  continue;
                 }
               }
 
@@ -1791,26 +1822,28 @@ router.post("/", async (req, res) => {
                 end_time: endTime,
                 resource_ids: resolvedResourceIds,
               });
-              if (!lockedSlot) {
-                lockedSlot = {
-                  day_of_week: dayOfWeek,
-                  start_time: startTime,
-                  end_time: endTime,
-                };
+              if (lockedSlots.length === 0) {
+                lockedSlots = [
+                  {
+                    day_of_week: dayOfWeek,
+                    start_time: startTime,
+                    end_time: endTime,
+                  },
+                ];
               }
-              scheduledThisWeek = true;
-              break;
+              scheduledThisWeekCount += 1;
+              if (scheduledThisWeekCount >= daysPerWeek) break;
             }
-            if (scheduledThisWeek) break;
+            if (scheduledThisWeekCount >= daysPerWeek) break;
           }
-          if (scheduledThisWeek) break;
+          if (scheduledThisWeekCount >= daysPerWeek) break;
         }
 
-        if (!scheduledThisWeek && weekSlots > 0) {
+        if (scheduledThisWeekCount === 0 && weekSlots > 0) {
           lastFailure = weekFailure;
         }
 
-        if (scheduledThisWeek) {
+        if (scheduledThisWeekCount > 0) {
           continue;
         }
       }

@@ -5,6 +5,7 @@ import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../ut
 
 const DEFAULT_SEMESTER_MONTHS = 3;
 const DEFAULT_WEEKLY_HOURS = 3;
+const DEFAULT_DAYS_PER_WEEK = 1;
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function addMonths(date, months) {
@@ -66,6 +67,7 @@ export default function AutoScheduler({ embedded = false }) {
     responsibleId: "",
     userIds: "",
     weeklyHours: String(DEFAULT_WEEKLY_HOURS),
+    daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
   });
   const [groups, setGroups] = useState([]);
   const [lastRun, setLastRun] = useState({ scheduled: [], skipped: [] });
@@ -230,6 +232,10 @@ export default function AutoScheduler({ embedded = false }) {
       responsible_user_id: selection.responsibleId.trim(),
       user_ids: parseIds(selection.userIds),
       weekly_hours: Number(selection.weeklyHours) || DEFAULT_WEEKLY_HOURS,
+      days_per_week: Math.min(
+        7,
+        Math.max(1, Number(selection.daysPerWeek) || DEFAULT_DAYS_PER_WEEK)
+      ),
     };
     setGroups((prev) => [...prev, group]);
     setSelection({
@@ -238,6 +244,7 @@ export default function AutoScheduler({ embedded = false }) {
       responsibleId: "",
       userIds: "",
       weeklyHours: String(DEFAULT_WEEKLY_HOURS),
+      daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
     });
     setResponsibleQuery("");
     setResponsibleOptions([]);
@@ -679,6 +686,24 @@ export default function AutoScheduler({ embedded = false }) {
                 }
               />
             </div>
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
+                Days per week
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="7"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
+                value={selection.daysPerWeek}
+                onChange={(e) =>
+                  setSelection((prev) => ({ ...prev, daysPerWeek: e.target.value }))
+                }
+              />
+              <div className="mt-1 text-xs text-slate-500">
+                Auto schedule will split the weekly hours into this many sessions.
+              </div>
+            </div>
             <button
               type="button"
               className="rounded-2xl border border-blue-200 bg-white px-4 py-3 font-medium text-blue-700 transition hover:bg-blue-50"
@@ -750,6 +775,23 @@ export default function AutoScheduler({ embedded = false }) {
                         onChange={(e) =>
                           updateGroup(group.group_id, {
                             weekly_hours: Number(e.target.value) || DEFAULT_WEEKLY_HOURS,
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Days per week
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="7"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                        value={group.days_per_week ?? DEFAULT_DAYS_PER_WEEK}
+                        onChange={(e) =>
+                          updateGroup(group.group_id, {
+                            days_per_week: Math.min(7, Math.max(1, Number(e.target.value) || 1)),
                           })
                         }
                       />
