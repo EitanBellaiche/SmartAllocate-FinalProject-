@@ -140,6 +140,40 @@ export async function cancelAutoScheduleJob({ id, orgId } = {}) {
   return rows[0];
 }
 
+export async function deleteAutoScheduleJob({ id, orgId } = {}) {
+  await ensureAutoScheduleJobsTable();
+  const jobId = Number(id);
+  if (!Number.isFinite(jobId)) {
+    const err = new Error("Invalid job id");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const params = [jobId];
+  let where = "WHERE id = $1";
+  if (orgId) {
+    params.push(String(orgId));
+    where += ` AND organization_id = $${params.length}`;
+  }
+
+  const { rows } = await pool.query(
+    `
+    DELETE FROM ${JOBS_TABLE}
+    ${where}
+    AND status <> 'running'
+    RETURNING *
+    `,
+    params
+  );
+
+  if (rows.length === 0) {
+    const err = new Error("Job not found or cannot be deleted");
+    err.statusCode = 404;
+    throw err;
+  }
+  return rows[0];
+}
+
 export async function processDueAutoScheduleJobs({ maxPerTick = 1 } = {}) {
   await ensureAutoScheduleJobsTable();
 
@@ -404,4 +438,3 @@ export async function assertAvailabilityNotLocked({ orgId, responsibleUserId }) 
     throw err;
   }
 }
-

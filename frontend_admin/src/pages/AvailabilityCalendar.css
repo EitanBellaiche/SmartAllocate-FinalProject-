@@ -3,6 +3,34 @@
   overflow: hidden;
 }
 
+.availability-rbc .availability-month-date-header {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.availability-rbc .availability-month-date-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  flex: 0 0 auto;
+}
+
+.availability-rbc .rbc-month-view .rbc-row-content .rbc-event,
+.availability-rbc .rbc-month-view .rbc-row-content .rbc-show-more {
+  display: none;
+}
+
 @media (max-width: 820px) {
   .availability-rbc .rbc-toolbar {
     flex-wrap: wrap;
@@ -44,4 +72,3 @@
     font-size: 11px;
   }
 }
-

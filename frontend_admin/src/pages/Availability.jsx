@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { Calendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
@@ -22,6 +22,17 @@ const EMPTY_DAY_MODAL = {
   date: "",
 };
 
+function getMovieStorageKey() {
+  const raw = localStorage.getItem("smartallocate.admin.session");
+  try {
+    const session = raw ? JSON.parse(raw) : {};
+    const orgId = String(session?.organization_id || "default").trim() || "default";
+    return `smartallocate.movies.${orgId}`;
+  } catch {
+    return "smartallocate.movies.default";
+  }
+}
+
 export default function Availability() {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
@@ -29,6 +40,7 @@ export default function Availability() {
   const [bookings, setBookings] = useState([]);
 
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [calendarView, setCalendarView] = useState("month");
   const [selectedResource, setSelectedResource] = useState("");
   const [editModal, setEditModal] = useState({
     open: false,
@@ -47,7 +59,16 @@ export default function Availability() {
   const config = getOrgConfig();
   const isCinema = config.domain === "cinema";
   const theme = config.theme;
-  const [movieAssignments, setMovieAssignments] = useState({});
+  const [movieAssignments, setMovieAssignments] = useState(() => {
+    const raw = localStorage.getItem(getMovieStorageKey());
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
   const [movieDraft, setMovieDraft] = useState("");
   const [createModal, setCreateModal] = useState({
     open: false,
@@ -59,17 +80,6 @@ export default function Availability() {
     roles: {},
     movie: DEFAULT_MOVIES[0],
   });
-
-  function getMovieStorageKey() {
-    const raw = localStorage.getItem("smartallocate.admin.session");
-    try {
-      const session = raw ? JSON.parse(raw) : {};
-      const orgId = String(session?.organization_id || "default").trim() || "default";
-      return `smartallocate.movies.${orgId}`;
-    } catch {
-      return "smartallocate.movies.default";
-    }
-  }
 
   function persistMovieAssignments(nextAssignments) {
     setMovieAssignments(nextAssignments);
@@ -141,17 +151,6 @@ export default function Availability() {
     }));
   }
 
-  useEffect(() => {
-    const raw = localStorage.getItem(getMovieStorageKey());
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      setMovieAssignments(parsed && typeof parsed === "object" ? parsed : {});
-    } catch {
-      setMovieAssignments({});
-    }
-  }, []);
-
 useEffect(() => {
   (async () => {
     const [resourcesData, typesData] = await Promise.all([
@@ -169,19 +168,7 @@ useEffect(() => {
   })();
 }, []);
 
-  useEffect(() => {
-    loadBookings();
-  }, [selectedResource, movieAssignments]);
-
-  async function loadBookings() {
-    const qs = selectedResource ? `?resource_id=${selectedResource}` : "";
-    const data = await apiGet(`/bookings${qs}`);
-    const list = Array.isArray(data) ? data : [];
-    setBookings(list);
-    buildCalendarEvents(list);
-  }
-
-  function buildCalendarEvents(list) {
+  const buildCalendarEvents = useCallback((list) => {
     const ev = [];
     list.forEach((b) => {
       const dateStr = moment(b.date).format("YYYY-MM-DD");
@@ -217,7 +204,30 @@ useEffect(() => {
     });
 
     setEvents(ev);
-  }
+  }, [isCinema, movieAssignments, selectedResource]);
+
+  const loadBookings = useCallback(async () => {
+    const qs = selectedResource ? `?resource_id=${selectedResource}` : "";
+    const data = await apiGet(`/bookings${qs}`);
+    const list = Array.isArray(data) ? data : [];
+    setBookings(list);
+    buildCalendarEvents(list);
+  }, [buildCalendarEvents, selectedResource]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const qs = selectedResource ? `?resource_id=${selectedResource}` : "";
+      const data = await apiGet(`/bookings${qs}`);
+      if (cancelled) return;
+      const list = Array.isArray(data) ? data : [];
+      setBookings(list);
+      buildCalendarEvents(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [buildCalendarEvents, selectedResource]);
 
   function openEditModal(event) {
     const booking = bookings.find((b) => b.id === event.booking_id);
@@ -405,6 +415,71 @@ useEffect(() => {
       });
   }, [bookings, dayModal, selectedResource]);
 
+  const bookingCountsByDate = useMemo(() => {
+    return bookings.reduce((acc, booking) => {
+      const bookingDate = moment(booking.date).format("YYYY-MM-DD");
+      if (!bookingDate || bookingDate === "Invalid date") return acc;
+
+      const bookingResources = Array.isArray(booking.resources) ? booking.resources : [];
+      const filteredResources = selectedResource
+        ? bookingResources.filter((resource) => String(resource.id) === String(selectedResource))
+        : bookingResources;
+      if (selectedResource && filteredResources.length === 0) return acc;
+
+      acc[bookingDate] = (acc[bookingDate] || 0) + 1;
+      return acc;
+    }, {});
+  }, [bookings, selectedResource]);
+
+  const displayedEvents = useMemo(() => {
+    return calendarView === "month" ? [] : events;
+  }, [calendarView, events]);
+
+  function handleSelectSlot(slotInfo) {
+    if (calendarView === "month") {
+      openDayModal(slotInfo);
+      return;
+    }
+    if (isCinema) {
+      openCreateModalFromSlot(slotInfo);
+      return;
+    }
+    openDayModal(slotInfo);
+  }
+
+  function handleSelectEvent(event) {
+    if (calendarView === "month") {
+      openDayModal(event?.start || event);
+      return;
+    }
+    openEditModal(event);
+  }
+
+  function MonthDateHeader({ date, label }) {
+    const dateKey = moment(date).format("YYYY-MM-DD");
+    const hasEvents = Number(bookingCountsByDate[dateKey] || 0) > 0;
+    return (
+      <button
+        type="button"
+        onClick={(evt) => {
+          evt.preventDefault();
+          evt.stopPropagation();
+          openDayModal(date);
+        }}
+        className="availability-month-date-header"
+      >
+        <span>{label}</span>
+        {hasEvents && <span className="availability-month-date-dot" aria-hidden="true" />}
+      </button>
+    );
+  }
+
+  const calendarComponents = {
+    month: {
+      dateHeader: MonthDateHeader,
+    },
+  };
+
   const calendarEventStyle = {
     backgroundColor: "#2563eb",
     color: "#ffffff",
@@ -566,11 +641,13 @@ useEffect(() => {
           <div className="availability-rbc [&_.rbc-toolbar]:mb-5 [&_.rbc-toolbar]:flex-wrap [&_.rbc-toolbar]:gap-3 [&_.rbc-toolbar-label]:text-2xl [&_.rbc-toolbar-label]:font-semibold [&_.rbc-toolbar-label]:text-slate-900 [&_.rbc-btn-group]:overflow-hidden [&_.rbc-btn-group]:rounded-2xl [&_.rbc-btn-group]:border [&_.rbc-btn-group]:border-slate-200 [&_.rbc-btn-group]:bg-white [&_.rbc-btn-group_button]:border-0 [&_.rbc-btn-group_button]:px-4 [&_.rbc-btn-group_button]:py-2.5 [&_.rbc-btn-group_button]:text-sm [&_.rbc-btn-group_button]:font-medium [&_.rbc-btn-group_button]:text-slate-600 [&_.rbc-btn-group_button:hover]:bg-slate-50 [&_.rbc-active]:bg-blue-600 [&_.rbc-active]:text-white [&_.rbc-month-view]:overflow-hidden [&_.rbc-month-view]:rounded-[22px] [&_.rbc-month-view]:border [&_.rbc-month-view]:border-slate-200 [&_.rbc-month-view]:bg-white [&_.rbc-header]:border-b [&_.rbc-header]:border-slate-200 [&_.rbc-header]:bg-slate-50 [&_.rbc-header]:py-3 [&_.rbc-header]:font-semibold [&_.rbc-header]:text-slate-800 [&_.rbc-date-cell]:px-2 [&_.rbc-date-cell]:pt-2 [&_.rbc-date-cell]:text-slate-700 [&_.rbc-off-range-bg]:bg-slate-100 [&_.rbc-today]:bg-blue-50 [&_.rbc-day-bg+_.rbc-day-bg]:border-l-slate-200 [&_.rbc-month-row+_.rbc-month-row]:border-t-slate-200 [&_.rbc-time-view]:overflow-hidden [&_.rbc-time-view]:rounded-[22px] [&_.rbc-time-view]:border [&_.rbc-time-view]:border-slate-200 [&_.rbc-time-view]:bg-white [&_.rbc-time-header]:border-b-slate-200 [&_.rbc-timeslot-group]:border-b-slate-100 [&_.rbc-agenda-view]:rounded-[22px] [&_.rbc-agenda-view]:border [&_.rbc-agenda-view]:border-slate-200 [&_.rbc-agenda-view]:bg-white [&_.rbc-agenda-view_table]:w-full [&_.rbc-agenda-view_table]:text-sm [&_.rbc-agenda-date-cell]:font-medium [&_.rbc-current-time-indicator]:bg-red-400">
             <Calendar
               localizer={localizer}
-              events={events}
+              events={displayedEvents}
               date={currentDate}
+              view={calendarView}
               onNavigate={(date) => setCurrentDate(date)}
-              onSelectEvent={openEditModal}
-              onSelectSlot={isCinema ? openCreateModalFromSlot : openDayModal}
+              onView={setCalendarView}
+              onSelectEvent={handleSelectEvent}
+              onSelectSlot={handleSelectSlot}
               startAccessor="start"
               endAccessor="end"
               views={["month", "week", "day", "agenda"]}
@@ -579,6 +656,7 @@ useEffect(() => {
               toolbar
               popup
               selectable
+              components={calendarComponents}
               eventPropGetter={() => ({
                 style: isCinema
                   ? {

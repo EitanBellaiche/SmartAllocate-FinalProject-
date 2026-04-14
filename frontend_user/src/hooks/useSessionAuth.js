@@ -17,6 +17,20 @@ export default function useSessionAuth({
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mustLogout = params.get("logout") === "1";
+    if (mustLogout) {
+      localStorage.removeItem(SESSION_KEY);
+      window.history.replaceState({}, "", window.location.pathname);
+      setCurrentUserId("");
+      setPassword("");
+      setRole("user");
+      setHasUser(false);
+      setError("");
+      onLogoutReset?.();
+      return;
+    }
+
     const raw = localStorage.getItem(SESSION_KEY);
     if (!raw) return;
     try {

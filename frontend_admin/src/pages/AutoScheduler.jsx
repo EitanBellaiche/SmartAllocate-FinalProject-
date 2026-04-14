@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiGet, apiPost } from "../api/api";
+import { apiDelete, apiGet, apiPost } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 
@@ -35,6 +35,358 @@ function buildGroupId() {
 
 function extractGroupSuggestions(item) {
   return Array.isArray(item?.suggestions) ? item.suggestions : [];
+}
+
+function extractSuggestionRules(suggestion) {
+  return Array.isArray(suggestion?.rule_summary?.soft_matches)
+    ? suggestion.rule_summary.soft_matches
+    : [];
+}
+
+function buildGroupTitle(group, resourceTypes, resourceById) {
+  if (!group) return "Allocation";
+  const typeNames = Array.isArray(group.type_ids)
+    ? group.type_ids
+        .map((typeId) => resourceTypes.find((type) => Number(type.id) === Number(typeId))?.name || `Type ${typeId}`)
+        .join(", ")
+    : "";
+  const resourceNames = (group.resource_ids || [])
+    .map((id) => resourceById[id]?.name || `Resource ${id}`)
+    .join(", ");
+  return typeNames
+    ? `${typeNames}${resourceNames ? ` + ${resourceNames}` : ""}`
+    : resourceNames || "Allocation";
+}
+
+function buildDecisionStatsLine(stats) {
+  if (!stats) return "";
+  const parts = [];
+  if (stats.used_locked_slot) parts.push("locked recurring slot");
+  if (stats.used_preferred_window) parts.push("preferred window");
+  if (Number(stats.attempted_slots) > 0) parts.push(`${Number(stats.attempted_slots)} slots checked`);
+  return parts.join(" | ");
+}
+
+function buildScheduledDecisionSignature(item) {
+  const decision = item?.decision_summary || {};
+  const selectedResourceIds = (Array.isArray(decision.selected_resources) ? decision.selected_resources : [])
+    .map((resource) => Number(resource?.id))
+    .filter((id) => Number.isFinite(id))
+    .sort((a, b) => a - b)
+    .join(",");
+  const ruleSignature = (Array.isArray(decision.score_breakdown) ? decision.score_breakdown : [])
+    .slice(0, 6)
+    .map((rule) => `${rule?.id ?? "x"}:${Number(rule?.delta || 0)}`)
+    .join("|");
+  return [
+    String(item?.group_id || ""),
+    String(selectedResourceIds),
+    String(Number(decision?.score || 0)),
+    ruleSignature,
+  ].join("::");
+}
+
+function groupScheduledDecisionItems(scheduled = []) {
+  const grouped = new Map();
+  for (const item of Array.isArray(scheduled) ? scheduled : []) {
+    const signature = buildScheduledDecisionSignature(item);
+    const current = grouped.get(signature);
+    if (!current) {
+      grouped.set(signature, {
+        key: signature,
+        item,
+        occurrences: 1,
+        dates: [item?.date].filter(Boolean),
+      });
+      continue;
+    }
+    current.occurrences += 1;
+    if (item?.date) current.dates.push(item.date);
+  }
+  return Array.from(grouped.values());
+}
+
+function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceById }) {
+  const groupedItems = groupScheduledDecisionItems(scheduled);
+  if (groupedItems.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {groupedItems.map(({ key, item, occurrences, dates }, idx) => {
+        const group = groupById[item.group_id] || null;
+        const title = buildGroupTitle(group, resourceTypes, resourceById);
+        const decision = item?.decision_summary || {};
+        const selectedResources = Array.isArray(decision.selected_resources)
+          ? decision.selected_resources
+          : [];
+        const selectedRules = Array.isArray(decision.score_breakdown)
+          ? decision.score_breakdown
+          : [];
+        const candidateGroups = Array.isArray(decision.candidate_groups)
+          ? decision.candidate_groups
+          : [];
+        const statsLine = buildDecisionStatsLine(decision.search_stats);
+        const sampleDates = dates.slice(0, 3).map((date) => formatIsraelDate(date)).join(", ");
+        return (
+          <div
+            key={`scheduled-group-${key}-${idx}`}
+            className="rounded-2xl border border-emerald-200 bg-white p-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">{title}</div>
+                <div className="mt-1 text-xs text-slate-600">
+                  {occurrences} occurrences
+                  {item?.start_time && item?.end_time
+                    ? ` | ${formatIsraelTime(item.start_time)}-${formatIsraelTime(item.end_time)}`
+                    : ""}
+                  {sampleDates ? ` | ${sampleDates}` : ""}
+                  {dates.length > 3 ? ` +${dates.length - 3} more` : ""}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {Number.isFinite(Number(decision.score)) && (
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-800">
+                    Score {Number(decision.score)}
+                  </span>
+                )}
+                {statsLine && (
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                    {statsLine}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {decision.narrative && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                {decision.narrative}
+              </div>
+            )}
+
+            {selectedResources.length > 0 && (
+              <div className="mt-3 text-xs text-slate-600">
+                Resources: {selectedResources.map((resource) => resource.name).join(", ")}
+              </div>
+            )}
+
+            {Array.isArray(decision.blockers) && decision.blockers.length > 0 && (
+              <div className="mt-2 text-xs text-amber-700">
+                Before success: {decision.blockers.join(" | ")}
+              </div>
+            )}
+
+            {selectedRules.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Score breakdown
+                </div>
+                <div className="mt-3 space-y-2">
+                  {selectedRules.slice(0, 6).map((rule) => (
+                    <div
+                      key={`scheduled-rule-${item.booking_id || idx}-${rule.id}-${rule.name}`}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{rule.name}</div>
+                        {rule.description && (
+                          <div className="mt-1 text-xs text-slate-500">{rule.description}</div>
+                        )}
+                      </div>
+                      <div
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          Number(rule.delta) >= 0
+                            ? "bg-emerald-100 text-emerald-800"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {Number(rule.delta) > 0 ? "+" : ""}
+                        {Number(rule.delta)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {candidateGroups.length > 0 && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {candidateGroups.map((candidateGroup) => (
+                  <div
+                    key={`candidate-group-${item.booking_id || idx}-${candidateGroup.type_id}`}
+                    className="rounded-2xl border border-blue-200 bg-blue-50/50 p-3"
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                      {candidateGroup.type_name}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      Selected: {candidateGroup.selected_resource_name}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-600">
+                      Selected score {candidateGroup.selected_score ?? "N/A"} | Best valid{" "}
+                      {candidateGroup.best_valid_score ?? "N/A"}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {candidateGroup.valid_candidates} valid | {candidateGroup.blocked_candidates} blocked
+                    </div>
+                    {Array.isArray(candidateGroup.top_alternatives) &&
+                      candidateGroup.top_alternatives.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {candidateGroup.top_alternatives.map((alternative) => (
+                            <div
+                              key={`candidate-alt-${item.booking_id || idx}-${candidateGroup.type_id}-${alternative.resource_id}`}
+                              className="rounded-xl border border-blue-100 bg-white px-3 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-medium text-slate-900">
+                                  {alternative.name}
+                                </div>
+                                <div className="text-xs font-semibold text-slate-600">
+                                  Score {alternative.final_score}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SkippedResultCards({
+  skipped,
+  groupById,
+  resourceTypes,
+  resourceById,
+  onApplySuggestion,
+}) {
+  if (!Array.isArray(skipped) || skipped.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {skipped.slice(0, 10).map((item, idx) => {
+        const group = groupById[item.group_id] || null;
+        const title = buildGroupTitle(group, resourceTypes, resourceById);
+        const suggestions = extractGroupSuggestions(item);
+        const failedSlot = item?.failed_slot;
+        const occupiedBy = item?.occupied_by;
+        return (
+          <div
+            key={`${item.group_id || idx}`}
+            className="rounded-2xl border border-red-200 bg-white/75 p-4"
+          >
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              {title}
+            </div>
+            <div className="text-sm font-semibold text-red-800">{item.reason}</div>
+            {failedSlot?.date && failedSlot?.start_time && failedSlot?.end_time && (
+              <div className="mt-1 text-xs text-red-700">
+                Failed slot: {failedSlot.date} {failedSlot.start_time} - {failedSlot.end_time}
+              </div>
+            )}
+            {occupiedBy?.resource_name && (
+              <div className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-800">
+                <div className="font-semibold">Blocking booking</div>
+                <div className="mt-1">
+                  Resource: {occupiedBy.resource_name}
+                  {occupiedBy.resource_type_name ? ` (${occupiedBy.resource_type_name})` : ""}
+                </div>
+                <div>
+                  Booking #{occupiedBy.id ?? occupiedBy.booking_id} | {occupiedBy.date} {occupiedBy.start_time}-
+                  {occupiedBy.end_time}
+                  {occupiedBy.user_id ? ` | User ${occupiedBy.user_id}` : ""}
+                </div>
+              </div>
+            )}
+            {suggestions.length > 0 && (
+              <div className="mt-4 space-y-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
+                  Suggested alternatives
+                </div>
+                {suggestions.map((suggestion, suggestionIndex) => (
+                  <div
+                    key={`${item.group_id || idx}-suggestion-${suggestionIndex}`}
+                    className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800">
+                        {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
+                      </span>
+                      {Number.isFinite(Number(suggestion?.score)) && (
+                        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+                          Score {Number(suggestion.score)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 text-sm font-semibold text-slate-900">
+                      {suggestion.summary || "Alternative"}
+                    </div>
+                    {suggestion.why && (
+                      <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                    )}
+                    {suggestion.type === "timeslot" && (
+                      <div className="mt-2 text-xs text-slate-600">
+                        Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
+                      </div>
+                    )}
+                    {Array.isArray(suggestion.resources) && suggestion.resources.length > 0 && (
+                      <div className="mt-2 text-xs text-slate-600">
+                        Resources: {suggestion.resources.map((resource) => resource.name).join(", ")}
+                      </div>
+                    )}
+                    {extractSuggestionRules(suggestion).length > 0 && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Why this suggestion scored
+                        </div>
+                        <div className="mt-2 space-y-1">
+                          {extractSuggestionRules(suggestion).slice(0, 4).map((rule) => (
+                            <div
+                              key={`suggestion-rule-${item.group_id || idx}-${suggestionIndex}-${rule.id}-${rule.name}`}
+                              className="flex items-center justify-between gap-2 text-xs"
+                            >
+                              <span className="text-slate-700">{rule.name}</span>
+                              <span
+                                className={`rounded-full px-2 py-1 font-semibold ${
+                                  Number(rule.delta) >= 0
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {Number(rule.delta) > 0 ? "+" : ""}
+                                {Number(rule.delta)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(suggestion.type === "resource" || suggestion.type === "timeslot") && (
+                      <button
+                        type="button"
+                        className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+                        onClick={() => onApplySuggestion?.(item.group_id, suggestion)}
+                      >
+                        {suggestion.type === "timeslot" ? "Load time suggestion" : "Use resource suggestion"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {skipped.length > 10 && (
+        <div className="text-xs text-red-700">+{skipped.length - 10} more</div>
+      )}
+    </div>
+  );
 }
 
 function toRunAt(deadlineDate, deadlineTime) {
@@ -112,6 +464,7 @@ export default function AutoScheduler({ embedded = false }) {
   const [allocationsLoading, setAllocationsLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(false);
+  const [expandedJobIds, setExpandedJobIds] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -239,6 +592,13 @@ export default function AutoScheduler({ embedded = false }) {
     }, {});
   }, [resources]);
 
+  const groupById = useMemo(() => {
+    return groups.reduce((acc, group) => {
+      if (group?.group_id) acc[group.group_id] = group;
+      return acc;
+    }, {});
+  }, [groups]);
+
   const filteredResourceTypes = useMemo(() => {
     const query = resourceTypeQuery.trim().toLowerCase();
     return resourceTypes.filter((type) => {
@@ -363,16 +723,55 @@ export default function AutoScheduler({ embedded = false }) {
     );
   }
 
+  function ensureSuggestedWindowId(suggestion) {
+    const startTime = String(suggestion?.start_time || "").slice(0, 5);
+    const endTime = String(suggestion?.end_time || "").slice(0, 5);
+    if (!startTime || !endTime) return "";
+    const existing = timeWindows.find(
+      (window) => window.start_time === startTime && window.end_time === endTime
+    );
+    if (existing?.id) return existing.id;
+    const id = `win_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setTimeWindows((prev) => [
+      ...prev,
+      {
+        id,
+        label: `Suggested ${startTime}-${endTime}`,
+        start_time: startTime,
+        end_time: endTime,
+      },
+    ]);
+    return id;
+  }
+
   function applyAutoSuggestion(groupId, suggestion) {
-    if (!groupId || !Array.isArray(suggestion?.resource_ids) || suggestion.resource_ids.length === 0) {
+    if (!groupId || !suggestion) return;
+
+    if (suggestion.type === "timeslot") {
+      const preferredWindowId = ensureSuggestedWindowId(suggestion);
+      const patch = {
+        preferred_window_id: preferredWindowId,
+      };
+      if (Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0) {
+        patch.resource_ids = suggestion.resource_ids;
+        patch.type_ids = [];
+      }
+      updateGroup(groupId, patch);
+      setMessageTone("success");
+      setMessage(
+        `Loaded suggested time window ${suggestion.start_time}-${suggestion.end_time} for the allocation.`
+      );
       return;
     }
-    updateGroup(groupId, {
-      resource_ids: suggestion.resource_ids,
-      type_ids: [],
-    });
-    setMessageTone("success");
-    setMessage(`Loaded alternative for allocation: ${suggestion.summary || "resource suggestion"}.`);
+
+    if (Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0) {
+      updateGroup(groupId, {
+        resource_ids: suggestion.resource_ids,
+        type_ids: [],
+      });
+      setMessageTone("success");
+      setMessage(`Loaded alternative for allocation: ${suggestion.summary || "resource suggestion"}.`);
+    }
   }
 
   async function loadAllocations() {
@@ -574,6 +973,28 @@ export default function AutoScheduler({ embedded = false }) {
     }
   }
 
+  function toggleJobExpanded(jobId) {
+    setExpandedJobIds((prev) =>
+      prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]
+    );
+  }
+
+  async function deleteJob(jobId) {
+    if (!jobId) return;
+    const confirmed = window.confirm(`Delete auto schedule job #${jobId}?`);
+    if (!confirmed) return;
+    try {
+      await apiDelete(`/auto-schedule/jobs/${jobId}`);
+      setExpandedJobIds((prev) => prev.filter((id) => id !== jobId));
+      setMessageTone("success");
+      setMessage(`Job #${jobId} deleted.`);
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to delete job.");
+    }
+  }
+
   const nextScheduledJob = useMemo(() => {
     const scheduledJobs = jobs
       .filter((job) => job?.status === "scheduled" && job?.run_at)
@@ -655,6 +1076,12 @@ export default function AutoScheduler({ embedded = false }) {
           }`}
         >
           {message}
+        </div>
+      )}
+
+      {loading && (
+        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          Loading scheduler data...
         </div>
       )}
 
@@ -877,6 +1304,17 @@ export default function AutoScheduler({ embedded = false }) {
               const allocationCount = Array.isArray(job?.payload?.groups)
                 ? job.payload.groups.length
                 : 0;
+              const jobGroupById = Array.isArray(job?.payload?.groups)
+                ? job.payload.groups.reduce((acc, group) => {
+                    if (group?.group_id) acc[group.group_id] = group;
+                    return acc;
+                  }, {})
+                : {};
+              const result = job?.result || {};
+              const scheduled = Array.isArray(result?.scheduled) ? result.scheduled : [];
+              const skipped = Array.isArray(result?.skipped) ? result.skipped : [];
+              const isExpanded = expandedJobIds.includes(job.id);
+              const canView = scheduled.length > 0 || skipped.length > 0;
               return (
                 <div
                   key={job.id}
@@ -886,22 +1324,78 @@ export default function AutoScheduler({ embedded = false }) {
                     <div className="font-semibold text-slate-900">
                       Job #{job.id} · {status}
                     </div>
-                    {job.status === "scheduled" && (
-                      <button
-                        type="button"
-                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                        onClick={() => cancelJob(job.id)}
-                      >
-                        Cancel
-                      </button>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {canView && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50"
+                          onClick={() => toggleJobExpanded(job.id)}
+                        >
+                          {isExpanded ? "Hide results" : "View results"}
+                        </button>
+                      )}
+                      {job.status === "scheduled" && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                          onClick={() => cancelJob(job.id)}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {job.status !== "running" && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                          onClick={() => deleteJob(job.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-1 text-xs leading-6 text-slate-600">
                     Run at: {runAtLabel} | Allocations: {allocationCount}
                   </div>
+                  {(scheduled.length > 0 || skipped.length > 0) && (
+                    <div className="mt-1 text-xs leading-6 text-slate-600">
+                      Scheduled: {scheduled.length} | Skipped: {skipped.length}
+                    </div>
+                  )}
                   {job.error && (
                     <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                       {job.error}
+                    </div>
+                  )}
+                  {isExpanded && (
+                    <div className="mt-4 space-y-4">
+                      {scheduled.length > 0 && (
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                            Scheduled decisions
+                          </div>
+                          <ScheduledDecisionCards
+                            scheduled={scheduled}
+                            groupById={jobGroupById}
+                            resourceTypes={resourceTypes}
+                            resourceById={resourceById}
+                          />
+                        </div>
+                      )}
+                      {skipped.length > 0 && (
+                        <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
+                            Skipped details
+                          </div>
+                          <SkippedResultCards
+                            skipped={skipped}
+                            groupById={jobGroupById}
+                            resourceTypes={resourceTypes}
+                            resourceById={resourceById}
+                            onApplySuggestion={applyAutoSuggestion}
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1404,14 +1898,26 @@ export default function AutoScheduler({ embedded = false }) {
       </div>
 
       {lastRun.scheduled.length > 0 && (
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-700">
-            Scheduled summary
+        <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                Scheduled decisions
+              </div>
+              <div className="mt-1 text-sm text-emerald-900">
+                {lastRun.scheduled.length} sessions scheduled. Repeated decisions are grouped once.
+              </div>
+            </div>
+            <div className="text-xs text-emerald-800">
+              Allocations in range still shows the final recurring result.
+            </div>
           </div>
-          <div className="text-xs text-slate-600">
-            {lastRun.scheduled.length} sessions scheduled. See allocations in range for the full
-            recurring blocks.
-          </div>
+          <ScheduledDecisionCards
+            scheduled={lastRun.scheduled}
+            groupById={groupById}
+            resourceTypes={resourceTypes}
+            resourceById={resourceById}
+          />
         </div>
       )}
       {lastRun.skipped.length > 0 && (
@@ -1421,6 +1927,8 @@ export default function AutoScheduler({ embedded = false }) {
           </div>
           <div className="space-y-3">
             {lastRun.skipped.slice(0, 10).map((item, idx) => {
+              const group = groupById[item.group_id] || null;
+              const title = buildGroupTitle(group, resourceTypes, resourceById);
               const suggestions = extractGroupSuggestions(item);
               const failedSlot = item?.failed_slot;
               const occupiedBy = item?.occupied_by;
@@ -1429,6 +1937,9 @@ export default function AutoScheduler({ embedded = false }) {
                   key={`${item.group_id || idx}`}
                   className="rounded-2xl border border-red-200 bg-white/75 p-4"
                 >
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {title}
+                  </div>
                   <div className="text-sm font-semibold text-red-800">{item.reason}</div>
                   {failedSlot?.date && failedSlot?.start_time && failedSlot?.end_time && (
                     <div className="mt-1 text-xs text-red-700">
@@ -1485,13 +1996,40 @@ export default function AutoScheduler({ embedded = false }) {
                               Resources: {suggestion.resources.map((resource) => resource.name).join(", ")}
                             </div>
                           )}
-                          {suggestion.type === "resource" && Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0 && (
+                          {extractSuggestionRules(suggestion).length > 0 && (
+                            <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                Why this suggestion scored
+                              </div>
+                              <div className="mt-2 space-y-1">
+                                {extractSuggestionRules(suggestion).slice(0, 4).map((rule) => (
+                                  <div
+                                    key={`suggestion-rule-${item.group_id || idx}-${suggestionIndex}-${rule.id}-${rule.name}`}
+                                    className="flex items-center justify-between gap-2 text-xs"
+                                  >
+                                    <span className="text-slate-700">{rule.name}</span>
+                                    <span
+                                      className={`rounded-full px-2 py-1 font-semibold ${
+                                        Number(rule.delta) >= 0
+                                          ? "bg-emerald-100 text-emerald-800"
+                                          : "bg-amber-100 text-amber-800"
+                                      }`}
+                                    >
+                                      {Number(rule.delta) > 0 ? "+" : ""}
+                                      {Number(rule.delta)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {(suggestion.type === "resource" || suggestion.type === "timeslot") && (
                             <button
                               type="button"
                               className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
                               onClick={() => applyAutoSuggestion(item.group_id, suggestion)}
                             >
-                              Use resource suggestion
+                              {suggestion.type === "timeslot" ? "Load time suggestion" : "Use resource suggestion"}
                             </button>
                           )}
                         </div>

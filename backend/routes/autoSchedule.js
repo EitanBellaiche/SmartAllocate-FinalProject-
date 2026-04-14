@@ -12,6 +12,7 @@ import { executeAutoSchedule, normalizeOrgId } from "../services/autoScheduleSer
 import {
   cancelAutoScheduleJob,
   createAutoScheduleJob,
+  deleteAutoScheduleJob,
   getOrgSchedulingDeadlineInfo,
   getResponsibleSchedulingDeadlineInfo,
   listAutoScheduleJobs,
@@ -155,6 +156,18 @@ router.post("/jobs/:id/cancel", async (req, res) => {
     console.error("Failed to cancel auto schedule job:", err);
     const code = Number(err?.statusCode) || 500;
     res.status(code).json({ error: err?.message || "Failed to cancel job" });
+  }
+});
+
+router.delete("/jobs/:id", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const job = await deleteAutoScheduleJob({ id: req.params.id, orgId });
+    res.json(job);
+  } catch (err) {
+    console.error("Failed to delete auto schedule job:", err);
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Failed to delete job" });
   }
 });
 

@@ -8,6 +8,7 @@ import {
   hasResourceConflict,
   weekAlreadyScheduled,
 } from "./conflicts.js";
+import { buildAutoScheduleDecisionExplanation } from "./explain.js";
 import { loadCandidateRowsByTypeIds, loadResourceRowsByIds } from "./resources.js";
 import { buildAutoScheduleFailureSuggestions } from "./suggestions.js";
 
@@ -48,6 +49,33 @@ function buildCandidateSlots(availability, durationMinutes) {
     if (a.day_of_week !== b.day_of_week) return a.day_of_week - b.day_of_week;
     return timeToMinutes(a.start_time) - timeToMinutes(b.start_time);
   });
+}
+
+function buildDecisionNarrative({
+  usedLockedSlot,
+  usedPreferredWindow,
+  attemptedSlots,
+  responsibleConflicts,
+  userConflicts,
+  resourceConflicts,
+  ruleConflicts,
+}) {
+  const reasons = [];
+  if (usedLockedSlot) reasons.push("reused the recurring slot pattern");
+  if (usedPreferredWindow) reasons.push("stayed inside the preferred time window");
+  if (attemptedSlots > 1) reasons.push(`passed ${attemptedSlots - 1} blocked candidates before landing on this slot`);
+  if (reasons.length === 0) reasons.push("was the first valid slot in the scan order");
+
+  const blockers = [];
+  if (responsibleConflicts > 0) blockers.push(`${responsibleConflicts} responsible conflicts`);
+  if (userConflicts > 0) blockers.push(`${userConflicts} assigned-user conflicts`);
+  if (resourceConflicts > 0) blockers.push(`${resourceConflicts} resource conflicts`);
+  if (ruleConflicts > 0) blockers.push(`${ruleConflicts} rule blocks`);
+
+  return {
+    summary: reasons.join(". ") + ".",
+    blockers,
+  };
 }
 
 export async function pickLockedSlot({
@@ -509,6 +537,11 @@ export async function scheduleGroup({
     let scheduledThisWeekCount = 0;
     let weekFailure = lastFailure;
     let weekSlots = 0;
+    let localAttemptedSlots = 0;
+    let localResponsibleConflicts = 0;
+    let localUserConflicts = 0;
+    let localResourceConflicts = 0;
+    let localRuleConflicts = 0;
 
     for (let pass = 0; pass < 2; pass += 1) {
       const enforceLockedSlots = pass === 0 && lockedSlots.length > 0;
@@ -552,165 +585,236 @@ export async function scheduleGroup({
                 continue;
               }
 
-            if (enforceLockedSlots) {
-              const matchesAnyLock = lockedSlots.some((locked) => locked.day_of_week === dayOfWeek && locked.start_time === startTime && locked.end_time === endTime);
-              if (!matchesAnyLock) continue;
-            }
+              if (enforceLockedSlots) {
+                const matchesAnyLock = lockedSlots.some((locked) => (
+                  locked.day_of_week === dayOfWeek &&
+                  locked.start_time === startTime &&
+                  locked.end_time === endTime
+                ));
+                if (!matchesAnyLock) continue;
+              }
 
-            attemptedSlots += 1;
-            if (responsibleId) {
-              const responsibleConflict = await findUserConflict(client, responsibleId, dayKey, startTime, endTime, orgId);
-              if (responsibleConflict) {
-                weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
-                responsibleConflicts += 1;
+              attemptedSlots += 1;
+              localAttemptedSlots += 1;
+              if (responsibleId) {
+                const responsibleConflict = await findUserConflict(client, responsibleId, dayKey, startTime, endTime, orgId);
+                if (responsibleConflict) {
+                  weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
+                  responsibleConflicts += 1;
+                  localResponsibleConflicts += 1;
+                  if (!failureContext) {
+                    failureContext = { type: "responsible_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resourceRows], candidateTypeIds: [...typeIds] };
+                  }
+                  continue;
+                }
+              }
+
+              let userConflict = null;
+              if (uniqueUserIds.length > 0) {
+                for (const userId of uniqueUserIds) {
+                  userConflict = await findUserConflict(client, userId, dayKey, startTime, endTime, orgId);
+                  if (userConflict) break;
+                }
+              }
+              if (userConflict) {
+                weekFailure = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
+                userConflicts += 1;
+                localUserConflicts += 1;
                 if (!failureContext) {
-                  failureContext = { type: "responsible_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resourceRows], candidateTypeIds: [...typeIds] };
+                  failureContext = { type: "user_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resourceRows], candidateTypeIds: [...typeIds] };
                 }
                 continue;
               }
-            }
 
-            let userConflict = null;
-            if (uniqueUserIds.length > 0) {
-              for (const userId of uniqueUserIds) {
-                userConflict = await findUserConflict(client, userId, dayKey, startTime, endTime, orgId);
-                if (userConflict) break;
+              let resolvedResourceRows = [...resourceRows];
+              let resolvedResourceIds = resolvedResourceRows
+                .map((resource) => Number(resource.id))
+                .filter((id) => Number.isFinite(id));
+
+              if (typeIds.length > 0) {
+                const candidateRows = await loadCandidateRowsByTypeIds(client, typeIds, orgId, dayKey, startTime, endTime, resolvedResourceIds);
+                const candidatePools = typeIds.map((typeId) => ({
+                  typeId,
+                  candidates: candidateRows.filter((resource) => Number(resource.type_id) === Number(typeId)),
+                }));
+                const emptyPool = candidatePools.find((pool) => pool.candidates.length === 0);
+                if (emptyPool) {
+                  weekFailure = `No available resource for type ${emptyPool.typeId}`;
+                  resourceConflicts += 1;
+                  localResourceConflicts += 1;
+                  if (!failureContext) {
+                    failureContext = { type: "missing_type_resource", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds] };
+                  }
+                  continue;
+                }
+                const { best } = pickBestResourceCombination({
+                  fixedResources: resolvedResourceRows,
+                  candidatePools,
+                  rules: ruleRows,
+                  booking: { date: dayKey, start_time: startTime, end_time: endTime, user_id: responsibleId },
+                  roles: {},
+                });
+                if (!best) {
+                  weekFailure = `No matching resources satisfy the active rules at ${dayKey} ${startTime}-${endTime}`;
+                  ruleConflicts += 1;
+                  localRuleConflicts += 1;
+                  if (!failureContext) {
+                    failureContext = { type: "rule_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds] };
+                  }
+                  continue;
+                }
+                resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
+                resolvedResourceIds = resolvedResourceRows
+                  .map((resource) => Number(resource.id))
+                  .filter((id) => Number.isFinite(id));
               }
-            }
-            if (userConflict) {
-              weekFailure = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
-              userConflicts += 1;
-              if (!failureContext) {
-                failureContext = { type: "user_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resourceRows], candidateTypeIds: [...typeIds] };
-              }
-              continue;
-            }
 
-            let resolvedResourceRows = [...resourceRows];
-            let resolvedResourceIds = resolvedResourceRows.map((resource) => Number(resource.id)).filter((id) => Number.isFinite(id));
-
-            if (typeIds.length > 0) {
-              const candidateRows = await loadCandidateRowsByTypeIds(client, typeIds, orgId, dayKey, startTime, endTime, resolvedResourceIds);
-              const candidatePools = typeIds.map((typeId) => ({
-                typeId,
-                candidates: candidateRows.filter((resource) => Number(resource.type_id) === Number(typeId)),
-              }));
-              const emptyPool = candidatePools.find((pool) => pool.candidates.length === 0);
-              if (emptyPool) {
-                weekFailure = `No available resource for type ${emptyPool.typeId}`;
+              const resourceConflict = await hasResourceConflict(client, resolvedResourceIds, dayKey, startTime, endTime, orgId);
+              if (resourceConflict) {
+                const conflictDetails = await findResourceConflictDetails(client, resolvedResourceIds, dayKey, startTime, endTime, orgId);
+                weekFailure = conflictDetails?.resource_name
+                  ? `${conflictDetails.resource_name} is occupied by booking #${conflictDetails.id} on ${dayKey} ${startTime}-${endTime}.`
+                  : `Resource conflict at ${dayKey} ${startTime}-${endTime}`;
                 resourceConflicts += 1;
+                localResourceConflicts += 1;
                 if (!failureContext) {
-                  failureContext = { type: "missing_type_resource", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds] };
+                  failureContext = { type: "resource_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds], occupiedBy: conflictDetails || null };
                 }
                 continue;
               }
-              const { best } = pickBestResourceCombination({
-                fixedResources: resolvedResourceRows,
-                candidatePools,
+
+              const ruleEval = evaluateRules({
                 rules: ruleRows,
                 booking: { date: dayKey, start_time: startTime, end_time: endTime, user_id: responsibleId },
+                resources: resolvedResourceRows,
                 roles: {},
               });
-              if (!best) {
-                weekFailure = `No matching resources satisfy the active rules at ${dayKey} ${startTime}-${endTime}`;
+              if (ruleEval.hardViolations.length > 0) {
+                const violation = ruleEval.hardViolations[0];
+                const ruleLabel = violation?.name ? ` (${violation.name})` : "";
+                weekFailure = `Rule violation${ruleLabel} at ${dayKey} ${startTime}-${endTime}`;
                 ruleConflicts += 1;
+                localRuleConflicts += 1;
                 if (!failureContext) {
                   failureContext = { type: "rule_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds] };
                 }
                 continue;
               }
-              resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
-              resolvedResourceIds = resolvedResourceRows.map((resource) => Number(resource.id)).filter((id) => Number.isFinite(id));
-            }
 
-            const resourceConflict = await hasResourceConflict(client, resolvedResourceIds, dayKey, startTime, endTime, orgId);
-            if (resourceConflict) {
-              const conflictDetails = await findResourceConflictDetails(client, resolvedResourceIds, dayKey, startTime, endTime, orgId);
-              weekFailure = conflictDetails?.resource_name
-                ? `${conflictDetails.resource_name} is occupied by booking #${conflictDetails.id} on ${dayKey} ${startTime}-${endTime}.`
-                : `Resource conflict at ${dayKey} ${startTime}-${endTime}`;
-              resourceConflicts += 1;
-              if (!failureContext) {
-                failureContext = { type: "resource_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds], occupiedBy: conflictDetails || null };
+              if (responsibleId) {
+                const alreadyExists = await hasExactBooking(client, responsibleId, resolvedResourceIds, dayKey, startTime, endTime, orgId);
+                if (alreadyExists) {
+                  scheduledThisWeekCount += 1;
+                  localAttemptedSlots = 0;
+                  localResponsibleConflicts = 0;
+                  localUserConflicts = 0;
+                  localResourceConflicts = 0;
+                  localRuleConflicts = 0;
+                  if (scheduledThisWeekCount >= daysPerWeek) break;
+                  continue;
+                }
               }
-              continue;
-            }
 
-            const ruleEval = evaluateRules({
-              rules: ruleRows,
-              booking: { date: dayKey, start_time: startTime, end_time: endTime, user_id: responsibleId },
-              resources: resolvedResourceRows,
-              roles: {},
-            });
-            if (ruleEval.hardViolations.length > 0) {
-              const violation = ruleEval.hardViolations[0];
-              const ruleLabel = violation?.name ? ` (${violation.name})` : "";
-              weekFailure = `Rule violation${ruleLabel} at ${dayKey} ${startTime}-${endTime}`;
-              ruleConflicts += 1;
-              if (!failureContext) {
-                failureContext = { type: "rule_conflict", bookingDate: dayKey, startTime, endTime, resources: [...resolvedResourceRows], candidateTypeIds: [...typeIds] };
-              }
-              continue;
-            }
-
-            if (responsibleId) {
-              const alreadyExists = await hasExactBooking(client, responsibleId, resolvedResourceIds, dayKey, startTime, endTime, orgId);
-              if (alreadyExists) {
-                scheduledThisWeekCount += 1;
-                if (scheduledThisWeekCount >= daysPerWeek) break;
-                continue;
-              }
-            }
-
-            const bookingResult = await client.query(
-              `
-              INSERT INTO bookings (user_id, date, start_time, end_time)
-              VALUES ($1, $2, $3, $4)
-              RETURNING *
-              `,
-              [responsibleId || null, dayKey, startTime, endTime]
-            );
-            const booking = bookingResult.rows[0];
-
-            for (const resourceId of resolvedResourceIds) {
-              await client.query(
-                `
-                INSERT INTO booking_resources (booking_id, resource_id, role)
-                VALUES ($1, $2, $3)
-                `,
-                [booking.id, resourceId, null]
-              );
-            }
-
-            for (const userId of uniqueUserIds) {
-              const userExists = await hasExactBooking(client, userId, resolvedResourceIds, dayKey, startTime, endTime, orgId);
-              if (userExists) continue;
-              const userBookingResult = await client.query(
+              const bookingResult = await client.query(
                 `
                 INSERT INTO bookings (user_id, date, start_time, end_time)
                 VALUES ($1, $2, $3, $4)
                 RETURNING *
                 `,
-                [userId, dayKey, startTime, endTime]
+                [responsibleId || null, dayKey, startTime, endTime]
               );
-              const userBooking = userBookingResult.rows[0];
+              const booking = bookingResult.rows[0];
+
               for (const resourceId of resolvedResourceIds) {
                 await client.query(
                   `
                   INSERT INTO booking_resources (booking_id, resource_id, role)
                   VALUES ($1, $2, $3)
                   `,
-                  [userBooking.id, resourceId, null]
+                  [booking.id, resourceId, null]
                 );
               }
-            }
 
-            groupScheduled.push({ group_id: group?.group_id || null, booking_id: booking.id, date: dayKey, start_time: startTime, end_time: endTime, resource_ids: resolvedResourceIds });
-            if (lockedSlots.length === 0) lockedSlots = [{ day_of_week: dayOfWeek, start_time: startTime, end_time: endTime }];
-            scheduledThisWeekCount += 1;
+              for (const userId of uniqueUserIds) {
+                const userExists = await hasExactBooking(client, userId, resolvedResourceIds, dayKey, startTime, endTime, orgId);
+                if (userExists) continue;
+                const userBookingResult = await client.query(
+                  `
+                  INSERT INTO bookings (user_id, date, start_time, end_time)
+                  VALUES ($1, $2, $3, $4)
+                  RETURNING *
+                  `,
+                  [userId, dayKey, startTime, endTime]
+                );
+                const userBooking = userBookingResult.rows[0];
+                for (const resourceId of resolvedResourceIds) {
+                  await client.query(
+                    `
+                    INSERT INTO booking_resources (booking_id, resource_id, role)
+                    VALUES ($1, $2, $3)
+                    `,
+                    [userBooking.id, resourceId, null]
+                  );
+                }
+              }
+
+              const explanation = await buildAutoScheduleDecisionExplanation({
+                client,
+                orgId,
+                bookingDate: dayKey,
+                startTime,
+                endTime,
+                userId: responsibleId,
+                resources: resolvedResourceRows,
+                candidateTypeIds: typeIds,
+                rules: ruleRows,
+                roles: {},
+                evaluation: ruleEval,
+              });
+              const narrative = buildDecisionNarrative({
+                usedLockedSlot: enforceLockedSlots,
+                usedPreferredWindow: enforcePreferred,
+                attemptedSlots: localAttemptedSlots,
+                responsibleConflicts: localResponsibleConflicts,
+                userConflicts: localUserConflicts,
+                resourceConflicts: localResourceConflicts,
+                ruleConflicts: localRuleConflicts,
+              });
+
+              groupScheduled.push({
+                group_id: group?.group_id || null,
+                booking_id: booking.id,
+                date: dayKey,
+                start_time: startTime,
+                end_time: endTime,
+                resource_ids: resolvedResourceIds,
+                decision_summary: {
+                  ...explanation,
+                  narrative: narrative.summary,
+                  blockers: narrative.blockers,
+                  search_stats: {
+                    attempted_slots: localAttemptedSlots,
+                    responsible_conflicts: localResponsibleConflicts,
+                    user_conflicts: localUserConflicts,
+                    resource_conflicts: localResourceConflicts,
+                    rule_conflicts: localRuleConflicts,
+                    used_locked_slot: enforceLockedSlots,
+                    used_preferred_window: enforcePreferred,
+                  },
+                },
+              });
+              if (lockedSlots.length === 0) {
+                lockedSlots = [{ day_of_week: dayOfWeek, start_time: startTime, end_time: endTime }];
+              }
+              scheduledThisWeekCount += 1;
+              localAttemptedSlots = 0;
+              localResponsibleConflicts = 0;
+              localUserConflicts = 0;
+              localResourceConflicts = 0;
+              localRuleConflicts = 0;
+              if (scheduledThisWeekCount >= daysPerWeek) break;
+            }
             if (scheduledThisWeekCount >= daysPerWeek) break;
-          }
-          if (scheduledThisWeekCount >= daysPerWeek) break;
           }
           if (scheduledThisWeekCount >= daysPerWeek) break;
         }
@@ -771,4 +875,3 @@ export async function scheduleGroup({
 
   return { scheduled: groupScheduled, skipped: null };
 }
-

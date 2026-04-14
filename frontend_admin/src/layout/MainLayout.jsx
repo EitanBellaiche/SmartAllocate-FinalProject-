@@ -14,6 +14,16 @@ function getUserUrl() {
   }
 }
 
+function getUserLogoutUrl() {
+  try {
+    const url = new URL(getUserUrl());
+    url.searchParams.set("logout", "1");
+    return url.toString();
+  } catch {
+    return `${DEFAULT_USER_URL}?logout=1`;
+  }
+}
+
 export default function MainLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const config = getOrgConfig();
@@ -86,7 +96,7 @@ export default function MainLayout() {
             type="button"
             onClick={() => {
               clearAdminSession();
-              window.location.assign(getUserUrl());
+              window.location.assign(getUserLogoutUrl());
             }}
             className={`w-full text-left text-sm font-medium ${theme.textSoft} ${theme.hoverText || "hover:text-indigo-600"}`}
           >
