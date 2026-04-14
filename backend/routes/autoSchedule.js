@@ -952,10 +952,12 @@ async function diagnoseGroupFailure({
   const userIds = Array.from(
     new Set(rawUserIds.map((id) => String(id).trim()).filter(Boolean))
   ).filter((id) => id && id !== responsibleId);
-  const weeklyHours = Number(group?.weekly_hours || 0);
   const daysPerWeek = clampDaysPerWeek(group?.days_per_week ?? 1);
-  const perSessionHours =
-    (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
+  const hoursPerDay = Number(group?.hours_per_day);
+  const weeklyHours = Number(group?.weekly_hours || 0);
+  const perSessionHours = Number.isFinite(hoursPerDay) && hoursPerDay > 0
+    ? hoursPerDay
+    : (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
   const durationMinutes = roundDurationToGrid(Math.round(perSessionHours * 60));
 
   let resourceRows = [];
@@ -1119,10 +1121,11 @@ async function diagnoseGroupFailure({
               });
               return {
                 group_id: group?.group_id || null,
-                reason: `${resourceConflict.resource_name} is occupied on ${dayKey} ${startTime}-${endTime}.`,
+                reason: `${resourceConflict.resource_name} is occupied by booking #${resourceConflict.id} on ${dayKey} ${startTime}-${endTime}.`,
                 failure_type: "resource_conflict",
                 failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
                 occupied_by: {
+                  id: resourceConflict.id,
                   booking_id: resourceConflict.id,
                   user_id: resourceConflict.user_id,
                   resource_id: resourceConflict.resource_id,
@@ -1388,10 +1391,12 @@ router.post("/", async (req, res) => {
       const uniqueUserIds = Array.from(new Set(userIds)).filter(
         (id) => id && id !== responsibleId
       );
-      const weeklyHours = Number(group?.weekly_hours || 0);
       const daysPerWeek = clampDaysPerWeek(group?.days_per_week ?? 1);
-      const perSessionHours =
-        (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
+      const hoursPerDay = Number(group?.hours_per_day);
+      const weeklyHours = Number(group?.weekly_hours || 0);
+      const perSessionHours = Number.isFinite(hoursPerDay) && hoursPerDay > 0
+        ? hoursPerDay
+        : (Number.isFinite(weeklyHours) && weeklyHours > 0 ? weeklyHours : 3) / daysPerWeek;
       const durationMinutes = roundDurationToGrid(Math.round(perSessionHours * 60));
 
       if (resourceIds.length === 0 && typeIds.length === 0) {
@@ -1399,7 +1404,7 @@ router.post("/", async (req, res) => {
         continue;
       }
       if (durationMinutes <= 0) {
-        skipped.push({ group_id: group?.group_id || null, reason: "Invalid weekly hours" });
+        skipped.push({ group_id: group?.group_id || null, reason: "Invalid hours per day" });
         continue;
       }
 
@@ -1517,81 +1522,86 @@ router.post("/", async (req, res) => {
         let scheduledThisWeekCount = 0;
         let weekFailure = lastFailure;
         let weekSlots = 0;
-        for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
-          const dayOfWeek = day.getDay();
-          const dayKey = formatDate(day);
-          const dayAvailability = getDayAvailabilityWindows(
-            availability,
-            availabilityOverrides,
-            dayKey,
-            dayOfWeek
-          );
+        for (let pass = 0; pass < 2; pass += 1) {
+          const enforceLockedSlots = pass === 0 && lockedSlots.length > 0;
+          // If we already found at least one session this week, don't loosen constraints.
+          if (pass === 1 && (scheduledThisWeekCount > 0 || !enforceLockedSlots)) break;
 
-          if (dayAvailability.length === 0) continue;
-          availabilityDays += 1;
-
-          if (lockedSlots.length > 0) {
-            const dayLocks = lockedSlots.filter((slot) => slot.day_of_week === dayOfWeek);
-            if (dayLocks.length === 0) continue;
-            const matchesWindow = dayLocks.some((locked) =>
-              dayAvailability.some((slot) => {
-                const slotStart = String(slot.start_time).slice(0, 5);
-                const slotEnd = String(slot.end_time).slice(0, 5);
-                return locked.start_time >= slotStart && locked.end_time <= slotEnd;
-              })
+          for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
+            const dayOfWeek = day.getDay();
+            const dayKey = formatDate(day);
+            const dayAvailability = getDayAvailabilityWindows(
+              availability,
+              availabilityOverrides,
+              dayKey,
+              dayOfWeek
             );
-            if (!matchesWindow) continue;
-          }
 
-          for (const slot of dayAvailability) {
-            const slotStart = normalizeTimeKey(slot.start_time);
-            const slotEnd = normalizeTimeKey(slot.end_time);
-            const slotStartMin = timeToMinutes(slotStart);
-            const slotEndMin = timeToMinutes(slotEnd);
-            for (
-              let candidate = slotStartMin;
-              candidate + durationMinutes <= slotEndMin;
-              candidate += 30
-            ) {
-              weekSlots += 1;
-              const startTime = addMinutes("00:00", candidate);
-              const endTime = addMinutes("00:00", candidate + durationMinutes);
-              if (lockedSlots.length > 0) {
-                const matchesAnyLock = lockedSlots.some(
-                  (locked) =>
-                    locked.day_of_week === dayOfWeek &&
-                    locked.start_time === startTime &&
-                    locked.end_time === endTime
-                );
-                if (!matchesAnyLock) continue;
-              }
+            if (dayAvailability.length === 0) continue;
+            availabilityDays += 1;
 
-              attemptedSlots += 1;
-              if (responsibleId) {
-                const responsibleConflict = await findUserConflict(
-                  client,
-                  responsibleId,
-                  dayKey,
-                  startTime,
-                  endTime,
-                  orgId
-                );
-                if (responsibleConflict) {
-                  weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
-                  responsibleConflicts += 1;
-                  if (!failureContext) {
-                    failureContext = {
-                      type: "responsible_conflict",
-                      bookingDate: dayKey,
-                      startTime,
-                      endTime,
-                      resources: [...resourceRows],
-                      candidateTypeIds: [...typeIds],
-                    };
-                  }
-                  continue;
+            if (enforceLockedSlots) {
+              const dayLocks = lockedSlots.filter((slot) => slot.day_of_week === dayOfWeek);
+              if (dayLocks.length === 0) continue;
+              const matchesWindow = dayLocks.some((locked) =>
+                dayAvailability.some((slot) => {
+                  const slotStart = String(slot.start_time).slice(0, 5);
+                  const slotEnd = String(slot.end_time).slice(0, 5);
+                  return locked.start_time >= slotStart && locked.end_time <= slotEnd;
+                })
+              );
+              if (!matchesWindow) continue;
+            }
+
+            for (const slot of dayAvailability) {
+              const slotStart = normalizeTimeKey(slot.start_time);
+              const slotEnd = normalizeTimeKey(slot.end_time);
+              const slotStartMin = timeToMinutes(slotStart);
+              const slotEndMin = timeToMinutes(slotEnd);
+              for (
+                let candidate = slotStartMin;
+                candidate + durationMinutes <= slotEndMin;
+                candidate += 30
+              ) {
+                weekSlots += 1;
+                const startTime = addMinutes("00:00", candidate);
+                const endTime = addMinutes("00:00", candidate + durationMinutes);
+                if (enforceLockedSlots) {
+                  const matchesAnyLock = lockedSlots.some(
+                    (locked) =>
+                      locked.day_of_week === dayOfWeek &&
+                      locked.start_time === startTime &&
+                      locked.end_time === endTime
+                  );
+                  if (!matchesAnyLock) continue;
                 }
-              }
+
+                attemptedSlots += 1;
+                if (responsibleId) {
+                  const responsibleConflict = await findUserConflict(
+                    client,
+                    responsibleId,
+                    dayKey,
+                    startTime,
+                    endTime,
+                    orgId
+                  );
+                  if (responsibleConflict) {
+                    weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
+                    responsibleConflicts += 1;
+                    if (!failureContext) {
+                      failureContext = {
+                        type: "responsible_conflict",
+                        bookingDate: dayKey,
+                        startTime,
+                        endTime,
+                        resources: [...resourceRows],
+                        candidateTypeIds: [...typeIds],
+                      };
+                    }
+                    continue;
+                  }
+                }
 
               let userConflict = null;
               if (uniqueUserIds.length > 0) {
@@ -1700,7 +1710,17 @@ router.post("/", async (req, res) => {
                 orgId
               );
               if (resourceConflict) {
-                weekFailure = `Resource conflict at ${dayKey} ${startTime}-${endTime}`;
+                const conflictDetails = await findResourceConflictDetails(
+                  client,
+                  resolvedResourceIds,
+                  dayKey,
+                  startTime,
+                  endTime,
+                  orgId
+                );
+                weekFailure = conflictDetails?.resource_name
+                  ? `${conflictDetails.resource_name} is occupied by booking #${conflictDetails.id} on ${dayKey} ${startTime}-${endTime}.`
+                  : `Resource conflict at ${dayKey} ${startTime}-${endTime}`;
                 resourceConflicts += 1;
                 if (!failureContext) {
                   failureContext = {
@@ -1710,6 +1730,7 @@ router.post("/", async (req, res) => {
                     endTime,
                     resources: [...resolvedResourceRows],
                     candidateTypeIds: [...typeIds],
+                    occupiedBy: conflictDetails || null,
                   };
                 }
                 continue;
@@ -1838,6 +1859,8 @@ router.post("/", async (req, res) => {
           }
           if (scheduledThisWeekCount >= daysPerWeek) break;
         }
+        if (scheduledThisWeekCount >= daysPerWeek) break;
+      }
 
         if (scheduledThisWeekCount === 0 && weekSlots > 0) {
           lastFailure = weekFailure;
@@ -1880,6 +1903,20 @@ router.post("/", async (req, res) => {
             roles: {},
           });
         }
+        if (!suggestions || suggestions.length === 0) {
+          const diagnosis = await diagnoseGroupFailure({
+            client,
+            group,
+            startDate,
+            endDate,
+            orgId,
+            ruleRows,
+          });
+          suggestions = Array.isArray(diagnosis?.suggestions) ? diagnosis.suggestions : [];
+          if (diagnosis?.reason) {
+            reason = diagnosis.reason;
+          }
+        }
         skipped.push({
           group_id: group?.group_id || null,
           reason,
@@ -1892,6 +1929,7 @@ router.post("/", async (req, res) => {
                   end_time: failureContext.endTime,
                 }
               : null,
+          occupied_by: failureContext?.occupiedBy || null,
           suggestions,
         });
       } else {

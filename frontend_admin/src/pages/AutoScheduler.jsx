@@ -4,7 +4,7 @@ import IsraelDateInput from "../components/IsraelDateInput";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 
 const DEFAULT_SEMESTER_MONTHS = 3;
-const DEFAULT_WEEKLY_HOURS = 3;
+const DEFAULT_HOURS_PER_DAY = 3;
 const DEFAULT_DAYS_PER_WEEK = 1;
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -66,7 +66,7 @@ export default function AutoScheduler({ embedded = false }) {
     resourceIds: [],
     responsibleId: "",
     userIds: "",
-    weeklyHours: String(DEFAULT_WEEKLY_HOURS),
+    hoursPerDay: String(DEFAULT_HOURS_PER_DAY),
     daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
   });
   const [groups, setGroups] = useState([]);
@@ -231,7 +231,7 @@ export default function AutoScheduler({ embedded = false }) {
       resource_ids: selection.resourceIds,
       responsible_user_id: selection.responsibleId.trim(),
       user_ids: parseIds(selection.userIds),
-      weekly_hours: Number(selection.weeklyHours) || DEFAULT_WEEKLY_HOURS,
+      hours_per_day: Number(selection.hoursPerDay) || DEFAULT_HOURS_PER_DAY,
       days_per_week: Math.min(
         7,
         Math.max(1, Number(selection.daysPerWeek) || DEFAULT_DAYS_PER_WEEK)
@@ -243,7 +243,7 @@ export default function AutoScheduler({ embedded = false }) {
       resourceIds: [],
       responsibleId: "",
       userIds: "",
-      weeklyHours: String(DEFAULT_WEEKLY_HOURS),
+      hoursPerDay: String(DEFAULT_HOURS_PER_DAY),
       daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
     });
     setResponsibleQuery("");
@@ -674,15 +674,16 @@ export default function AutoScheduler({ embedded = false }) {
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-800">
-                Hours per week
+                Hours per day
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.5"
+                step="0.5"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
-                value={selection.weeklyHours}
+                value={selection.hoursPerDay}
                 onChange={(e) =>
-                  setSelection((prev) => ({ ...prev, weeklyHours: e.target.value }))
+                  setSelection((prev) => ({ ...prev, hoursPerDay: e.target.value }))
                 }
               />
             </div>
@@ -766,15 +767,21 @@ export default function AutoScheduler({ embedded = false }) {
                       />
                     </div>
                     <div>
-                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Hours per week</label>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Hours per day</label>
                       <input
                         type="number"
-                        min="1"
+                        min="0.5"
+                        step="0.5"
                         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
-                        value={group.weekly_hours}
+                        value={
+                          group.hours_per_day ??
+                          (Number(group.weekly_hours || 0) > 0
+                            ? Number(group.weekly_hours) / (Number(group.days_per_week || 1) || 1)
+                            : DEFAULT_HOURS_PER_DAY)
+                        }
                         onChange={(e) =>
                           updateGroup(group.group_id, {
-                            weekly_hours: Number(e.target.value) || DEFAULT_WEEKLY_HOURS,
+                            hours_per_day: Number(e.target.value) || DEFAULT_HOURS_PER_DAY,
                           })
                         }
                       />
@@ -888,6 +895,7 @@ export default function AutoScheduler({ embedded = false }) {
             {lastRun.skipped.slice(0, 10).map((item, idx) => {
               const suggestions = extractGroupSuggestions(item);
               const failedSlot = item?.failed_slot;
+              const occupiedBy = item?.occupied_by;
               return (
                 <div
                   key={`${item.group_id || idx}`}
@@ -897,6 +905,20 @@ export default function AutoScheduler({ embedded = false }) {
                   {failedSlot?.date && failedSlot?.start_time && failedSlot?.end_time && (
                     <div className="mt-1 text-xs text-red-700">
                       Failed slot: {failedSlot.date} {failedSlot.start_time} - {failedSlot.end_time}
+                    </div>
+                  )}
+                  {occupiedBy?.resource_name && (
+                    <div className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-800">
+                      <div className="font-semibold">Blocking booking</div>
+                      <div className="mt-1">
+                        Resource: {occupiedBy.resource_name}
+                        {occupiedBy.resource_type_name ? ` (${occupiedBy.resource_type_name})` : ""}
+                      </div>
+                      <div>
+                        Booking #{occupiedBy.id ?? occupiedBy.booking_id} | {occupiedBy.date} {occupiedBy.start_time}-
+                        {occupiedBy.end_time}
+                        {occupiedBy.user_id ? ` | User ${occupiedBy.user_id}` : ""}
+                      </div>
                     </div>
                   )}
                   {suggestions.length > 0 && (
