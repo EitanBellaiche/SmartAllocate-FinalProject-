@@ -12,6 +12,80 @@ async function safeJson(res) {
   return null; // no JSON body
 }
 
+async function safeText(res) {
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return "";
+  }
+  try {
+    return await res.text();
+  } catch {
+    return "";
+  }
+}
+
+async function request(path, options = {}) {
+  const {
+    method = "GET",
+    body,
+    timeoutMs = 0,
+    timeoutMessage,
+  } = options;
+
+  const controller = new AbortController();
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          controller.abort();
+        }, timeoutMs)
+      : null;
+
+  try {
+    const requestPath =
+      method === "GET" || method === "DELETE" ? withOrgQuery(path) : path;
+    const payload =
+      body && method !== "GET" && method !== "DELETE"
+        ? JSON.stringify(withOrgBody(body))
+        : undefined;
+
+    const res = await fetch(API_BASE + requestPath, {
+      method,
+      headers:
+        payload !== undefined
+          ? { "Content-Type": "application/json" }
+          : undefined,
+      body: payload,
+      signal: controller.signal,
+    });
+
+    const data = await safeJson(res);
+    const text = data ? "" : await safeText(res);
+
+    if (!res.ok) {
+      const err = new Error(
+        data?.error || text || (method === "DELETE" ? "Delete failed" : "Request failed")
+      );
+      err.data = data;
+      err.status = res.status;
+      throw err;
+    }
+
+    return data;
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      const timeoutError = new Error(
+        timeoutMessage ||
+          `Request timed out after ${Math.round(timeoutMs / 1000)} seconds.`
+      );
+      timeoutError.code = "REQUEST_TIMEOUT";
+      throw timeoutError;
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function getAdminSession() {
   const raw = localStorage.getItem(SESSION_KEY);
   if (!raw) return null;
@@ -49,71 +123,21 @@ function withOrgBody(body) {
 }
 
 // GET
-export async function apiGet(path) {
-  const res = await fetch(API_BASE + withOrgQuery(path));
-
-  const data = await safeJson(res);
-
-  if (!res.ok) {
-    const err = new Error(data?.error || "Request failed");
-    err.data = data;
-    throw err;
-  }
-
-  return data;
+export async function apiGet(path, options = {}) {
+  return request(path, { ...options, method: "GET" });
 }
 
 // POST
-export async function apiPost(path, body) {
-  const res = await fetch(API_BASE + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(withOrgBody(body)),
-  });
-
-  const data = await safeJson(res);
-
-  if (!res.ok) {
-    const err = new Error(data?.error || "Request failed");
-    err.data = data;
-    throw err;
-  }
-
-  return data;
+export async function apiPost(path, body, options = {}) {
+  return request(path, { ...options, method: "POST", body });
 }
 
 // PUT
-export async function apiPut(path, body) {
-  const res = await fetch(API_BASE + path, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(withOrgBody(body)),
-  });
-
-  const data = await safeJson(res);
-
-  if (!res.ok) {
-    const err = new Error(data?.error || "Request failed");
-    err.data = data;
-    throw err;
-  }
-
-  return data;
+export async function apiPut(path, body, options = {}) {
+  return request(path, { ...options, method: "PUT", body });
 }
 
 // DELETE
-export async function apiDelete(path) {
-  const res = await fetch(API_BASE + withOrgQuery(path), {
-    method: "DELETE",
-  });
-
-  const data = await safeJson(res);
-
-  if (!res.ok) {
-    const err = new Error(data?.error || "Delete failed");
-    err.data = data;
-    throw err;
-  }
-
-  return data;
+export async function apiDelete(path, options = {}) {
+  return request(path, { ...options, method: "DELETE" });
 }

@@ -32,6 +32,10 @@ function buildGroupId() {
   return `group_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function extractGroupSuggestions(item) {
+  return Array.isArray(item?.suggestions) ? item.suggestions : [];
+}
+
 export default function AutoScheduler({ embedded = false }) {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
@@ -47,6 +51,7 @@ export default function AutoScheduler({ embedded = false }) {
   const [loading, setLoading] = useState(false);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState("info");
   const [resourceTypeQuery, setResourceTypeQuery] = useState("");
   const [resourceQuery, setResourceQuery] = useState("");
   const [resourceFilterTypeId, setResourceFilterTypeId] = useState("");
@@ -82,6 +87,7 @@ export default function AutoScheduler({ embedded = false }) {
         setAvailability(Array.isArray(availabilityData) ? availabilityData : []);
         setResponsibleUsers(Array.isArray(usersData) ? usersData : []);
       } catch (err) {
+        setMessageTone("error");
         setMessage(err?.message || "Failed to load data.");
       } finally {
         setLoading(false);
@@ -249,6 +255,18 @@ export default function AutoScheduler({ embedded = false }) {
     setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
   }
 
+  function applyAutoSuggestion(groupId, suggestion) {
+    if (!groupId || !Array.isArray(suggestion?.resource_ids) || suggestion.resource_ids.length === 0) {
+      return;
+    }
+    updateGroup(groupId, {
+      resource_ids: suggestion.resource_ids,
+      type_ids: [],
+    });
+    setMessageTone("success");
+    setMessage(`Loaded alternative for allocation: ${suggestion.summary || "resource suggestion"}.`);
+  }
+
   async function loadAllocations() {
     setAllocationsLoading(true);
     try {
@@ -259,6 +277,7 @@ export default function AutoScheduler({ embedded = false }) {
       const data = await apiGet(`/auto-schedule/allocations?${qs.toString()}`);
       setAllocations(Array.isArray(data) ? data : []);
     } catch (err) {
+      setMessageTone("error");
       setMessage(err?.message || "Failed to load allocations.");
       setAllocations([]);
     } finally {
@@ -268,6 +287,16 @@ export default function AutoScheduler({ embedded = false }) {
 
   async function runAutoSchedule() {
     if (running) return;
+    if (groups.length === 0) {
+      setMessageTone("error");
+      setMessage("Add at least one allocation before running auto schedule.");
+      return;
+    }
+    if (!rangeStart || !rangeEnd) {
+      setMessageTone("error");
+      setMessage("Choose both range start and range end.");
+      return;
+    }
     setRunning(true);
     setMessage("");
     try {
@@ -275,6 +304,10 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups,
+      }, {
+        timeoutMs: 20000,
+        timeoutMessage:
+          "Auto schedule did not return within 20 seconds. The request likely got stuck on the server or no valid slot could be resolved. Check the selected room/course combination or inspect the backend logs.",
       });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
@@ -282,12 +315,44 @@ export default function AutoScheduler({ embedded = false }) {
         scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
         skipped: Array.isArray(data?.skipped) ? data.skipped : [],
       });
+      setMessageTone(skippedCount > 0 && scheduledCount === 0 ? "error" : "success");
       setMessage(
-        `Auto schedule completed. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
+        skippedCount > 0 && scheduledCount === 0
+          ? `Auto schedule completed without results. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
+          : `Auto schedule completed. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
       );
       await loadAllocations();
     } catch (err) {
-      setMessage(err?.message || "Auto schedule failed.");
+      if (err?.code === "REQUEST_TIMEOUT") {
+        try {
+          const diagnostic = await apiPost(
+            "/auto-schedule/diagnose",
+            {
+              start_date: rangeStart,
+              end_date: rangeEnd,
+              groups,
+            },
+            {
+              timeoutMs: 10000,
+              timeoutMessage: "Could not analyze the scheduling conflict in time.",
+            }
+          );
+          const skipped = Array.isArray(diagnostic?.skipped) ? diagnostic.skipped : [];
+          setLastRun({ scheduled: [], skipped });
+          const first = skipped[0];
+          setMessageTone("error");
+          setMessage(
+            first?.reason ||
+              "Auto schedule timed out, but a conflict analysis was returned below."
+          );
+        } catch (diagnosticErr) {
+          setMessageTone("error");
+          setMessage(diagnosticErr?.message || err?.message || "Auto schedule failed.");
+        }
+      } else {
+        setMessageTone("error");
+        setMessage(err?.message || "Auto schedule failed.");
+      }
     } finally {
       setRunning(false);
     }
@@ -305,9 +370,11 @@ export default function AutoScheduler({ embedded = false }) {
         resource_ids: allocation.resource_ids,
         responsible_user_id: allocation.responsible_user_id,
       });
+      setMessageTone("success");
       setMessage("Allocation removed.");
       await loadAllocations();
     } catch (err) {
+      setMessageTone("error");
       setMessage(err?.message || "Failed to remove allocation.");
     }
   }
@@ -331,7 +398,15 @@ export default function AutoScheduler({ embedded = false }) {
       )}
 
       {message && (
-        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+        <div
+          className={`mb-5 rounded-2xl px-4 py-3 text-sm ${
+            messageTone === "error"
+              ? "border border-red-200 bg-red-50 text-red-700"
+              : messageTone === "success"
+                ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border border-blue-200 bg-blue-50 text-blue-700"
+          }`}
+        >
           {message}
         </div>
       )}
@@ -767,14 +842,75 @@ export default function AutoScheduler({ embedded = false }) {
           <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
             Skipped details
           </div>
-          <div className="space-y-1 text-xs text-red-700">
-            {lastRun.skipped.slice(0, 10).map((item, idx) => (
-              <div key={`${item.group_id || idx}`}>
-                {item.reason}
-              </div>
-            ))}
+          <div className="space-y-3">
+            {lastRun.skipped.slice(0, 10).map((item, idx) => {
+              const suggestions = extractGroupSuggestions(item);
+              const failedSlot = item?.failed_slot;
+              return (
+                <div
+                  key={`${item.group_id || idx}`}
+                  className="rounded-2xl border border-red-200 bg-white/75 p-4"
+                >
+                  <div className="text-sm font-semibold text-red-800">{item.reason}</div>
+                  {failedSlot?.date && failedSlot?.start_time && failedSlot?.end_time && (
+                    <div className="mt-1 text-xs text-red-700">
+                      Failed slot: {failedSlot.date} {failedSlot.start_time} - {failedSlot.end_time}
+                    </div>
+                  )}
+                  {suggestions.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
+                        Suggested alternatives
+                      </div>
+                      {suggestions.map((suggestion, suggestionIndex) => (
+                        <div
+                          key={`${item.group_id || idx}-suggestion-${suggestionIndex}`}
+                          className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4"
+                        >
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800">
+                              {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
+                            </span>
+                            {Number.isFinite(Number(suggestion?.score)) && (
+                              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
+                                Score {Number(suggestion.score)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-3 text-sm font-semibold text-slate-900">
+                            {suggestion.summary || "Alternative"}
+                          </div>
+                          {suggestion.why && (
+                            <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                          )}
+                          {suggestion.type === "timeslot" && (
+                            <div className="mt-2 text-xs text-slate-600">
+                              Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
+                            </div>
+                          )}
+                          {Array.isArray(suggestion.resources) && suggestion.resources.length > 0 && (
+                            <div className="mt-2 text-xs text-slate-600">
+                              Resources: {suggestion.resources.map((resource) => resource.name).join(", ")}
+                            </div>
+                          )}
+                          {suggestion.type === "resource" && Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0 && (
+                            <button
+                              type="button"
+                              className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
+                              onClick={() => applyAutoSuggestion(item.group_id, suggestion)}
+                            >
+                              Use resource suggestion
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {lastRun.skipped.length > 10 && (
-              <div>+{lastRun.skipped.length - 10} more</div>
+              <div className="text-xs text-red-700">+{lastRun.skipped.length - 10} more</div>
             )}
           </div>
         </div>

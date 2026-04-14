@@ -83,6 +83,12 @@ function addMinutes(timeStr, minutes) {
   return `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
 }
 
+function minutesToTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function timeToMinutes(timeStr) {
   const [h, m] = timeStr.split(":").map(Number);
   return h * 60 + m;
@@ -484,6 +490,68 @@ async function hasResourceConflict(client, resourceIds, date, startTime, endTime
   return rows.length > 0;
 }
 
+async function findResourceConflictDetails(client, resourceIds, date, startTime, endTime, orgId) {
+  if (!resourceIds.length) return null;
+  const params = [resourceIds, date, startTime, endTime];
+  let orgWhere = "";
+  if (orgId) {
+    params.push(orgId);
+    orgWhere = `AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT
+      b.id,
+      b.user_id,
+      b.date,
+      b.start_time,
+      b.end_time,
+      r.id AS resource_id,
+      r.name AS resource_name,
+      rt.name AS resource_type_name
+    FROM booking_resources br
+    JOIN bookings b ON b.id = br.booking_id
+    JOIN resources r ON r.id = br.resource_id
+    JOIN resource_types rt ON rt.id = r.type_id
+    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+    WHERE br.resource_id = ANY($1)
+    AND b.date = $2
+    AND bc.booking_id IS NULL
+    ${orgWhere}
+    AND (
+      ($3 >= b.start_time AND $3 < b.end_time) OR
+      ($4 > b.start_time AND $4 <= b.end_time) OR
+      ($3 <= b.start_time AND $4 >= b.end_time)
+    )
+    ORDER BY b.date, b.start_time, b.id
+    LIMIT 1
+    `,
+    params
+  );
+  return rows[0] || null;
+}
+
+async function loadResourceRowsByIds(client, resourceIds, orgId) {
+  if (!resourceIds.length) return [];
+  const params = [resourceIds];
+  let where = "WHERE r.id = ANY($1)";
+  if (orgId) {
+    params.push(orgId);
+    where += ` AND r.organization_id = $${params.length}`;
+  }
+  const { rows } = await client.query(
+    `
+    SELECT r.*, rt.name AS type_name
+    FROM resources r
+    JOIN resource_types rt ON rt.id = r.type_id
+    ${where}
+    ORDER BY r.id
+    `,
+    params
+  );
+  return rows;
+}
+
 async function loadCandidateRowsByTypeIds(
   client,
   typeIds,
@@ -533,6 +601,548 @@ async function loadCandidateRowsByTypeIds(
     params
   );
   return rows;
+}
+
+async function buildAlternativeSuggestions({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  resources,
+  rules,
+  booking,
+  roles,
+  limit = 3,
+}) {
+  if (!Array.isArray(resources) || resources.length === 0) return [];
+
+  const suggestions = [];
+  const seenKeys = new Set();
+
+  for (let index = 0; index < resources.length; index += 1) {
+    const original = resources[index];
+    if (!original?.type_id) continue;
+    if (["Courses", "Exam"].includes(String(original.type_name || ""))) continue;
+
+    const excludedIds = resources
+      .map((resource) => Number(resource.id))
+      .filter((id) => Number.isFinite(id) && id !== Number(original.id));
+
+    const candidates = await loadCandidateRowsByTypeIds(
+      client,
+      [Number(original.type_id)],
+      orgId,
+      bookingDate,
+      startTime,
+      endTime,
+      excludedIds
+    );
+
+    for (const candidate of candidates) {
+      if (Number(candidate.id) === Number(original.id)) continue;
+
+      const nextResources = resources.map((resource, resourceIndex) =>
+        resourceIndex === index ? candidate : resource
+      );
+      const resourceIds = nextResources
+        .map((resource) => Number(resource.id))
+        .filter((id) => Number.isFinite(id));
+      const combinationKey = resourceIds.slice().sort((a, b) => a - b).join(",");
+      if (!combinationKey || seenKeys.has(combinationKey)) continue;
+
+      if (
+        await hasResourceConflict(client, resourceIds, bookingDate, startTime, endTime, orgId)
+      ) {
+        continue;
+      }
+
+      const evaluation = evaluateRules({
+        rules,
+        booking,
+        resources: nextResources,
+        roles,
+      });
+      if (evaluation.hardViolations.length > 0) continue;
+
+      suggestions.push({
+        type: "resource",
+        score: evaluation.score,
+        resource_ids: resourceIds,
+        date: bookingDate,
+        start_time: startTime,
+        end_time: endTime,
+        summary: `${original.name} -> ${candidate.name}`,
+        why: `Replace ${original.name} with ${candidate.name} and keep the same time slot.`,
+        replaced_resource: {
+          id: Number(original.id),
+          name: original.name,
+          type_id: Number(original.type_id),
+          type_name: original.type_name || "",
+        },
+        suggested_resource: {
+          id: Number(candidate.id),
+          name: candidate.name,
+          type_id: Number(candidate.type_id),
+          type_name: candidate.type_name || "",
+        },
+        resources: nextResources.map((resource) => ({
+          id: Number(resource.id),
+          name: resource.name,
+          type_id: Number(resource.type_id),
+          type_name: resource.type_name || "",
+        })),
+        rule_summary: {
+          score: evaluation.score,
+          soft_matches: (evaluation.softMatches || []).map((match) => ({
+            id: match?.id ?? null,
+            name: match?.name || "",
+            description: match?.description || "",
+            delta: Number(match?.delta || 0),
+            resource_id: match?.resource_id ?? null,
+          })),
+        },
+      });
+      seenKeys.add(combinationKey);
+    }
+  }
+
+  return suggestions
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.summary || "").localeCompare(String(b.summary || ""));
+    })
+    .slice(0, limit);
+}
+
+async function buildTimeSlotSuggestions({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  fixedResources,
+  candidateTypeIds,
+  rules,
+  roles,
+  limit = 3,
+}) {
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+    return [];
+  }
+
+  const duration = endMinutes - startMinutes;
+  const preferredOffsets = [-120, -90, -60, -30, 30, 60, 90, 120, -150, 150, -180, 180];
+  const slots = [];
+  const seenSlots = new Set();
+
+  for (const offset of preferredOffsets) {
+    const candidateStart = startMinutes + offset;
+    const candidateEnd = candidateStart + duration;
+    if (candidateStart < 0 || candidateEnd > 24 * 60) continue;
+    if (candidateStart === startMinutes && candidateEnd === endMinutes) continue;
+    const key = `${candidateStart}-${candidateEnd}`;
+    if (seenSlots.has(key)) continue;
+    seenSlots.add(key);
+    slots.push({
+      start_time: minutesToTime(candidateStart),
+      end_time: minutesToTime(candidateEnd),
+      distance: Math.abs(offset),
+    });
+  }
+
+  const suggestions = [];
+
+  for (const slot of slots) {
+    if (userId) {
+      const userConflict = await findUserConflict(
+        client,
+        userId,
+        bookingDate,
+        slot.start_time,
+        slot.end_time,
+        orgId
+      );
+      if (userConflict) continue;
+    }
+
+    let resolvedResourceRows = [...fixedResources];
+    let resolvedResourceIds = resolvedResourceRows
+      .map((resource) => Number(resource.id))
+      .filter((id) => Number.isFinite(id));
+
+    if (
+      resolvedResourceIds.length > 0 &&
+      (await hasResourceConflict(
+        client,
+        resolvedResourceIds,
+        bookingDate,
+        slot.start_time,
+        slot.end_time,
+        orgId
+      ))
+    ) {
+      continue;
+    }
+
+    if (candidateTypeIds.length > 0) {
+      const candidateRows = await loadCandidateRowsByTypeIds(
+        client,
+        candidateTypeIds,
+        orgId,
+        bookingDate,
+        slot.start_time,
+        slot.end_time,
+        resolvedResourceIds
+      );
+      const candidatePools = candidateTypeIds.map((typeId) => ({
+        typeId,
+        candidates: candidateRows.filter(
+          (resource) => Number(resource.type_id) === Number(typeId)
+        ),
+      }));
+      if (candidatePools.some((pool) => pool.candidates.length === 0)) continue;
+
+      const { best } = pickBestResourceCombination({
+        fixedResources: resolvedResourceRows,
+        candidatePools,
+        rules,
+        booking: {
+          date: bookingDate,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          user_id: userId,
+        },
+        roles,
+      });
+      if (!best) continue;
+
+      resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
+      resolvedResourceIds = resolvedResourceRows
+        .map((resource) => Number(resource.id))
+        .filter((id) => Number.isFinite(id));
+    }
+
+    const evaluation = evaluateRules({
+      rules,
+      booking: {
+        date: bookingDate,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        user_id: userId,
+      },
+      resources: resolvedResourceRows,
+      roles,
+    });
+    if (evaluation.hardViolations.length > 0) continue;
+
+    suggestions.push({
+      type: "timeslot",
+      score: evaluation.score,
+      distance_from_original: slot.distance,
+      date: bookingDate,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      resource_ids: resolvedResourceIds,
+      summary: `${bookingDate} ${slot.start_time}-${slot.end_time}`,
+      why: "Try a nearby time slot that keeps the booking valid with the current rule set.",
+      resources: resolvedResourceRows.map((resource) => ({
+        id: Number(resource.id),
+        name: resource.name,
+        type_id: Number(resource.type_id),
+        type_name: resource.type_name || "",
+      })),
+      rule_summary: {
+        score: evaluation.score,
+        soft_matches: (evaluation.softMatches || []).map((match) => ({
+          id: match?.id ?? null,
+          name: match?.name || "",
+          description: match?.description || "",
+          delta: Number(match?.delta || 0),
+          resource_id: match?.resource_id ?? null,
+        })),
+      },
+    });
+  }
+
+  return suggestions
+    .sort((a, b) => {
+      const aDistance = Number(a.distance_from_original ?? 9999);
+      const bDistance = Number(b.distance_from_original ?? 9999);
+      if (aDistance !== bDistance) return aDistance - bDistance;
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.summary || "").localeCompare(String(b.summary || ""));
+    })
+    .slice(0, limit);
+}
+
+async function buildAutoScheduleFailureSuggestions({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  resources,
+  candidateTypeIds,
+  rules,
+  roles,
+}) {
+  const [resourceSuggestions, timeSuggestions] = await Promise.all([
+    buildAlternativeSuggestions({
+      client,
+      orgId,
+      bookingDate,
+      startTime,
+      endTime,
+      resources,
+      rules,
+      booking: {
+        date: bookingDate,
+        start_time: startTime,
+        end_time: endTime,
+        user_id: userId,
+      },
+      roles,
+    }),
+    buildTimeSlotSuggestions({
+      client,
+      orgId,
+      bookingDate,
+      startTime,
+      endTime,
+      userId,
+      fixedResources: resources,
+      candidateTypeIds,
+      rules,
+      roles,
+    }),
+  ]);
+
+  return [...resourceSuggestions, ...timeSuggestions]
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.summary || "").localeCompare(String(b.summary || ""));
+    })
+    .slice(0, 5);
+}
+
+async function diagnoseGroupFailure({
+  client,
+  group,
+  startDate,
+  endDate,
+  orgId,
+  ruleRows,
+}) {
+  const resourceIds = Array.isArray(group?.resource_ids)
+    ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+    : [];
+  const typeIds = Array.isArray(group?.type_ids)
+    ? group.type_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+    : [];
+  const responsibleId = String(group?.responsible_user_id || "").trim();
+  const rawUserIds = Array.isArray(group?.user_ids) ? group.user_ids : [];
+  const userIds = Array.from(
+    new Set(rawUserIds.map((id) => String(id).trim()).filter(Boolean))
+  ).filter((id) => id && id !== responsibleId);
+  const weeklyHours = Number(group?.weekly_hours || 0);
+  const durationMinutes = Math.round((Number.isFinite(weeklyHours) && weeklyHours > 0
+    ? weeklyHours
+    : 3) * 60);
+
+  let resourceRows = [];
+  if (resourceIds.length > 0) {
+    resourceRows = await loadResourceRowsByIds(client, resourceIds, orgId);
+  }
+
+  let availability = [];
+  let availabilityOverrides = [];
+  if (responsibleId) {
+    const availParams = [responsibleId];
+    let availWhere = "WHERE user_id = $1";
+    if (orgId) {
+      availParams.push(orgId);
+      availWhere += ` AND organization_id = $${availParams.length}`;
+    }
+    const availabilityResult = await client.query(
+      `
+      SELECT *
+      FROM user_availability
+      ${availWhere}
+      ORDER BY day_of_week, start_time
+      `,
+      availParams
+    );
+    const overridesResult = await client.query(
+      `
+      SELECT *
+      FROM user_availability_overrides
+      ${availWhere}
+      ORDER BY date, start_time NULLS FIRST
+      `,
+      availParams
+    );
+    availability = availabilityResult.rows;
+    availabilityOverrides = overridesResult.rows;
+    if (availability.length === 0 && availabilityOverrides.length === 0) {
+      return {
+        group_id: group?.group_id || null,
+        reason: "No availability defined for the responsible user.",
+        failure_type: "missing_availability",
+        suggestions: [],
+      };
+    }
+  } else {
+    availability = buildFallbackAvailability();
+  }
+
+  for (const weekStart of getWeekStartsInRange(startDate, endDate)) {
+    const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
+    const weekStartBound = new Date(Math.max(weekStart.getTime(), startDate.getTime()));
+    const weekEndBound = new Date(Math.min(weekEnd.getTime(), endDate.getTime()));
+
+    for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
+      const dayKey = formatDate(day);
+      const dayOfWeek = day.getDay();
+      const windows = getDayAvailabilityWindows(
+        availability,
+        availabilityOverrides,
+        dayKey,
+        dayOfWeek
+      );
+      for (const window of windows) {
+        const slotStartMin = timeToMinutes(window.start_time);
+        const slotEndMin = timeToMinutes(window.end_time);
+        for (
+          let candidate = slotStartMin;
+          candidate + durationMinutes <= slotEndMin;
+          candidate += 30
+        ) {
+          const startTime = addMinutes("00:00", candidate);
+          const endTime = addMinutes("00:00", candidate + durationMinutes);
+
+          if (responsibleId) {
+            const responsibleConflict = await findUserConflict(
+              client,
+              responsibleId,
+              dayKey,
+              startTime,
+              endTime,
+              orgId
+            );
+            if (responsibleConflict) {
+              const suggestions = await buildAutoScheduleFailureSuggestions({
+                client,
+                orgId,
+                bookingDate: dayKey,
+                startTime,
+                endTime,
+                userId: responsibleId,
+                resources: resourceRows,
+                candidateTypeIds: typeIds,
+                rules: ruleRows,
+                roles: {},
+              });
+              return {
+                group_id: group?.group_id || null,
+                reason: `The responsible user is already booked on ${dayKey} ${startTime}-${endTime}.`,
+                failure_type: "responsible_conflict",
+                failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
+                occupied_by: responsibleConflict,
+                suggestions,
+              };
+            }
+          }
+
+          for (const userId of userIds) {
+            const userConflict = await findUserConflict(
+              client,
+              userId,
+              dayKey,
+              startTime,
+              endTime,
+              orgId
+            );
+            if (userConflict) {
+              const suggestions = await buildAutoScheduleFailureSuggestions({
+                client,
+                orgId,
+                bookingDate: dayKey,
+                startTime,
+                endTime,
+                userId: responsibleId,
+                resources: resourceRows,
+                candidateTypeIds: typeIds,
+                rules: ruleRows,
+                roles: {},
+              });
+              return {
+                group_id: group?.group_id || null,
+                reason: `One of the assigned users is already booked on ${dayKey} ${startTime}-${endTime}.`,
+                failure_type: "user_conflict",
+                failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
+                occupied_by: userConflict,
+                suggestions,
+              };
+            }
+          }
+
+          if (resourceIds.length > 0) {
+            const resourceConflict = await findResourceConflictDetails(
+              client,
+              resourceIds,
+              dayKey,
+              startTime,
+              endTime,
+              orgId
+            );
+            if (resourceConflict) {
+              const suggestions = await buildAutoScheduleFailureSuggestions({
+                client,
+                orgId,
+                bookingDate: dayKey,
+                startTime,
+                endTime,
+                userId: responsibleId,
+                resources: resourceRows,
+                candidateTypeIds: typeIds,
+                rules: ruleRows,
+                roles: {},
+              });
+              return {
+                group_id: group?.group_id || null,
+                reason: `${resourceConflict.resource_name} is occupied on ${dayKey} ${startTime}-${endTime}.`,
+                failure_type: "resource_conflict",
+                failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
+                occupied_by: {
+                  booking_id: resourceConflict.id,
+                  user_id: resourceConflict.user_id,
+                  resource_id: resourceConflict.resource_id,
+                  resource_name: resourceConflict.resource_name,
+                  resource_type_name: resourceConflict.resource_type_name,
+                  date: resourceConflict.date,
+                  start_time: resourceConflict.start_time,
+                  end_time: resourceConflict.end_time,
+                },
+                suggestions,
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    group_id: group?.group_id || null,
+    reason: "No matching slot was found in the selected range.",
+    failure_type: "no_slot_found",
+    suggestions: [],
+  };
 }
 
 function pickBestResourceCombination({ fixedResources, candidatePools, rules, booking, roles }) {
@@ -662,6 +1272,58 @@ async function weekAlreadyScheduled(client, resourceIds, weekStart, weekEnd, org
   );
   return rows.length > 0;
 }
+
+router.post("/diagnose", async (req, res) => {
+  const startDateValue = String(req.body?.start_date || "").trim();
+  const endDateValue = String(req.body?.end_date || "").trim();
+  const groups = Array.isArray(req.body?.groups) ? req.body.groups : [];
+  const orgId = getOrgId(req);
+
+  const startDate = parseDate(startDateValue);
+  const endDate = parseDate(endDateValue);
+  if (!startDate || !endDate || startDate > endDate) {
+    return res.status(400).json({ error: "Invalid date range" });
+  }
+  if (!groups.length) {
+    return res.status(400).json({ error: "No resource groups provided" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await ensureAvailabilityTables(client);
+    const ruleParams = [];
+    let ruleWhere = "WHERE is_active = true";
+    if (orgId) {
+      ruleParams.push(orgId);
+      ruleWhere += ` AND organization_id = $${ruleParams.length}`;
+    }
+    const { rows: ruleRows } = await client.query(
+      `SELECT * FROM rules ${ruleWhere} ORDER BY sort_order ASC, id ASC`,
+      ruleParams
+    );
+
+    const skipped = [];
+    for (const group of groups) {
+      skipped.push(
+        await diagnoseGroupFailure({
+          client,
+          group,
+          startDate,
+          endDate,
+          orgId,
+          ruleRows,
+        })
+      );
+    }
+
+    res.json({ scheduled: [], skipped });
+  } catch (err) {
+    console.error("Auto schedule diagnose failed:", err);
+    res.status(500).json({ error: "Auto schedule diagnose failed" });
+  } finally {
+    client.release();
+  }
+});
 
 router.post("/", async (req, res) => {
   const startDateValue = String(req.body?.start_date || "").trim();
@@ -796,6 +1458,7 @@ router.post("/", async (req, res) => {
       let resourceConflicts = 0;
       let ruleConflicts = 0;
       let lockedSlot = null;
+      let failureContext = null;
 
       const lockedCandidate = await pickLockedSlot({
         availability,
@@ -817,8 +1480,8 @@ router.post("/", async (req, res) => {
         lastFailure = lockedCandidate.reason;
       }
 
-      for (let cursor = new Date(startDate); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
-        const weekStart = getWeekStart(cursor);
+      const weekStarts = getWeekStartsInRange(startDate, endDate);
+      for (const weekStart of weekStarts) {
         if (resourceIds.length > 0 && typeIds.length === 0 && await weekAlreadyScheduled(client, resourceIds, weekStart, new Date(weekStart.getTime() + 6 * 86400000), orgId)) {
           lastFailure = "Already scheduled this week";
           continue;
@@ -886,6 +1549,16 @@ router.post("/", async (req, res) => {
                 if (responsibleConflict) {
                   weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
                   responsibleConflicts += 1;
+                  if (!failureContext) {
+                    failureContext = {
+                      type: "responsible_conflict",
+                      bookingDate: dayKey,
+                      startTime,
+                      endTime,
+                      resources: [...resourceRows],
+                      candidateTypeIds: [...typeIds],
+                    };
+                  }
                   continue;
                 }
               }
@@ -907,6 +1580,16 @@ router.post("/", async (req, res) => {
               if (userConflict) {
                 weekFailure = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
                 userConflicts += 1;
+                if (!failureContext) {
+                  failureContext = {
+                    type: "user_conflict",
+                    bookingDate: dayKey,
+                    startTime,
+                    endTime,
+                    resources: [...resourceRows],
+                    candidateTypeIds: [...typeIds],
+                  };
+                }
                 continue;
               }
 
@@ -933,6 +1616,16 @@ router.post("/", async (req, res) => {
                 if (emptyPool) {
                   weekFailure = `No available resource for type ${emptyPool.typeId}`;
                   resourceConflicts += 1;
+                  if (!failureContext) {
+                    failureContext = {
+                      type: "missing_type_resource",
+                      bookingDate: dayKey,
+                      startTime,
+                      endTime,
+                      resources: [...resolvedResourceRows],
+                      candidateTypeIds: [...typeIds],
+                    };
+                  }
                   continue;
                 }
                 const { best } = pickBestResourceCombination({
@@ -950,6 +1643,16 @@ router.post("/", async (req, res) => {
                 if (!best) {
                   weekFailure = `No matching resources satisfy the active rules at ${dayKey} ${startTime}-${endTime}`;
                   ruleConflicts += 1;
+                  if (!failureContext) {
+                    failureContext = {
+                      type: "rule_conflict",
+                      bookingDate: dayKey,
+                      startTime,
+                      endTime,
+                      resources: [...resolvedResourceRows],
+                      candidateTypeIds: [...typeIds],
+                    };
+                  }
                   continue;
                 }
                 resolvedResourceRows = [...resolvedResourceRows, ...best.resources];
@@ -969,6 +1672,16 @@ router.post("/", async (req, res) => {
               if (resourceConflict) {
                 weekFailure = `Resource conflict at ${dayKey} ${startTime}-${endTime}`;
                 resourceConflicts += 1;
+                if (!failureContext) {
+                  failureContext = {
+                    type: "resource_conflict",
+                    bookingDate: dayKey,
+                    startTime,
+                    endTime,
+                    resources: [...resolvedResourceRows],
+                    candidateTypeIds: [...typeIds],
+                  };
+                }
                 continue;
               }
 
@@ -988,6 +1701,16 @@ router.post("/", async (req, res) => {
                 const ruleLabel = violation?.name ? ` (${violation.name})` : "";
                 weekFailure = `Rule violation${ruleLabel} at ${dayKey} ${startTime}-${endTime}`;
                 ruleConflicts += 1;
+                if (!failureContext) {
+                  failureContext = {
+                    type: "rule_conflict",
+                    bookingDate: dayKey,
+                    startTime,
+                    endTime,
+                    resources: [...resolvedResourceRows],
+                    candidateTypeIds: [...typeIds],
+                  };
+                }
                 continue;
               }
 
@@ -1088,7 +1811,7 @@ router.post("/", async (req, res) => {
         }
 
         if (scheduledThisWeek) {
-          cursor = new Date(weekEnd);
+          continue;
         }
       }
 
@@ -1107,9 +1830,36 @@ router.post("/", async (req, res) => {
         } else if (ruleConflicts === attemptedSlots) {
           reason = "Rule violations for all available slots";
         }
+        let suggestions = [];
+        if (failureContext?.bookingDate && failureContext?.startTime && failureContext?.endTime) {
+          suggestions = await buildAutoScheduleFailureSuggestions({
+            client,
+            orgId,
+            bookingDate: failureContext.bookingDate,
+            startTime: failureContext.startTime,
+            endTime: failureContext.endTime,
+            userId: responsibleId,
+            resources: Array.isArray(failureContext.resources) ? failureContext.resources : resourceRows,
+            candidateTypeIds: Array.isArray(failureContext.candidateTypeIds)
+              ? failureContext.candidateTypeIds
+              : typeIds,
+            rules: ruleRows,
+            roles: {},
+          });
+        }
         skipped.push({
           group_id: group?.group_id || null,
-          reason
+          reason,
+          failure_type: failureContext?.type || null,
+          failed_slot:
+            failureContext?.bookingDate && failureContext?.startTime && failureContext?.endTime
+              ? {
+                  date: failureContext.bookingDate,
+                  start_time: failureContext.startTime,
+                  end_time: failureContext.endTime,
+                }
+              : null,
+          suggestions,
         });
       } else {
         scheduled.push(...groupScheduled);

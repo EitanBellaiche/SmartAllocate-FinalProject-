@@ -1,371 +1,49 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
-import IsraelDateInput from "./IsraelDateInput";
+import AvailabilitySection from "./components/AvailabilitySection";
+import AppSidebar from "./components/AppSidebar";
+import BookingDetailsModal from "./components/BookingDetailsModal";
+import CancelDialog from "./components/CancelDialog";
+import LoginView from "./components/LoginView";
+import NotificationsSection from "./components/NotificationsSection";
+import RequestsSection from "./components/RequestsSection";
+import ResourceAvailabilityModal from "./components/ResourceAvailabilityModal";
+import ScheduleSection from "./components/ScheduleSection";
+import SearchSection from "./components/SearchSection";
+import useNotificationsState from "./hooks/useNotificationsState";
+import useResourceExplorerState from "./hooks/useResourceExplorerState";
+import useSessionAuth, { SESSION_KEY } from "./hooks/useSessionAuth";
 import {
   getBookingsByUser,
   getAllResources,
   createResourceRequest,
   getBookingsByResource,
-  getResourceRequests,
-  getAnnouncements,
-  createAnnouncement,
   cancelBooking,
   rescheduleBooking,
-  loginUser,
   getUserAvailability,
   createUserAvailability,
   deleteUserAvailability,
 } from "./api";
 import { getOrgLabels, getSessionOrgId } from "./orgConfig";
-
-function parseDateValue(dateStr) {
-  if (!dateStr) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return new Date(y, m - 1, d);
-  }
-  return new Date(dateStr);
-}
-function getSeatLabelFromBooking(booking) {
-  const resources = getBookingResources(booking);
-  const seats = resources.filter((r) => {
-    const meta = normalizeMetadata(r?.metadata);
-    return meta.row || meta.number || meta.seat_number || meta.seatNumber;
-  });
-
-  if (seats.length === 0) return "";
-
-  return seats
-    .map((seat) => {
-      const meta = normalizeMetadata(seat?.metadata);
-      const row = meta.row || "";
-      const num = meta.number || meta.seat_number || meta.seatNumber || "";
-      return `${row}${num}`;
-    })
-    .join(", ");
-}
-
-// ---- Cinema helpers (used by search view and seat explorer) ----
-function isCinemaHallResource(resource) {
-  const name = String(resource?.name || "").toLowerCase();
-  const typeName = String(resource?.type_name || "").toLowerCase();
-  const meta = normalizeMetadata(resource?.metadata);
-  const hasSeatObjects = Array.isArray(meta?.seatObjects) && meta.seatObjects.length > 0;
-  const capacity = Number(meta.capacity || meta.Capacity || 0);
-
-  return (
-    hasSeatObjects ||
-    (capacity > 0 &&
-      /(hall|auditorium|screen|theatre|theater|cinema area|imax)/.test(
-        `${name} ${typeName}`
-      ))
-  );
-}
-
-function getSeatObjects(resource) {
-  const meta = normalizeMetadata(resource?.metadata);
-  return Array.isArray(meta?.seatObjects) ? meta.seatObjects : [];
-}
-
-function splitSeatRowIntoSections(rowItems) {
-  if (!Array.isArray(rowItems) || rowItems.length === 0) {
-    return { left: [], center: [], right: [] };
-  }
-
-  const hasSectionData = rowItems.some((seat) => seat?.section);
-  if (!hasSectionData) {
-    return { left: [], center: rowItems, right: [] };
-  }
-
-  const frontOnly = rowItems.every((seat) => seat?.section === "front_center");
-  if (frontOnly) {
-    return { left: [], center: rowItems, right: [] };
-  }
-
-  return {
-    left: rowItems.filter((seat) => seat?.section === "left"),
-    center: rowItems.filter(
-      (seat) => seat?.section === "center" || seat?.section === "front_center"
-    ),
-    right: rowItems.filter((seat) => seat?.section === "right"),
-  };
-}
-
-function getHallSeatRows(resource) {
-  const seats = getSeatObjects(resource);
-  const byRow = seats.reduce((acc, seat) => {
-    const row = String(seat?.row || "?");
-    acc[row] = acc[row] || [];
-    acc[row].push(seat);
-    return acc;
-  }, {});
-
-  return Object.entries(byRow)
-    .sort(([a], [b]) => String(a).localeCompare(String(b)))
-    .map(([rowLabel, items]) => ({
-      rowLabel,
-      items: [...items].sort(
-        (a, b) => Number(a?.number || 0) - Number(b?.number || 0)
-      ),
-    }));
-}
-
-function getUserSeatIdsForHall(hallResource, bookings) {
-  if (!hallResource) return new Set();
-  const seatIds = new Set();
-
-  bookings.forEach((booking) => {
-    const resources = getBookingResources(booking);
-    const bookingHasHall = resources.some((resource) => {
-      if (!isCinemaHallResource(resource)) return false;
-      return (
-        String(resource?.id) === String(hallResource?.id) ||
-        String(resource?.name || "") === String(hallResource?.name || "")
-      );
-    });
-
-    resources.forEach((resource) => {
-      const meta = normalizeMetadata(resource?.metadata);
-      const seatId =
-        meta.seatId ||
-        `${meta.row || ""}${meta.number || meta.seat_number || meta.seatNumber || ""
-        }`;
-      const linkedHallName =
-        meta.hallName || meta.hall || meta.auditorium || meta.screen || "";
-      if (!seatId) return;
-      if (
-        bookingHasHall ||
-        String(linkedHallName) === String(hallResource?.name || "")
-      ) {
-        seatIds.add(String(seatId));
-      }
-    });
-  });
-
-  return seatIds;
-}
-function formatDate(dateStr) {
-  if (!dateStr) return "";
-  const d = parseDateValue(dateStr);
-  if (!d || Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("he-IL", {
-    timeZone: "Asia/Jerusalem",
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatTime(t) {
-  return t ? t.slice(0, 5) : "";
-}
-
-function weekdayLabel(dayValue) {
-  const labels = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  return labels[Number(dayValue)] || `Day ${dayValue}`;
-}
-
-function extractAssignedUserIds(meta) {
-  if (!meta || typeof meta !== "object") return [];
-  const raw = meta.user_ids ?? meta.userIds ?? meta.users;
-  if (Array.isArray(raw)) {
-    return raw.map((v) => String(v).trim()).filter(Boolean);
-  }
-  if (typeof raw === "string") {
-    return raw.split(/[\s,]+/).map((v) => String(v).trim()).filter(Boolean);
-  }
-  return [];
-}
-
-function isResourceAssignedToUser(resource, userId) {
-  if (!resource || !userId) return false;
-  const meta = resource.metadata || {};
-  const list = extractAssignedUserIds(meta);
-  if (list.includes(String(userId))) return true;
-  const responsible =
-    meta.responsible_user_id ||
-    meta.responsibleUserId ||
-    meta.responsible_id ||
-    meta.responsibleId;
-  return String(responsible || "").trim() === String(userId).trim();
-}
-
-function isPastBooking(booking) {
-  if (!booking?.date || !booking?.start_time) return false;
-  return new Date(`${booking.date}T${booking.start_time}`) < new Date();
-}
-
-function toDateKey(dateStr) {
-  const d = parseDateValue(dateStr);
-  if (!d || Number.isNaN(d.getTime())) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function toDateKeyFromDate(dateObj) {
-  if (!dateObj || Number.isNaN(dateObj.getTime())) return "";
-  const y = dateObj.getFullYear();
-  const m = String(dateObj.getMonth() + 1).padStart(2, "0");
-  const day = String(dateObj.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function buildMonthGrid(baseDate, bookings) {
-  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
-  const end = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
-
-  // start from Sunday
-  const gridStart = new Date(start);
-  gridStart.setDate(start.getDate() - gridStart.getDay());
-  const gridEnd = new Date(end);
-  gridEnd.setDate(end.getDate() + (6 - gridEnd.getDay()));
-
-  const byDate = bookings.reduce((acc, b) => {
-    const key = toDateKey(b.date);
-    acc[key] = acc[key] || [];
-    acc[key].push(b);
-    return acc;
-  }, {});
-
-  const days = [];
-  for (let d = new Date(gridStart); d <= gridEnd; d.setDate(d.getDate() + 1)) {
-    const key = toDateKeyFromDate(d);
-    days.push({
-      date: new Date(d),
-      key,
-      inMonth: d.getMonth() === baseDate.getMonth(),
-      bookings: byDate[key] || [],
-    });
-  }
-  return days;
-}
-
-function normalizeMetadata(raw) {
-  if (!raw) return {};
-  if (typeof raw === "object") return raw;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
-}
-
-function hasAssignedUsers(resource) {
-  const meta = normalizeMetadata(resource?.metadata);
-  if (extractAssignedUserIds(meta).length > 0) return true;
-  const responsible =
-    meta.responsible_user_id ||
-    meta.responsibleUserId ||
-    meta.responsible_id ||
-    meta.responsibleId;
-  return Boolean(responsible);
-}
-
-function isPrimaryResource(resource) {
-  return hasAssignedUsers(resource);
-}
-
-function formatTypeLabel(typeName, labels, fallback) {
-  const resolvedFallback = fallback || labels?.resource || "Resource";
-  return typeName || labels?.resource || resolvedFallback;
-}
-
-function getBookingResources(booking) {
-  return booking?.all_resources || booking?.resources || [];
-}
-
-function getBookingRoomLine(booking) {
-  if (String(booking?.location || "").toLowerCase() === "zoom") {
-    return "Location: Zoom";
-  }
-  const resources = getBookingResources(booking);
-  const room = resources.find((r) => {
-    const meta = normalizeMetadata(r?.metadata);
-    return (
-      meta.room ||
-      meta.location ||
-      meta.site ||
-      meta.space ||
-      meta.building ||
-      meta.floor
-    );
-  });
-  if (!room) return "";
-  const name = room.name || "On-site";
-  const meta =
-    room.metadata && Object.keys(room.metadata).length > 0
-      ? Object.entries(room.metadata)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(" | ")
-      : "";
-  return meta ? `Location: ${name} (${meta})` : `Location: ${name}`;
-}
-
-function getBookingShortLocation(booking) {
-  if (String(booking?.location || "").toLowerCase() === "zoom") {
-    return "Zoom";
-  }
-  const resources = getBookingResources(booking);
-  const room = resources.find((r) => {
-    const meta = normalizeMetadata(r?.metadata);
-    return meta.room || meta.location || meta.site || meta.space || meta.building;
-  });
-  if (!room) return "";
-  return room.name || room.metadata?.building || "On-site";
-}
-
-function filterBookingsToPrimaryResources(bookings) {
-  return bookings.map((booking) => {
-    const allResources = booking.resources || [];
-    const primaryResources = allResources.filter(isPrimaryResource);
-    const resources = primaryResources.length > 0 ? primaryResources : allResources;
-    return { ...booking, resources, all_resources: allResources };
-  });
-}
+import {
+  buildMonthGrid,
+  filterBookingsToPrimaryResources,
+  getSeatLabelFromBooking,
+  hasAssignedUsers,
+  isCinemaHallResource,
+  isResourceAssignedToUser,
+  normalizeMetadata,
+  parseDateValue,
+  weekdayLabel,
+} from "./utils/appHelpers";
 
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || "http://localhost:5174";
-const SESSION_KEY = "smartallocate.session";
-
-function normalizeRole(value) {
-  const roleValue = String(value || "").trim().toLowerCase();
-  if (["admin", "manager", "administrator"].includes(roleValue)) return "admin";
-  if (
-    [
-      "responsible",
-      "manager",
-      "staff",
-      "supervisor",
-      "lead",
-    ].includes(roleValue)
-  ) {
-    return "manager";
-  }
-  if (["user", "member", "employee", "worker", "staff_member"].includes(roleValue)) {
-    return "user";
-  }
-  return "user";
-}
 
 export default function App() {
-  const [currentUserId, setCurrentUserId] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("user");
   const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [viewMode, setViewMode] = useState("month"); // month | list
   const [monthDate, setMonthDate] = useState(new Date());
-  const [hasUser, setHasUser] = useState(false);
 
-  // resource search
-  const [resources, setResources] = useState([]);
-  const [resourceQuery, setResourceQuery] = useState("");
-  const [resourceLoading, setResourceLoading] = useState(false);
-  const [resourceError, setResourceError] = useState("");
-  const [selectedResourceId, setSelectedResourceId] = useState(null);
   const [requestQuery, setRequestQuery] = useState("");
   const [requestNote, setRequestNote] = useState("");
   const [requestResourceId, setRequestResourceId] = useState(null);
@@ -374,44 +52,6 @@ export default function App() {
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestView, setRequestView] = useState("list"); // list | form
   const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [availabilityResource, setAvailabilityResource] = useState(null);
-  const [availabilityBookings, setAvailabilityBookings] = useState([]);
-  const [availabilityLoading, setAvailabilityLoading] = useState(false);
-  const [availabilityError, setAvailabilityError] = useState("");
-  const [availabilityMonthDate, setAvailabilityMonthDate] = useState(
-    () => new Date()
-  );
-  const [bookingDraft, setBookingDraft] = useState({
-    date: "",
-    start: "09:00",
-    end: "10:00",
-  });
-  const [bookingSubmitting, setBookingSubmitting] = useState(false);
-  const [bookingError, setBookingError] = useState("");
-  const [bookingSuccess, setBookingSuccess] = useState("");
-  const [userRequests, setUserRequests] = useState([]);
-  const [userRequestsLoading, setUserRequestsLoading] = useState(false);
-  const [userRequestsError, setUserRequestsError] = useState("");
-  const [userRequestsQuery, setUserRequestsQuery] = useState("");
-  const [selectedUserRequestKey, setSelectedUserRequestKey] = useState(null);
-  const [seenRequestIds, setSeenRequestIds] = useState([]);
-  const [notificationTab, setNotificationTab] = useState("requests"); // requests | announcements
-  const [announcements, setAnnouncements] = useState([]);
-  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
-  const [announcementsError, setAnnouncementsError] = useState("");
-  const [announcementsQuery, setAnnouncementsQuery] = useState("");
-  const [selectedAnnouncementId, setSelectedAnnouncementId] = useState(null);
-  const [seenAnnouncementIds, setSeenAnnouncementIds] = useState([]);
-  const [announcementForm, setAnnouncementForm] = useState({
-    title: "",
-    message: "",
-    resource: "",
-    targetUserId: "",
-    senderName: "",
-  });
-  const [announcementSubmitting, setAnnouncementSubmitting] = useState(false);
-  const [announcementSent, setAnnouncementSent] = useState("");
-  const [announcementError, setAnnouncementError] = useState("");
   const [cancelDialog, setCancelDialog] = useState({ open: false, booking: null });
   const [cancelReason, setCancelReason] = useState("");
   const [cancelSenderName, setCancelSenderName] = useState("");
@@ -434,6 +74,29 @@ export default function App() {
   });
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
+  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
+  const sessionLabels = getOrgLabels(getSessionOrgId(SESSION_KEY));
+  const {
+    currentUserId,
+    setCurrentUserId,
+    password,
+    setPassword,
+    role,
+    hasUser,
+    loading,
+    error,
+    handleLogin,
+    handleLogout,
+  } = useSessionAuth({
+    userIdLabel: sessionLabels.userId,
+    adminUrl: ADMIN_URL,
+    onLogoutReset: () => {
+      setSection("schedule");
+      setBookings([]);
+      setUserRequests([]);
+      setAnnouncements([]);
+    },
+  });
   const labels = useMemo(
     () => getOrgLabels(getSessionOrgId(SESSION_KEY)),
     [role, hasUser]
@@ -451,6 +114,93 @@ export default function App() {
     }),
     [labels]
   );
+  const {
+    resources,
+    setResources,
+    resourceQuery,
+    setResourceQuery,
+    resourceLoading,
+    resourceError,
+    selectedResourceId,
+    setSelectedResourceId,
+    availabilityResource,
+    setAvailabilityResource,
+    availabilityBookings,
+    availabilityLoading,
+    setAvailabilityLoading,
+    availabilityError,
+    availabilityMonthDate,
+    setAvailabilityMonthDate,
+    bookingDraft,
+    setBookingDraft,
+    bookingSubmitting,
+    bookingError,
+    bookingSuccess,
+    availabilityDays,
+    availabilityMonthLabel,
+    filteredResources,
+    filteredRequestResources,
+    selectedResource,
+    selectedRequestResource,
+    loadResources,
+    openAvailability,
+    pickBookingDate,
+    submitBookingRequest,
+    refreshAvailabilityStatus,
+    isResourceAvailable,
+  } = useResourceExplorerState({
+    role,
+    currentUserId,
+    labels,
+    labelsLower,
+    bookings,
+    setBookings,
+    requestQuery,
+    onlyAvailable,
+    requestResourceId,
+  });
+  const {
+    userRequests,
+    setUserRequests,
+    userRequestsLoading,
+    userRequestsError,
+    userRequestsQuery,
+    setUserRequestsQuery,
+    selectedUserRequestKey,
+    setSelectedUserRequestKey,
+    notificationTab,
+    setNotificationTab,
+    announcements,
+    setAnnouncements,
+    announcementsLoading,
+    announcementsError,
+    announcementsQuery,
+    setAnnouncementsQuery,
+    selectedAnnouncementId,
+    setSelectedAnnouncementId,
+    announcementForm,
+    setAnnouncementForm,
+    announcementSubmitting,
+    announcementSent,
+    announcementError,
+    unreadNotificationCount,
+    filteredUserRequests,
+    filteredAnnouncements,
+    groupedUserRequests,
+    selectedUserGroup,
+    seenAnnouncementSet,
+    loadUserRequests,
+    loadAnnouncements,
+    submitAnnouncement,
+    markAnnouncementSeen,
+    markRequestsSeen,
+    getUnreadCountForGroup,
+  } = useNotificationsState({
+    role,
+    section,
+    currentUserId,
+    labels,
+  });
 
   const isCinema = true;
 
@@ -469,75 +219,6 @@ export default function App() {
     fontWeight: 800,
     boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
   };
-
-  useEffect(() => {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return;
-    try {
-      const stored = JSON.parse(raw);
-      const storedId = String(stored?.id || "").trim();
-      if (!storedId) return;
-      setCurrentUserId(storedId);
-      setRole(normalizeRole(stored?.role));
-    } catch {
-      localStorage.removeItem(SESSION_KEY);
-    }
-  }, []);
-
-  async function handleLogin() {
-    const id = currentUserId.trim();
-    if (!id) {
-      setError(`Please enter your ${labels.userId}.`);
-      return;
-    }
-    setError("");
-    setLoading(true);
-    try {
-      const user = await loginUser(id, password);
-      const normalizedRole = normalizeRole(user?.role);
-      localStorage.setItem(
-        SESSION_KEY,
-        JSON.stringify({
-          id,
-          role: normalizedRole,
-          organization_id: user?.organization_id || null,
-          full_name: user?.full_name || "",
-        })
-      );
-      if (normalizedRole === "admin") {
-        const params = new URLSearchParams();
-        params.set("national_id", id);
-        if (user?.organization_id) {
-          params.set("organization_id", String(user.organization_id));
-        }
-        if (user?.full_name) {
-          params.set("full_name", String(user.full_name));
-        }
-        params.set("role", "admin");
-        const query = `?${params.toString()}`;
-        window.location.assign(`${ADMIN_URL}${query}`);
-        return;
-      }
-      setRole(normalizedRole);
-      setHasUser(true);
-    } catch (err) {
-      setError(err?.message || "Failed to sign in.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleLogout() {
-    localStorage.removeItem(SESSION_KEY);
-    setHasUser(false);
-    setCurrentUserId("");
-    setPassword("");
-    setRole("user");
-    setSection("schedule");
-    setBookings([]);
-    setUserRequests([]);
-    setAnnouncements([]);
-  }
 
   const activeBookings = useMemo(() => {
     return bookings.filter((b) => !b.cancelled_at);
@@ -578,105 +259,11 @@ export default function App() {
     () => buildMonthGrid(monthDate, filteredBookings),
     [monthDate, filteredBookings]
   );
-  const availabilityDays = useMemo(
-    () => buildMonthGrid(availabilityMonthDate, availabilityBookings),
-    [availabilityMonthDate, availabilityBookings]
-  );
-
   const monthLabel = monthDate.toLocaleDateString("he-IL", {
     timeZone: "Asia/Jerusalem",
     month: "long",
     year: "numeric",
   });
-  const availabilityMonthLabel = availabilityMonthDate.toLocaleDateString(
-    "he-IL",
-    {
-      timeZone: "Asia/Jerusalem",
-      month: "long",
-      year: "numeric",
-    }
-  );
-
-  function isResourceAvailable(resource) {
-    const meta = resource?.metadata || {};
-    if (meta.available === true) return true;
-    const status = `${meta.status || meta.availability || ""}`.toLowerCase();
-    return status === "available" || status === "free" || status === "open";
-  }
-
-  function resourceMatchesQuery(resource, query) {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    const hay = `${resource.name} ${resource.type_name || ""} ${JSON.stringify(
-      resource.metadata || {}
-    )}`.toLowerCase();
-    return hay.includes(q);
-  }
-
-  const filteredResources = useMemo(() => {
-    const visibleResources = resources.filter((r) => {
-      if (role === "manager" && isPrimaryResource(r)) return false;
-      return true;
-    });
-    const sortedResources = [...visibleResources].sort((a, b) =>
-      String(a.name || "").localeCompare(String(b.name || ""))
-    );
-    if (role === "user" && !resourceQuery.trim()) return sortedResources;
-    if (!resourceQuery.trim()) return [];
-    return sortedResources.filter((r) => resourceMatchesQuery(r, resourceQuery));
-  }, [resources, resourceQuery, role]);
-
-  const filteredRequestResources = useMemo(() => {
-    return resources.filter((r) => {
-      if (role === "manager" && isPrimaryResource(r)) return false;
-      if (!resourceMatchesQuery(r, requestQuery)) return false;
-      if (onlyAvailable && !isResourceAvailable(r)) return false;
-      return true;
-    });
-  }, [resources, requestQuery, onlyAvailable, role]);
-
-  const selectedResource = useMemo(() => {
-    if (!selectedResourceId) return null;
-    return resources.find((r) => r.id === selectedResourceId) || null;
-  }, [resources, selectedResourceId]);
-
-  const selectedRequestResource = useMemo(() => {
-    if (!requestResourceId) return null;
-    return resources.find((r) => r.id === requestResourceId) || null;
-  }, [resources, requestResourceId]);
-
-  async function loadResources(options = {}) {
-    const { allowEmptyQuery = false } = options;
-    if (!allowEmptyQuery && !resourceQuery.trim()) return;
-    setResourceError("");
-    setResourceLoading(true);
-    try {
-      const data = await getAllResources();
-      setResources(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setResourceError(
-        err?.message || `Failed to load ${labelsLower.resources}.`
-      );
-    } finally {
-      setResourceLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!resourceQuery.trim()) return;
-    if (resources.length > 0) return;
-    const timer = setTimeout(() => {
-      loadResources();
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [resourceQuery, resources.length]);
-
-  useEffect(() => {
-    if (!requestQuery.trim()) return;
-    if (resources.length > 0) return;
-    loadResources({ allowEmptyQuery: true });
-  }, [requestQuery, resources.length]);
-
   useEffect(() => {
     if (!hasUser || !currentUserId.trim()) return;
     let active = true;
@@ -684,17 +271,10 @@ export default function App() {
     async function refreshUserData() {
       try {
         const userId = currentUserId.trim();
-        const tasks = [getBookingsByUser(userId), getAllResources()];
-        if (role === "manager") {
-          tasks.push(getResourceRequests());
-        } else {
-          tasks.push(Promise.resolve([]));
-        }
-        if (role === "user") {
-          tasks.push(getAnnouncements({ userId: currentUserId.trim() }));
-        }
-        const [bookingsData, allResources, requestsData, announcementsData] =
-          await Promise.all(tasks);
+        const [bookingsData, allResources] = await Promise.all([
+          getBookingsByUser(userId),
+          getAllResources(),
+        ]);
         if (!active) return;
         const baseBookings = Array.isArray(bookingsData) ? bookingsData : [];
         const resourcesList = Array.isArray(allResources) ? allResources : [];
@@ -721,12 +301,6 @@ export default function App() {
           mergedBookings = Array.from(all.values());
         }
         setBookings(mergedBookings);
-        setUserRequests(Array.isArray(requestsData) ? requestsData : []);
-        if (role === "user") {
-          setAnnouncements(
-            Array.isArray(announcementsData) ? announcementsData : []
-          );
-        }
       } catch {
         if (!active) return;
       }
@@ -738,108 +312,7 @@ export default function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [hasUser, currentUserId, role]);
-
-  async function openAvailability(resource) {
-    if (!resource) return;
-    setAvailabilityResource(resource);
-    setAvailabilityMonthDate(new Date());
-    setAvailabilityError("");
-    setBookingDraft({ date: "", start: "09:00", end: "10:00" });
-    setBookingError("");
-    setBookingSuccess("");
-    setAvailabilityLoading(true);
-    try {
-      const [bookingsData] = await Promise.all([
-        getBookingsByResource(resource.id),
-      ]);
-      setAvailabilityBookings(Array.isArray(bookingsData) ? bookingsData : []);
-    } catch (err) {
-      setAvailabilityError(err?.message || "Failed to load availability.");
-      setAvailabilityBookings([]);
-    } finally {
-      setAvailabilityLoading(false);
-    }
-  }
-
-  function pickBookingDate(day) {
-    if (!day?.key) return;
-    setBookingDraft((prev) => ({ ...prev, date: day.key }));
-    setBookingError("");
-    setBookingSuccess("");
-  }
-
-  async function submitBookingRequest(dateOverride) {
-    const requester = currentUserId.trim();
-    if (!availabilityResource) return;
-    if (!requester) {
-      setBookingError(`Please enter your ${labels.userId} first.`);
-      return;
-    }
-    const requestDate = dateOverride || bookingDraft.date;
-    if (dateOverride && bookingDraft.date !== dateOverride) {
-      setBookingDraft((prev) => ({ ...prev, date: dateOverride }));
-    }
-    if (!requestDate) {
-      setBookingError("Please choose a date in the calendar.");
-      return;
-    }
-    if (!bookingDraft.start || !bookingDraft.end) {
-      setBookingError("Please select start and end times.");
-      return;
-    }
-    if (bookingDraft.start >= bookingDraft.end) {
-      setBookingError("End time must be after start time.");
-      return;
-    }
-
-    setBookingSubmitting(true);
-    setBookingError("");
-    setBookingSuccess("");
-    try {
-      await createResourceRequest({
-        resource_id: availabilityResource.id,
-        user_id: requester,
-        note: `Booking request for ${requestDate} ${bookingDraft.start}-${bookingDraft.end}`,
-        request_date: requestDate,
-        start_time: bookingDraft.start,
-        end_time: bookingDraft.end,
-      });
-      setBookingSuccess("Request sent to the admin for approval.");
-    } catch (err) {
-      setBookingError(err?.message || "Failed to send request.");
-    } finally {
-      setBookingSubmitting(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!availabilityResource || !currentUserId.trim()) return;
-    let active = true;
-
-    async function refreshStatus() {
-      try {
-        const [bookingsData, userBookings] = await Promise.all([
-          getBookingsByResource(availabilityResource.id),
-          getBookingsByUser(currentUserId.trim()),
-        ]);
-        if (!active) return;
-        setAvailabilityBookings(
-          Array.isArray(bookingsData) ? bookingsData : []
-        );
-        setBookings(Array.isArray(userBookings) ? userBookings : []);
-      } catch {
-        if (!active) return;
-      }
-    }
-
-    refreshStatus();
-    const timer = setInterval(refreshStatus, 15000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [availabilityResource, currentUserId]);
+  }, [hasUser, currentUserId, setResources]);
 
   async function submitResourceRequest() {
     if (!selectedRequestResource) return;
@@ -921,101 +394,6 @@ export default function App() {
     return byId;
   }, [bookings]);
 
-  // Sidebar selection
-  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
-
-  async function loadUserRequests() {
-    const userId = currentUserId.trim();
-    if (role === "user" && !userId) return;
-    setUserRequestsError("");
-    setUserRequestsLoading(true);
-    try {
-      const data =
-        role === "manager"
-          ? await getResourceRequests()
-          : await getResourceRequests({ userId });
-      setUserRequests(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setUserRequestsError(err?.message || "Failed to load requests.");
-      setUserRequests([]);
-    } finally {
-      setUserRequestsLoading(false);
-    }
-  }
-
-  async function loadAnnouncements() {
-    const userId = currentUserId.trim();
-    if (role === "user" && !userId) return;
-    setAnnouncementsError("");
-    setAnnouncementsLoading(true);
-    try {
-      const data = await getAnnouncements({
-        userId: role === "user" ? userId : undefined,
-      });
-      setAnnouncements(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setAnnouncementsError(err?.message || "Failed to load announcements.");
-      setAnnouncements([]);
-    } finally {
-      setAnnouncementsLoading(false);
-    }
-  }
-
-  async function submitAnnouncement() {
-    const title = announcementForm.title.trim();
-    const message = announcementForm.message.trim();
-    const resource = announcementForm.resource.trim();
-    const targetUserId = announcementForm.targetUserId.trim();
-    const senderName =
-      announcementForm.senderName.trim() || currentUserId.trim() || labels.manager;
-
-    if (!title) {
-      setAnnouncementError("Please add a title.");
-      return;
-    }
-    if (!message) {
-      setAnnouncementError("Please add a message.");
-      return;
-    }
-
-    setAnnouncementSubmitting(true);
-    setAnnouncementError("");
-    setAnnouncementSent("");
-    try {
-      await createAnnouncement({
-        title,
-        message,
-        resource_name: resource,
-        sender_name: senderName,
-        target_user_id: targetUserId || null,
-      });
-      setAnnouncementSent("Announcement sent.");
-      setAnnouncementForm((prev) => ({
-        ...prev,
-        title: "",
-        message: "",
-        resource: "",
-        targetUserId: "",
-      }));
-      loadAnnouncements();
-    } catch (err) {
-      setAnnouncementError(err?.message || "Failed to send announcement.");
-    } finally {
-      setAnnouncementSubmitting(false);
-    }
-  }
-
-  function markAnnouncementSeen(announcementId) {
-    if (role !== "user") return;
-    const userId = currentUserId.trim();
-    if (!userId) return;
-    const key = `smartallocate_seen_announcements_${userId}`;
-    const next = new Set([...seenAnnouncementIds, Number(announcementId)]);
-    const nextList = Array.from(next);
-    setSeenAnnouncementIds(nextList);
-    localStorage.setItem(key, JSON.stringify(nextList));
-  }
-
   function openCancelDialog(booking) {
     if (!booking) return;
     setCancelDialog({ open: true, booking });
@@ -1082,195 +460,10 @@ export default function App() {
   }
 
   useEffect(() => {
-    const userId = currentUserId.trim();
-    if (!userId) return;
-    const key = `smartallocate_seen_${userId}`;
-    try {
-      const stored = JSON.parse(localStorage.getItem(key) || "[]");
-      setSeenRequestIds(Array.isArray(stored) ? stored : []);
-    } catch {
-      setSeenRequestIds([]);
-    }
-  }, [currentUserId]);
-
-  useEffect(() => {
-    const userId = currentUserId.trim();
-    if (!userId) return;
-    const key = `smartallocate_seen_announcements_${userId}`;
-    try {
-      const stored = JSON.parse(localStorage.getItem(key) || "[]");
-      setSeenAnnouncementIds(Array.isArray(stored) ? stored : []);
-    } catch {
-      setSeenAnnouncementIds([]);
-    }
-  }, [currentUserId]);
-
-  const seenRequestSet = useMemo(
-    () => new Set(seenRequestIds.map((id) => Number(id))),
-    [seenRequestIds]
-  );
-
-  const seenAnnouncementSet = useMemo(
-    () => new Set(seenAnnouncementIds.map((id) => Number(id))),
-    [seenAnnouncementIds]
-  );
-
-  const unreadRequestCount = useMemo(() => {
-    return userRequests.filter(
-      (req) =>
-        req.status && req.status !== "pending" && !seenRequestSet.has(Number(req.id))
-    ).length;
-  }, [userRequests, seenRequestSet]);
-
-  const unreadAnnouncementCount = useMemo(() => {
-    if (role !== "user") return 0;
-    return announcements.filter((a) => !seenAnnouncementSet.has(Number(a.id))).length;
-  }, [announcements, role, seenAnnouncementSet]);
-
-  const unreadNotificationCount = unreadRequestCount + unreadAnnouncementCount;
-
-  const filteredUserRequests = useMemo(() => {
-    const q = userRequestsQuery.trim().toLowerCase();
-    if (!q) return userRequests;
-    return userRequests.filter((req) => {
-      const haystack = [
-        req.resource_name,
-        req.resource_type,
-        req.status,
-        req.request_date,
-        req.note,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [userRequests, userRequestsQuery]);
-
-  const filteredAnnouncements = useMemo(() => {
-    const q = announcementsQuery.trim().toLowerCase();
-    if (!q) return announcements;
-    return announcements.filter((a) => {
-      const haystack = [a.title, a.message, a.resource_name, a.sender_name]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [announcements, announcementsQuery]);
-
-  const groupedUserRequests = useMemo(() => {
-    const groups = new Map();
-    filteredUserRequests.forEach((req) => {
-      const key = String(req.resource_id ?? req.resource_name ?? req.id);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          resource_id: req.resource_id,
-          resource_name: req.resource_name,
-          resource_type: req.resource_type,
-          requests: [],
-        });
-      }
-      groups.get(key).requests.push(req);
-    });
-    return Array.from(groups.values()).sort((a, b) => {
-      const aName = a.resource_name || `${labels.resource} #${a.resource_id || ""}`;
-      const bName = b.resource_name || `${labels.resource} #${b.resource_id || ""}`;
-      return aName.localeCompare(bName);
-    });
-  }, [filteredUserRequests, labels.resource]);
-
-  useEffect(() => {
-    if (selectedUserRequestKey && !groupedUserRequests.some((g) => g.key === selectedUserRequestKey)) {
-      setSelectedUserRequestKey(null);
-    }
-  }, [groupedUserRequests, selectedUserRequestKey]);
-
-  useEffect(() => {
-    if (selectedAnnouncementId && !filteredAnnouncements.some((a) => a.id === selectedAnnouncementId)) {
-      setSelectedAnnouncementId(null);
-    }
-  }, [filteredAnnouncements, selectedAnnouncementId]);
-
-  useEffect(() => {
-    if (userRequestsQuery.trim()) {
-      setSelectedUserRequestKey(null);
-    }
-  }, [userRequestsQuery]);
-
-  useEffect(() => {
-    if (role === "manager") {
-      setNotificationTab("requests");
-    } else if (role === "user") {
-      setNotificationTab("announcements");
-      setUserRequests([]);
-    }
-  }, [role]);
-
-  useEffect(() => {
     if (role === "user" && (section === "requests" || section === "availability")) {
       setSection("schedule");
     }
   }, [role, section]);
-
-  const selectedUserGroup = groupedUserRequests.find(
-    (group) => group.key === selectedUserRequestKey
-  );
-
-  function markRequestsSeen(resourceId) {
-    const userId = currentUserId.trim();
-    if (!userId) return;
-    const key = `smartallocate_seen_${userId}`;
-    const toMark = userRequests
-      .filter(
-        (req) =>
-          String(req.resource_id) === String(resourceId) &&
-          req.status &&
-          req.status !== "pending"
-      )
-      .map((req) => Number(req.id));
-    if (toMark.length === 0) return;
-    const next = new Set([...seenRequestSet, ...toMark]);
-    const nextList = Array.from(next);
-    setSeenRequestIds(nextList);
-    localStorage.setItem(key, JSON.stringify(nextList));
-  }
-
-  useEffect(() => {
-    if (section !== "notifications") return;
-    if (role === "manager") {
-      loadUserRequests();
-    }
-    if (role === "user") {
-      loadAnnouncements();
-    }
-  }, [section, currentUserId, role]);
-
-  useEffect(() => {
-    if (section !== "notifications") return;
-    if (role !== "user" || !currentUserId.trim()) return;
-    let active = true;
-
-    async function refreshAnnouncements() {
-      try {
-        const data = await getAnnouncements({
-          userId: role === "user" ? currentUserId.trim() : undefined,
-        });
-        if (!active) return;
-        setAnnouncements(Array.isArray(data) ? data : []);
-      } catch {
-        if (!active) return;
-      }
-    }
-
-    refreshAnnouncements();
-    const timer = setInterval(refreshAnnouncements, 15000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, [section, currentUserId, role]);
 
   useEffect(() => {
     if (!hasUser || role !== "manager") return;
@@ -1292,73 +485,19 @@ export default function App() {
 
   if (!hasUser) {
     return (
-      <div className="login-shell">
-        <div className="login-card">
-          <section className="login-showcase">
-            <div className="login-brand-badge">SmartAllocate</div>
-
-            <div className="login-greeting">
-              <div className="login-greeting-title">Welcome back</div>
-              <div className="login-greeting-sub">
-                Sign in to manage your {labelsLower.resources}, review your activity, and stay
-                aligned with your organization from one elegant workspace.
-              </div>
-            </div>
-
-            <div className="login-showcase-panel">
-              <div className="login-showcase-label">Personal workspace</div>
-              <div className="login-showcase-text">
-                Review bookings, follow updates from your {labelsLower.managers}, and request the
-                next {labelsLower.resource} with a calm, focused workflow.
-              </div>
-            </div>
-          </section>
-
-          <section className="login-form-wrap">
-            <div className="login-form">
-              <div className="login-form-header">
-                <div className="login-form-title">Sign in</div>
-                <div className="login-form-subtitle">
-                  Enter your details to access your personal dashboard.
-                </div>
-              </div>
-
-              <label className="login-label">{labels.userId}</label>
-              <input
-                className="login-input"
-                type="text"
-                inputMode="numeric"
-                value={currentUserId}
-                onChange={(e) => setCurrentUserId(e.target.value)}
-                placeholder={`Enter your ${labelsLower.userId}`}
-              />
-              <label className="login-label">Password</label>
-              <input
-                className="login-input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-              />
-              <button
-                className="login-button"
-                onClick={handleLogin}
-                disabled={loading}
-              >
-                {loading ? "Loading..." : "Sign in"}
-              </button>
-              {error && <div className="login-error">{error}</div>}
-            </div>
-          </section>
-        </div>
-      </div>
+      <LoginView
+        labels={labels}
+        labelsLower={labelsLower}
+        currentUserId={currentUserId}
+        setCurrentUserId={setCurrentUserId}
+        password={password}
+        setPassword={setPassword}
+        handleLogin={handleLogin}
+        loading={loading}
+        error={error}
+      />
     );
   }
-  const requestDisabled = bookingSubmitting;
-  const requestButtonLabel = "Send request";
-  const requestButtonBackground = bookingSubmitting ? "#94a3b8" : "#2563eb";
-  const requestButtonColor = "#fff";
-
   return (
     <div
       style={{
@@ -1367,3052 +506,197 @@ export default function App() {
         background: isCinema ? "#f1f5f9" : "#f8fafc",
       }}
     >
-      {/* Sidebar */}
-      <aside
-        style={{
-          width: 220,
-          background: isCinema
-            ? "linear-gradient(180deg,#09090b 0%,#120a19 100%)"
-            : "#0f172a",
-          color: "#e2e8f0",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          gap: 12,
-          boxShadow: isCinema ? "inset -1px 0 0 rgba(196,181,253,0.14)" : "none",
-        }}
-      >
-        <div
-          style={{
-            fontWeight: 900,
-            fontSize: 18,
-            color: isCinema ? "#f5f3ff" : undefined,
-            letterSpacing: isCinema ? "0.02em" : undefined,
-          }}
-        >
-          SmartAllocate
-        </div>
-        <div style={{ display: "grid", gap: 6 }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "#94a3b8",
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-            }}
-          >
-            Role
-          </div>
-          <div
-            style={{
-              padding: "8px 10px",
-              borderRadius: 12,
-              border: isCinema ? "1px solid rgba(196,181,253,0.24)" : "1px solid #1e293b",
-              background: isCinema
-                ? "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(196,181,253,0.08))"
-                : "#0b1120",
-              color: "#e2e8f0",
-              fontWeight: 800,
-              textTransform: "capitalize",
-              textAlign: "center",
-            }}
-          >
-            {role === "manager" ? labels.manager : labels.user}
-          </div>
-        </div>
-        <div style={{ fontSize: 12, color: "#cbd5e1" }}>
-          {labels.userId}: {currentUserId}
-        </div>
-        <button
-          onClick={() => setSection("schedule")}
-          style={{
-            textAlign: "left",
-            padding: "12px 14px",
-            borderRadius: 14,
-            border: isCinema && section === "schedule" ? "1px solid transparent" : "none",
-            background:
-              section === "schedule"
-                ? isCinema
-                  ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
-                  : "#1d4ed8"
-                : "transparent",
-            color: "#fff",
-            cursor: "pointer",
-            fontWeight: 800,
-            boxShadow:
-              isCinema && section === "schedule"
-                ? "0 14px 30px rgba(79,70,229,0.22)"
-                : "none",
-          }}
-        >
-          My Schedule
-        </button>
-        <button
-          onClick={() => setSection("search")}
-          style={{
-            textAlign: "left",
-            padding: "12px 14px",
-            borderRadius: 14,
-            border: isCinema && section === "search" ? "1px solid transparent" : "none",
-            background:
-              section === "search"
-                ? isCinema
-                  ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
-                  : "#1d4ed8"
-                : "transparent",
-            color: "#fff",
-            cursor: "pointer",
-            fontWeight: 800,
-            boxShadow:
-              isCinema && section === "search"
-                ? "0 14px 30px rgba(79,70,229,0.22)"
-                : "none",
-          }}
-        >
-          {role === "user" ? `My ${labels.resources}` : `Find ${labels.resource}`}
-        </button>
-        {role === "manager" && (
-          <button
-            onClick={() => setSection("requests")}
-            style={{
-              textAlign: "left",
-              padding: "12px 14px",
-              borderRadius: 14,
-              border: isCinema && section === "requests" ? "1px solid transparent" : "none",
-              background:
-                section === "requests"
-                  ? isCinema
-                    ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
-                    : "#1d4ed8"
-                  : "transparent",
-              color: "#fff",
-              cursor: "pointer",
-              fontWeight: 800,
-              boxShadow:
-                isCinema && section === "requests"
-                  ? "0 14px 30px rgba(79,70,229,0.22)"
-                  : "none",
-            }}
-          >
-            {`${labels.resource} ${labels.requests}`}
-          </button>
-        )}
-        <button
-          onClick={() => setSection("notifications")}
-          style={{
-            textAlign: "left",
-            padding: "12px 14px",
-            borderRadius: 14,
-            border: isCinema && section === "notifications" ? "1px solid transparent" : "none",
-            background:
-              section === "notifications"
-                ? isCinema
-                  ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
-                  : "#1d4ed8"
-                : "transparent",
-            color: "#fff",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            fontWeight: 800,
-            boxShadow:
-              isCinema && section === "notifications"
-                ? "0 14px 30px rgba(79,70,229,0.22)"
-                : "none",
-          }}
-        >
-          <span>{role === "user" ? "Notifications" : "Request Updates"}</span>
-          {unreadNotificationCount > 0 && role === "user" && (
-            <span
-              style={{
-                minWidth: 22,
-                height: 22,
-                borderRadius: 999,
-                background: "#ef4444",
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 700,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0 6px",
-              }}
-            >
-              {unreadNotificationCount}
-            </span>
-          )}
-        </button>
-        {role === "manager" && (
-          <button
-            onClick={() => setSection("availability")}
-            style={{
-              textAlign: "left",
-              padding: "12px 14px",
-              borderRadius: 14,
-              border: isCinema && section === "availability" ? "1px solid transparent" : "none",
-              background:
-                section === "availability"
-                  ? isCinema
-                    ? "linear-gradient(135deg,#4f46e5,#7c3aed)"
-                    : "#971dd8ff"
-                  : "transparent",
-              color: "#fff",
-              cursor: "pointer",
-              fontWeight: 800,
-              boxShadow:
-                isCinema && section === "availability"
-                  ? "0 14px 30px rgba(79,70,229,0.22)"
-                  : "none",
-            }}
-          >
-            My Availability
-          </button>
-        )}
-        <button
-          onClick={handleLogout}
-          style={{
-            marginTop: 8,
-            textAlign: "left",
-            padding: "12px 14px",
-            borderRadius: 14,
-            border: isCinema ? "1px solid rgba(196,181,253,0.2)" : "1px solid #1e293b",
-            background: isCinema
-              ? "linear-gradient(135deg, rgba(255,255,255,0.04), rgba(196,181,253,0.06))"
-              : "#0b1120",
-            color: "#e2e8f0",
-            cursor: "pointer",
-            fontWeight: 700,
-          }}
-        >
-          Sign out
-        </button>
-        <div style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>
-          Powered by SmartAllocate
-        </div>
-      </aside>
+      <AppSidebar
+        isCinema={isCinema}
+        role={role}
+        labels={labels}
+        labelsLower={labelsLower}
+        currentUserId={currentUserId}
+        section={section}
+        setSection={setSection}
+        unreadNotificationCount={unreadNotificationCount}
+        handleLogout={handleLogout}
+      />
 
       {/* Main */}
       <div style={{ flex: 1, padding: 24, maxWidth: 1200, margin: "0 auto" }}>
         {section === "schedule" ? (
-          <>
-            <header
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
-              }}
-            >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>
-                {isCinema ? "My Screenings" : "My Schedule"}
-              </h1>
-              <p style={{ margin: 0, color: "#475569" }}>
-                {isCinema
-                  ? "Follow your upcoming screenings in month or list view."
-                  : `Month or list view of your ${labelsLower.resources}.`}
-              </p>
-            </header>
-
-            <div
-              className="glass"
-              style={{
-                padding: 16,
-                borderRadius: 18,
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <h3 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h3>
-                <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
-                  Search by {labelsLower.resource} or tag. Switch between month grid and list.
-                </p>
-              </div>
-              <input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Search..."
-                style={{
-                  width: 220,
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid #e2e8f0",
-                  background: "#fff",
-                  color: "#0f172a",
-                }}
-              />
-              <div
-                className="glass"
-                style={{
-                  display: "flex",
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  border: "1px solid #e2e8f0",
-                }}
-              >
-                {[
-                  { key: "month", label: "Month" },
-                  { key: "list", label: "List" },
-                ].map((opt) => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setViewMode(opt.key)}
-                    style={{
-                      padding: "10px 14px",
-                      border: "none",
-                      background:
-                        viewMode === opt.key
-                          ? "rgba(37,99,235,0.1)"
-                          : "transparent",
-                      color: "#0f172a",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {scheduleBookings.length === 0 && !loading ? (
-              <div
-                className="glass"
-                style={{
-                  marginTop: 18,
-                  padding: 16,
-                  borderRadius: 16,
-                  color: "#475569",
-                  textAlign: "center",
-                }}
-              >
-                No {labelsLower.resources} yet. Enter an ID and click "Load bookings".
-              </div>
-            ) : (
-              <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
-                {viewMode === "month" ? (
-                  <MonthGrid
-                    monthLabel={monthLabel}
-                    onPrev={() =>
-                      setMonthDate(
-                        (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
-                      )
-                    }
-                    onNext={() =>
-                      setMonthDate(
-                        (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1)
-                      )
-                    }
-                    days={monthDays}
-                    renderBooking={(b) => {
-                      const past = isPastBooking(b);
-                      const shortLocation = getBookingShortLocation(b);
-                      return (
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setSelectedScheduleBooking(b)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setSelectedScheduleBooking(b);
-                            }
-                          }}
-                          style={{
-                            padding: "8px 10px",
-                            borderRadius: 10,
-                            background:
-                              "linear-gradient(135deg,#2563eb,#1d4ed8)",
-                            color: "#fff",
-                            fontSize: 12,
-                            boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
-                            display: "grid",
-                            gap: 4,
-                            cursor: "pointer",
-                          }}
-                        >
-                          <div style={{ fontWeight: 700 }}>
-                            {(b.resources || [])
-                              .map((r) => r.name)
-                              .filter(Boolean)
-                              .join(" / ")}
-                          </div>
-                          <div style={{ opacity: 0.9 }}>
-                            {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                          </div>
-                          {shortLocation && (
-                            <div
-                              style={{
-                                fontSize: 11,
-                                fontWeight: 700,
-                                opacity: 0.92,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {shortLocation}
-                            </div>
-                          )}
-                          {role === "manager" && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openCancelDialog(b);
-                              }}
-                              disabled={past}
-                              style={{
-                                marginTop: 2,
-                                padding: "4px 6px",
-                                borderRadius: 8,
-                                border: "1px solid rgba(255,255,255,0.6)",
-                                background: past ? "rgba(255,255,255,0.3)" : "#fff",
-                                color: past ? "#e2e8f0" : "#1d4ed8",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                cursor: past ? "not-allowed" : "pointer",
-                              }}
-                            >
-                              Cancel {labelsLower.resource}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    }}
-                  />
-                ) : (
-                  <>
-                    <Section
-                      title="Upcoming"
-                      color="#2563eb"
-                      items={upcoming}
-                      role={role}
-                      onCancel={openCancelDialog}
-                    />
-                    <Section
-                      title="Past"
-                      color="#94a3b8"
-                      items={past}
-                      role={role}
-                      onCancel={openCancelDialog}
-                    />
-                  </>
-                )}
-              </div>
-            )}
-          </>
+          <ScheduleSection
+            isCinema={isCinema}
+            labels={labels}
+            labelsLower={labelsLower}
+            filter={filter}
+            setFilter={setFilter}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            scheduleBookings={scheduleBookings}
+            loading={loading}
+            monthLabel={monthLabel}
+            setMonthDate={setMonthDate}
+            monthDays={monthDays}
+            setSelectedScheduleBooking={setSelectedScheduleBooking}
+            role={role}
+            openCancelDialog={openCancelDialog}
+            upcoming={upcoming}
+            past={past}
+          />
         ) : section === "search" ? (
-          <>
-            <header
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
-              }}
-            >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>
-                {isCinema ? "Seat Explorer" : `Find a ${labelsLower.resource}`}
-              </h1>
-              <p style={{ margin: 0, color: "#475569" }}>
-                {isCinema
-                  ? role === "user"
-                    ? "Browse available seats in the hall and inspect their booking sessions."
-                    : "Search seats by row, number, hall, or metadata to manage assignments."
-                  : role === "user"
-                    ? `Browse all ${labelsLower.resources}, then expand one to see your assignments.`
-                    : "Search by name or tags, then expand to see your dates & times."}
-              </p>
-            </header>
-
-            <div
-              className="glass"
-              style={{
-                padding: 16,
-                borderRadius: 18,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  alignItems: "center",
-                }}
-              >
-                <input
-                  value={resourceQuery}
-                  onChange={(e) => setResourceQuery(e.target.value)}
-                  placeholder={isCinema ? "e.g. seat A12, row B, hall 1, VIP..." : "e.g. projector, room 103, prep station..."}
-                  style={{
-                    flex: 1,
-                    minWidth: 280,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                  }}
-                />
-                <button
-                  onClick={() => loadResources({ allowEmptyQuery: role === "user" })}
-                  disabled={resourceLoading}
-                  style={{
-                    padding: "10px 16px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: resourceLoading ? "#94a3b8" : "linear-gradient(135deg, rgb(79, 70, 229), rgb(124, 58, 237))",
-                    color: "#fff",
-                    fontWeight: 700,
-                    cursor: resourceLoading ? "default" : "pointer",
-                    boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
-                  }}
-                >
-                  {resourceLoading ? "Searching..." : "Search"}
-                </button>
-              </div>
-              {role !== "user" &&
-                resourceQuery.trim() &&
-                filteredResources.length === 0 &&
-                !resourceLoading && (
-                  <div
-                    style={{
-                      marginTop: 16,
-                      color: "#475569",
-                    }}
-                  >
-                    No matches found. Try another keyword.
-                  </div>
-                )}
-              {selectedResource ? (
-                <div
-                  style={{
-                    marginTop: 18,
-                    padding: 18,
-                    borderRadius: 18,
-                    background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
-                    border: "1px solid #ddd6fe",
-                  }}
-                >
-                  <button
-                    onClick={() => setSelectedResourceId(null)}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 14,
-                      cursor: "pointer",
-                      marginBottom: 12,
-                      ...cinemaSecondaryButton,
-                    }}
-                  >
-                    Back to results
-                  </button>
-
-                  <div
-                    className="glass"
-                    style={{
-                      padding: 20,
-                      borderRadius: 22,
-                      border: "1px solid #ddd6fe",
-                      background: "#fff",
-                      display: "grid",
-                      gap: 18,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: 12,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#7c3aed",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.14em",
-                            fontWeight: 800,
-                          }}
-                        >
-                          Hall overview
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 28,
-                            fontWeight: 900,
-                            color: "#0f172a",
-                            marginTop: 4,
-                          }}
-                        >
-                          {selectedResource.name}
-                        </div>
-                      </div>
-
-                      <span
-                        style={{
-                          fontSize: 12,
-                          background: "#ede9fe",
-                          color: "#5b21b6",
-                          padding: "8px 12px",
-                          borderRadius: 999,
-                          fontWeight: 800,
-                        }}
-                      >
-                        {formatTypeLabel(selectedResource.type_name, labels)}
-                      </span>
-                    </div>
-                    {selectedResource.metadata &&
-                      Object.keys(selectedResource.metadata).length > 0 && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                          {Object.entries(selectedResource.metadata)
-                            .filter(([key]) => key !== "seatObjects")
-                            .map(([key, value]) => (
-                              <span
-                                key={key}
-                                style={{
-                                  padding: "8px 12px",
-                                  borderRadius: 999,
-                                  border: "1px solid #ddd6fe",
-                                  background: "#faf5ff",
-                                  color: "#5b21b6",
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {key}: {String(value)}
-                              </span>
-                            ))}
-                        </div>
-                      )}
-
-                    <div
-                      style={{
-                        borderRadius: 22,
-                        border: "1px solid #ddd6fe",
-                        background: "linear-gradient(180deg,#ffffff 0%,#f5f3ff 100%)",
-                        padding: 20,
-                        maxWidth: 1180,
-                        width: "100%",
-                        margin: "0 auto",
-                      }}
-                    >
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "16px 18px",
-                          borderRadius: 18,
-                          background: "linear-gradient(180deg,#f8fafc,#e2e8f0)",
-                          fontWeight: 900,
-                          letterSpacing: "0.16em",
-                          color: "#312e81",
-                          marginBottom: 18,
-                          maxWidth: 980,
-                          width: "100%",
-                          marginLeft: "auto",
-                          marginRight: "auto",
-                        }}
-                      >
-                        SCREEN
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 12,
-                          flexWrap: "wrap",
-                          marginBottom: 22,
-                          justifyContent: "center",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "#ecfdf5",
-                            border: "1px solid #86efac",
-                            color: "#166534",
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            fontSize: 12,
-                            fontWeight: 800,
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: 999,
-                              background: "#22c55e",
-                              display: "inline-block",
-                            }}
-                          />
-                          Your seat
-                        </div>
-
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "#fef3c7",
-                            border: "1px solid #fcd34d",
-                            color: "#92400e",
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            fontSize: 12,
-                            fontWeight: 800,
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: 999,
-                              background: "#facc15",
-                              display: "inline-block",
-                            }}
-                          />
-                          Focus / center seat
-                        </div>
-
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "#fef2f2",
-                            border: "1px solid #fca5a5",
-                            color: "#991b1b",
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            fontSize: 12,
-                            fontWeight: 800,
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: 999,
-                              background: "#fca5a5",
-                              display: "inline-block",
-                            }}
-                          />
-                          Broken seat
-                        </div>
-
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "#f5f3ff",
-                            border: "1px solid #c4b5fd",
-                            color: "#5b21b6",
-                            padding: "8px 12px",
-                            borderRadius: 999,
-                            fontSize: 12,
-                            fontWeight: 800,
-                          }}
-                        >
-                          <span
-                            style={{
-                              width: 10,
-                              height: 10,
-                              borderRadius: 999,
-                              background: "#c4b5fd",
-                              display: "inline-block",
-                            }}
-                          />
-                          Available seat
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "grid",
-                          gap: 14,
-                          overflowX: "auto",
-                          paddingBottom: 4,
-                          justifyContent: "center",
-                        }}
-                      >
-                        {getHallSeatRows(selectedResource).map(({ rowLabel, items }) => {
-                          const sections = splitSeatRowIntoSections(items);
-                          const userSeatIds = getUserSeatIdsForHall(selectedResource, bookings);
-
-                          return (
-                            <div
-                              key={rowLabel}
-                              style={{
-                                display: "grid",
-                                gridTemplateColumns: "64px auto",
-                                gap: 14,
-                                alignItems: "center",
-                                minWidth: "max-content",
-                                margin: "0 auto",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  height: 38,
-                                  width: 56,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  borderRadius: 12,
-                                  background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
-                                  color: "#fff",
-                                  fontWeight: 900,
-                                  boxShadow: "0 10px 24px rgba(79,70,229,0.18)",
-                                  flex: "0 0 auto",
-                                }}
-                              >
-                                {rowLabel}
-                              </div>
-
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "flex-start",
-                                  gap: 18,
-                                  flexWrap: "nowrap",
-                                  minWidth: "max-content",
-                                }}
-                              >
-                                {[sections.left, sections.center, sections.right].map(
-                                  (sectionItems, sectionIdx) => (
-                                    <React.Fragment key={`${rowLabel}-${sectionIdx}`}>
-                                      {sectionItems.length > 0 && (
-                                        <div
-                                          style={{
-                                            display: "grid",
-                                            gridAutoFlow: "column",
-                                            gridAutoColumns: "36px",
-                                            gap: 8,
-                                          }}
-                                        >
-                                          {sectionItems.map((seat) => {
-                                            const seatId = String(
-                                              seat?.seatId || `${seat?.row || ""}${seat?.number || ""}`
-                                            );
-                                            const isMine = userSeatIds.has(seatId);
-                                            const isBroken = Boolean(seat?.isBroken);
-                                            const isFocus =
-                                              seat?.section === "center" ||
-                                              seat?.section === "front_center";
-
-                                            return (
-                                              <div
-                                                key={seatId}
-                                                title={`${selectedResource.name} • Seat ${seatId}`}
-                                                style={{
-                                                  width: 36,
-                                                  height: 36,
-                                                  borderRadius: 12,
-                                                  display: "flex",
-                                                  alignItems: "center",
-                                                  justifyContent: "center",
-                                                  fontSize: 11,
-                                                  fontWeight: 900,
-                                                  color: isMine
-                                                    ? "#14532d"
-                                                    : isBroken
-                                                      ? "#991b1b"
-                                                      : isFocus
-                                                        ? "#92400e"
-                                                        : "#312e81",
-                                                  background: isMine
-                                                    ? "linear-gradient(180deg,#bbf7d0,#86efac)"
-                                                    : isBroken
-                                                      ? "linear-gradient(180deg,#fee2e2,#fecaca)"
-                                                      : isFocus
-                                                        ? "linear-gradient(180deg,#fef3c7,#fde68a)"
-                                                        : "linear-gradient(180deg,#ede9fe,#ddd6fe)",
-                                                  border: isMine
-                                                    ? "1px solid #22c55e"
-                                                    : isBroken
-                                                      ? "1px solid #fca5a5"
-                                                      : isFocus
-                                                        ? "1px solid #fcd34d"
-                                                        : "1px solid #c4b5fd",
-                                                  boxShadow: isMine
-                                                    ? "0 10px 20px rgba(34,197,94,0.18)"
-                                                    : isBroken
-                                                      ? "0 10px 20px rgba(239,68,68,0.12)"
-                                                      : isFocus
-                                                        ? "0 10px 20px rgba(250,204,21,0.18)"
-                                                        : "0 10px 20px rgba(109,40,217,0.12)",
-                                                }}
-                                              >
-                                                {seat?.number}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-
-                                      {sectionIdx < 2 && sections.center.length > 0 && (
-                                        <div
-                                          style={{
-                                            width: 16,
-                                            height: 52,
-                                            borderRadius: 999,
-                                            background: "rgba(148,163,184,0.2)",
-                                            flex: "0 0 auto",
-                                          }}
-                                        />
-                                      )}
-                                    </React.Fragment>
-                                  )
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ marginTop: 16 }}>
-                  {filteredResources.map((r) => {
-                    const userSeats = getUserSeatIdsForHall(r, bookings);
-
-                    return (
-                      <div
-                        key={r.id}
-                        onClick={() => setSelectedResourceId(r.id)}
-                        style={{
-                          padding: 16,
-                          border: "1px solid #e5e7eb",
-                          borderRadius: 12,
-                          marginBottom: 10,
-                          cursor: "pointer"
-                        }}
-                      >
-                        <div style={{ fontWeight: "bold" }}>{r.name}</div>
-                        <div style={{ fontSize: 12, color: "#666" }}>
-                          {userSeats.size > 0
-                            ? `${userSeats.size} seats yours`
-                            : "No seats assigned"}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
+          <SearchSection
+            isCinema={isCinema}
+            role={role}
+            labels={labels}
+            labelsLower={labelsLower}
+            bookings={bookings}
+            resourceQuery={resourceQuery}
+            setResourceQuery={setResourceQuery}
+            loadResources={loadResources}
+            resourceLoading={resourceLoading}
+            filteredResources={filteredResources}
+            selectedResource={selectedResource}
+            setSelectedResourceId={setSelectedResourceId}
+            cinemaSecondaryButton={cinemaSecondaryButton}
+          />
 
         ) : section === "requests" ? (
-          <>
-            <header
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
-              }}
-            >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>
-                Request a {labelsLower.resource}
-              </h1>
-              <p style={{ margin: 0, color: "#475569" }}>
-                Browse {labelsLower.resources} and send a request to your admin.
-              </p>
-            </header>
-
-            {requestSent && (
-              <div
-                className="glass"
-                style={{
-                  padding: 12,
-                  borderRadius: 12,
-                  color: "#166534",
-                  marginBottom: 12,
-                }}
-              >
-                {requestSent}
-              </div>
-            )}
-
-            {requestView === "form" ? (
-              <div
-                className="glass"
-                style={{
-                  padding: 18,
-                  borderRadius: 18,
-                  border: "1px solid #e2e8f0",
-                  background: "#fff",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <div>
-                    <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                      Request details
-                    </div>
-                    <div style={{ color: "#64748b", fontSize: 12 }}>
-                      Fill in the request and send it to your admin.
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setRequestView("list");
-                      setRequestResourceId(null);
-                      setRequestError("");
-                    }}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 14,
-                      cursor: "pointer",
-                      ...(isCinema
-                        ? cinemaSecondaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 700,
-                        }),
-                    }}
-                  >
-                    Back to {labels.resources}
-                  </button>
-                </div>
-
-                {selectedRequestResource ? (
-                  <>
-                    <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
-                      {selectedRequestResource.name}{" "}
-                      {selectedRequestResource.type_name
-                        ? `(${formatTypeLabel(selectedRequestResource.type_name, labels)})`
-                        : ""}
-                    </div>
-                    {requestError && (
-                      <div style={{ marginTop: 10, color: "#b91c1c" }}>
-                        {requestError}
-                      </div>
-                    )}
-                    <textarea
-                      value={requestNote}
-                      onChange={(e) => setRequestNote(e.target.value)}
-                      placeholder="Reason for the request..."
-                      disabled={requestSubmitting}
-                      style={{
-                        width: "100%",
-                        minHeight: 110,
-                        marginTop: 10,
-                        padding: "10px 12px",
-                        borderRadius: 12,
-                        border: "1px solid #e2e8f0",
-                        background: "#fff",
-                        color: "#0f172a",
-                      }}
-                    />
-                    <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-                      <button
-                        onClick={submitResourceRequest}
-                        disabled={requestSubmitting}
-                        style={{
-                          padding: "12px 18px",
-                          borderRadius: 16,
-                          cursor: requestSubmitting ? "default" : "pointer",
-                          ...(requestSubmitting
-                            ? {
-                              border: "none",
-                              background: "#94a3b8",
-                              color: "#fff",
-                              fontWeight: 800,
-                              boxShadow: "none",
-                            }
-                            : isCinema
-                              ? cinemaPrimaryButton
-                              : {
-                                border: "none",
-                                background: "#2563eb",
-                                color: "#fff",
-                                fontWeight: 700,
-                              }),
-                        }}
-                      >
-                        {requestSubmitting ? "Sending..." : "Send request"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setRequestResourceId(null);
-                          setRequestView("list");
-                          setRequestError("");
-                        }}
-                        disabled={requestSubmitting}
-                        style={{
-                          marginTop: 2,
-                          padding: "6px 10px",
-                          borderRadius: 10,
-                          cursor: past ? "not-allowed" : "pointer",
-                          ...(isCinema
-                            ? cinemaSecondaryButton
-                            : {
-                              border: "1px solid rgba(255,255,255,0.6)",
-                              background: past ? "rgba(255,255,255,0.3)" : "#fff",
-                              color: past ? "#e2e8f0" : "#1d4ed8",
-                              fontWeight: 700,
-                            }),
-                        }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ marginTop: 12, color: "#475569" }}>
-                    Pick a {labelsLower.resource} to continue.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div
-                className="glass"
-                style={{
-                  padding: 16,
-                  borderRadius: 18,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    value={requestQuery}
-                    onChange={(e) => setRequestQuery(e.target.value)}
-                    placeholder={`Search ${labelsLower.resources}...`}
-                    style={{
-                      flex: 1,
-                      minWidth: 240,
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid #e2e8f0",
-                      background: "#fff",
-                      color: "#0f172a",
-                    }}
-                  />
-                  <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
-                    <input
-                      type="checkbox"
-                      checked={onlyAvailable}
-                      onChange={(e) => setOnlyAvailable(e.target.checked)}
-                    />
-                    Only available
-                  </label>
-                  <button
-                    onClick={() => loadResources({ allowEmptyQuery: true })}
-                    disabled={resourceLoading}
-                    style={{
-                      padding: "12px 18px",
-                      borderRadius: 16,
-                      cursor: resourceLoading ? "default" : "pointer",
-                      ...(resourceLoading
-                        ? {
-                          border: "none",
-                          background: "#94a3b8",
-                          color: "#fff",
-                          fontWeight: 800,
-                          boxShadow: "none",
-                        }
-                        : isCinema
-                          ? cinemaPrimaryButton
-                          : {
-                            border: "none",
-                            background: "#2563eb",
-                            color: "#fff",
-                            fontWeight: 700,
-                            boxShadow: "0 10px 30px rgba(37,99,235,0.25)",
-                          }),
-                    }}
-                  >
-                    {resourceLoading ? "Loading..." : `Load ${labelsLower.resources}`}
-                  </button>
-                </div>
-
-                {resourceError && (
-                  <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 14 }}>
-                    {resourceError}
-                  </div>
-                )}
-
-                {resources.length === 0 && !resourceLoading && (
-                  <div style={{ marginTop: 16, color: "#475569" }}>
-                    Load {labelsLower.resources} to get started.
-                  </div>
-                )}
-
-                {resources.length > 0 &&
-                  filteredRequestResources.length === 0 &&
-                  !resourceLoading && (
-                    <div style={{ marginTop: 16, color: "#475569" }}>
-                      No {labelsLower.resources} match your filters.
-                    </div>
-                  )}
-
-                {filteredRequestResources.length > 0 && (
-                  <div
-                    style={{
-                      marginTop: 16,
-                      display: "grid",
-                      gap: 12,
-                    }}
-                  >
-                    {filteredRequestResources.map((r) => {
-                      const available = isResourceAvailable(r);
-                      return (
-                        <div
-                          key={r.id}
-                          className="glass"
-                          style={{
-                            borderRadius: 18,
-                            padding: 16,
-                            border: isCinema ? "1px solid #d1d5db" : "1px solid #e2e8f0",
-                            background: "#fff",
-                            display: "grid",
-                            gap: 10,
-                            boxShadow: isCinema ? "0 10px 24px rgba(15,23,42,0.06)" : "none",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              gap: 12,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div>
-                              <div style={{ fontWeight: 800, color: "#0f172a" }}>{r.name}</div>
-                              <div style={{ color: "#475569", fontSize: 12 }}>
-                                {r.type_name
-                                  ? `Type: ${formatTypeLabel(r.type_name, labels)}`
-                                  : labels.resource}
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => openAvailability(r)}
-                              style={{
-                                fontSize: 12,
-                                padding: "8px 12px",
-                                borderRadius: 999,
-                                fontWeight: 800,
-                                cursor: "pointer",
-                                ...(isCinema
-                                  ? available
-                                    ? {
-                                      border: "1px solid #86efac",
-                                      background: "#ecfdf5",
-                                      color: "#166534",
-                                      boxShadow: "0 8px 18px rgba(15,23,42,0.04)",
-                                    }
-                                    : cinemaSecondaryButton
-                                  : {
-                                    border: "none",
-                                    background: available ? "#dcfce7" : "#e2e8f0",
-                                    color: available ? "#166534" : "#475569",
-                                  }),
-                              }}
-                            >
-                              {available ? "Available" : "Check availability"}
-                            </button>
-                          </div>
-
-                          {r.metadata && Object.keys(r.metadata).length > 0 && (
-                            <div style={{ color: "#64748b", fontSize: 12 }}>
-                              {Object.entries(r.metadata)
-                                .slice(0, 4)
-                                .map(([k, v]) => `${k}: ${v}`)
-                                .join(" | ")}
-                            </div>
-                          )}
-
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              gap: 12,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <div style={{ color: "#475569", fontSize: 12 }}>Resource ID: {r.id}</div>
-                            <button
-                              onClick={() => {
-                                setRequestResourceId(r.id);
-                                setRequestSent("");
-                                setRequestError("");
-                                setRequestNote("");
-                                setRequestView("form");
-                              }}
-                              style={{
-                                padding: "12px 18px",
-                                borderRadius: 16,
-                                cursor: "pointer",
-                                ...(isCinema
-                                  ? cinemaPrimaryButton
-                                  : {
-                                    border: "none",
-                                    background: "#0f172a",
-                                    color: "#fff",
-                                    fontWeight: 700,
-                                  }),
-                              }}
-                            >
-                              Request this {labelsLower.resource}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
+          <RequestsSection
+            labels={labels}
+            labelsLower={labelsLower}
+            isCinema={isCinema}
+            cinemaPrimaryButton={cinemaPrimaryButton}
+            cinemaSecondaryButton={cinemaSecondaryButton}
+            requestSent={requestSent}
+            requestView={requestView}
+            setRequestView={setRequestView}
+            setRequestResourceId={setRequestResourceId}
+            setRequestError={setRequestError}
+            selectedRequestResource={selectedRequestResource}
+            requestError={requestError}
+            requestNote={requestNote}
+            setRequestNote={setRequestNote}
+            requestSubmitting={requestSubmitting}
+            submitResourceRequest={submitResourceRequest}
+            requestQuery={requestQuery}
+            setRequestQuery={setRequestQuery}
+            onlyAvailable={onlyAvailable}
+            setOnlyAvailable={setOnlyAvailable}
+            loadResources={loadResources}
+            resourceLoading={resourceLoading}
+            resourceError={resourceError}
+            resources={resources}
+            filteredRequestResources={filteredRequestResources}
+            isResourceAvailable={isResourceAvailable}
+            openAvailability={openAvailability}
+            setRequestSent={setRequestSent}
+          />
         ) : section === "availability" ? (
-          <>
-            <header
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
-              }}
-            >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>My Availability</h1>
-              <p style={{ margin: 0, color: "#475569" }}>
-                Share the hours you can support so the admin can schedule your {labelsLower.resources}.
-              </p>
-            </header>
-
-            {availabilityMessage && (
-              <div
-                className="glass"
-                style={{
-                  marginBottom: 16,
-                  padding: 12,
-                  borderRadius: 12,
-                  color: "#1d4ed8",
-                }}
-              >
-                {availabilityMessage}
-              </div>
-            )}
-
-            <div
-              className="glass"
-              style={{
-                padding: 16,
-                borderRadius: 16,
-                display: "grid",
-                gap: 12,
-                maxWidth: 520,
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>Add availability</div>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Days of week
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    gap: 8,
-                    marginTop: 8,
-                  }}
-                >
-                  {[0, 1, 2, 3, 4, 5, 6].map((day) => (
-                    <label
-                      key={day}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #e2e8f0",
-                        background: "#fff",
-                        color: "#0f172a",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={availabilityForm.day_of_week.includes(String(day))}
-                        onChange={() =>
-                          setAvailabilityForm((prev) => {
-                            const exists = prev.day_of_week.includes(String(day));
-                            const nextDays = exists
-                              ? prev.day_of_week.filter((value) => value !== String(day))
-                              : [...prev.day_of_week, String(day)];
-                            return { ...prev, day_of_week: nextDays };
-                          })
-                        }
-                      />
-                      <span>{weekdayLabel(day)}</span>
-                    </label>
-                  ))}
-                </div>
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Start time
-                <input
-                  type="time"
-                  value={availabilityForm.start_time}
-                  onChange={(e) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      start_time: e.target.value,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                End time
-                <input
-                  type="time"
-                  value={availabilityForm.end_time}
-                  onChange={(e) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      end_time: e.target.value,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                Start date (optional)
-                <IsraelDateInput
-                  value={availabilityForm.start_date}
-                  onChange={(nextDate) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      start_date: nextDate,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <label style={{ fontSize: 12, color: "#475569" }}>
-                End date (optional)
-                <IsraelDateInput
-                  value={availabilityForm.end_date}
-                  onChange={(nextDate) =>
-                    setAvailabilityForm((prev) => ({
-                      ...prev,
-                      end_date: nextDate,
-                    }))
-                  }
-                  style={{
-                    display: "block",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid #e2e8f0",
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                disabled={availabilitySaving}
-                onClick={async () => {
-                  const userId = currentUserId.trim();
-                  if (!userId) return;
-                  if (!availabilityForm.day_of_week.length) {
-                    setAvailabilityMessage("Choose at least one day.");
-                    return;
-                  }
-                  setAvailabilitySaving(true);
-                  setAvailabilityMessage("");
-                  try {
-                    const created = await Promise.all(
-                      availabilityForm.day_of_week.map((day) =>
-                        createUserAvailability({
-                          user_id: userId,
-                          day_of_week: Number(day),
-                          start_time: availabilityForm.start_time,
-                          end_time: availabilityForm.end_time,
-                          start_date: availabilityForm.start_date || null,
-                          end_date: availabilityForm.end_date || null,
-                        })
-                      )
-                    );
-                    setUserAvailability((prev) => [...prev, ...created]);
-                    setAvailabilityMessage("Availability saved.");
-                  } catch (err) {
-                    setAvailabilityMessage(err?.message || "Failed to save availability.");
-                  } finally {
-                    setAvailabilitySaving(false);
-                  }
-                }}
-                style={{
-                  padding: "12px 18px",
-                  borderRadius: 16,
-                  cursor: availabilitySaving ? "default" : "pointer",
-                  width: isCinema ? "fit-content" : undefined,
-                  ...(availabilitySaving
-                    ? {
-                      border: "none",
-                      background: "#94a3b8",
-                      color: "#fff",
-                      fontWeight: 800,
-                      boxShadow: "none",
-                    }
-                    : isCinema
-                      ? cinemaPrimaryButton
-                      : {
-                        border: "none",
-                        background: "#1d4ed8",
-                        color: "#fff",
-                        fontWeight: 700,
-                      }),
-                }}
-              >
-                {availabilitySaving ? "Saving..." : "Save availability"}
-              </button>
-            </div>
-
-            <div style={{ marginTop: 20 }}>
-              <h3 style={{ marginBottom: 8, color: "#0f172a" }}>
-                Saved availability
-              </h3>
-              {userAvailability.length === 0 ? (
-                <div className="glass" style={{ padding: 12, borderRadius: 12 }}>
-                  No availability saved yet.
-                </div>
-              ) : (
-                <div className="grid-auto">
-                  {userAvailability.map((slot) => (
-                    <div
-                      key={slot.id}
-                      className="glass"
-                      style={{ padding: 12, borderRadius: 12 }}
-                    >
-                      <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                        {weekdayLabel(slot.day_of_week)}
-                      </div>
-                      <div style={{ color: "#475569", fontSize: 13 }}>
-                        {formatTime(slot.start_time)} - {formatTime(slot.end_time)}
-                      </div>
-                      {(slot.start_date || slot.end_date) && (
-                        <div style={{ color: "#94a3b8", fontSize: 12 }}>
-                          {slot.start_date ? formatDate(slot.start_date) : "כל תאריך"} → {slot.end_date ? formatDate(slot.end_date) : "כל תאריך"}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setAvailabilityMessage("");
-                          try {
-                            await deleteUserAvailability(slot.id);
-                            setUserAvailability((prev) =>
-                              prev.filter((item) => item.id !== slot.id)
-                            );
-                          } catch (err) {
-                            setAvailabilityMessage(
-                              err?.message || "Failed to delete availability."
-                            );
-                          }
-                        }}
-                        style={{
-                          marginTop: 8,
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+          <AvailabilitySection
+            labelsLower={labelsLower}
+            availabilityMessage={availabilityMessage}
+            availabilityForm={availabilityForm}
+            setAvailabilityForm={setAvailabilityForm}
+            availabilitySaving={availabilitySaving}
+            setAvailabilitySaving={setAvailabilitySaving}
+            isCinema={isCinema}
+            cinemaPrimaryButton={cinemaPrimaryButton}
+            currentUserId={currentUserId}
+            createUserAvailability={createUserAvailability}
+            setUserAvailability={setUserAvailability}
+            setAvailabilityMessage={setAvailabilityMessage}
+            userAvailability={userAvailability}
+            deleteUserAvailability={deleteUserAvailability}
+          />
         ) : (
-          <>
-            <header
-              style={{
-                padding: "12px 0",
-                borderBottom: "1px solid #e2e8f0",
-                marginBottom: 16,
-              }}
-            >
-              <h1 style={{ margin: 0, color: "#0f172a" }}>
-                {role === "user" ? "Notifications" : "Request Updates"}
-              </h1>
-              <p style={{ margin: 0, color: "#475569" }}>
-                {role === "user"
-                  ? `Updates from ${labelsLower.managers} about cancelled ${labelsLower.resource}.`
-                  : "Track the status of allocation requests."}
-              </p>
-            </header>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                flexWrap: "wrap",
-                marginBottom: 12,
-              }}
-            >
-              {role === "manager" && (
-                <button
-                  type="button"
-                  onClick={() => setNotificationTab("requests")}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: 16,
-                    cursor: "pointer",
-                    ...(notificationTab === "requests"
-                      ? isCinema
-                        ? cinemaPrimaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#2563eb",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }
-                      : isCinema
-                        ? cinemaSecondaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 700,
-                        }),
-                  }}
-                >
-                  Request Updates
-                </button>
-              )}
-              {role === "user" && (
-                <button
-                  type="button"
-                  onClick={() => setNotificationTab("announcements")}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: 16,
-                    cursor: "pointer",
-                    ...(notificationTab === "announcements"
-                      ? isCinema
-                        ? cinemaPrimaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#2563eb",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }
-                      : isCinema
-                        ? cinemaSecondaryButton
-                        : {
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          color: "#0f172a",
-                          fontWeight: 700,
-                        }),
-                  }}
-                >
-                  {labels.manager} Messages
-                </button>
-              )}
-            </div>
-
-            <div
-              className="glass"
-              style={{
-                padding: 16,
-                borderRadius: 18,
-                display:
-                  role === "manager" && notificationTab === "requests"
-                    ? "block"
-                    : "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  alignItems: "center",
-                  marginBottom: 12,
-                }}
-              >
-                <input
-                  value={userRequestsQuery}
-                  onChange={(e) => setUserRequestsQuery(e.target.value)}
-                  placeholder={`Search by ${labelsLower.resource}, date, or status...`}
-                  style={{
-                    flex: 1,
-                    minWidth: 220,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                  }}
-                />
-                <button
-                  onClick={loadUserRequests}
-                  disabled={userRequestsLoading}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: userRequestsLoading ? "#94a3b8" : "#2563eb",
-                    color: "#fff",
-                    fontWeight: 700,
-                    cursor: userRequestsLoading ? "default" : "pointer",
-                  }}
-                >
-                  {userRequestsLoading ? "Loading..." : "Refresh"}
-                </button>
-              </div>
-              {userRequestsError && (
-                <div style={{ color: "#b91c1c", marginBottom: 12 }}>
-                  {userRequestsError}
-                </div>
-              )}
-              {userRequestsLoading ? (
-                <div style={{ color: "#475569" }}>Loading requests...</div>
-              ) : userRequests.length === 0 ? (
-                <div style={{ color: "#475569" }}>
-                  No requests yet. Submit one to start the approval flow.
-                </div>
-              ) : filteredUserRequests.length === 0 ? (
-                <div style={{ color: "#475569" }}>
-                  No requests match your search.
-                </div>
-              ) : (
-                <div className="bg-white shadow rounded-lg overflow-hidden">
-                  {!selectedUserGroup ? (
-                    <div style={{ padding: 16, display: "grid", gap: 12 }}>
-                      {groupedUserRequests.map((group) => {
-                        const unreadCount = group.requests.filter(
-                          (req) =>
-                            req.status &&
-                            req.status !== "pending" &&
-                            !seenRequestSet.has(Number(req.id))
-                        ).length;
-                        return (
-                          <button
-                            key={group.key}
-                            type="button"
-                            onClick={() => {
-                              setSelectedUserRequestKey(group.key);
-                              markRequestsSeen(group.resource_id);
-                            }}
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              padding: "16px 18px",
-                              borderRadius: 14,
-                              border: "1px solid #e2e8f0",
-                              background: "#fff",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                              boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div style={{ flex: 1 }}>
-                              <div
-                                style={{
-                                  fontSize: 15,
-                                  fontWeight: 700,
-                                  color: "#0f172a",
-                                }}
-                              >
-                                {group.resource_name ||
-                                  `${labels.resource} #${group.resource_id}`}
-                              </div>
-                              <div style={{ fontSize: 12, color: "#64748b" }}>
-                                {group.resource_type || labels.resource}
-                              </div>
-                            </div>
-                            {unreadCount > 0 && (
-                              <span
-                                style={{
-                                  marginLeft: "auto",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  width: 26,
-                                  height: 26,
-                                  borderRadius: 999,
-                                  background: "#ef4444",
-                                  color: "#fff",
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {unreadCount}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="p-4">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedUserRequestKey(null)}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#1d4ed8",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          padding: 0,
-                          marginBottom: 12,
-                        }}
-                      >
-                        Back to {labels.resources}
-                      </button>
-                      <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                        {selectedUserGroup.resource_name ||
-                          `${labels.resource} #${selectedUserGroup.resource_id}`}
-                      </div>
-                      <div style={{ display: "grid", gap: 12 }}>
-                        {selectedUserGroup.requests.map((req) => {
-                          const status = req.status || "pending";
-                          let statusBg = "#fef9c3";
-                          let statusColor = "#92400e";
-                          if (status === "approved") {
-                            statusBg = "#dcfce7";
-                            statusColor = "#166534";
-                          } else if (status === "rejected") {
-                            statusBg = "#fee2e2";
-                            statusColor = "#991b1b";
-                          }
-                          return (
-                            <div
-                              key={req.id}
-                              style={{
-                                padding: 14,
-                                borderRadius: 14,
-                                border: "1px solid #e2e8f0",
-                                background: "#fff",
-                                display: "flex",
-                                gap: 12,
-                                alignItems: "center",
-                              }}
-                            >
-                              <div style={{ flex: 1 }}>
-                                <div style={{ color: "#64748b", fontSize: 13 }}>
-                                  {formatDate(req.request_date)}{" "}
-                                  {formatTime(req.start_time)} -{" "}
-                                  {formatTime(req.end_time)}
-                                </div>
-                                {req.note && (
-                                  <div style={{ color: "#94a3b8", fontSize: 12 }}>
-                                    {req.note}
-                                  </div>
-                                )}
-                              </div>
-                              <div
-                                style={{
-                                  padding: "6px 10px",
-                                  borderRadius: 999,
-                                  background: statusBg,
-                                  color: statusColor,
-                                  fontSize: 12,
-                                  fontWeight: 700,
-                                  textTransform: "capitalize",
-                                }}
-                              >
-                                {status}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div
-              className="glass"
-              style={{
-                padding: 16,
-                borderRadius: 18,
-                display:
-                  role === "user" && notificationTab === "announcements"
-                    ? "block"
-                    : "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  alignItems: "center",
-                  marginBottom: 12,
-                }}
-              >
-                <input
-                  value={announcementsQuery}
-                  onChange={(e) => setAnnouncementsQuery(e.target.value)}
-                  placeholder="Search announcements..."
-                  style={{
-                    flex: 1,
-                    minWidth: 220,
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                  }}
-                />
-                <button
-                  onClick={loadAnnouncements}
-                  disabled={announcementsLoading}
-                  style={{
-                    padding: "12px 18px",
-                    borderRadius: 16,
-                    cursor: userRequestsLoading ? "default" : "pointer",
-                    ...(userRequestsLoading
-                      ? {
-                        border: "none",
-                        background: "#94a3b8",
-                        color: "#fff",
-                        fontWeight: 800,
-                        boxShadow: "none",
-                      }
-                      : isCinema
-                        ? cinemaPrimaryButton
-                        : {
-                          border: "none",
-                          background: "#2563eb",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }),
-                  }}
-
-                >
-                  {announcementsLoading ? "Loading..." : "Refresh"}
-                </button>
-              </div>
-
-              {announcementsError && (
-                <div style={{ color: "#b91c1c", marginBottom: 12 }}>
-                  {announcementsError}
-                </div>
-              )}
-
-              {role === "manager" && (
-                <div
-                  className="glass"
-                  style={{
-                    padding: 14,
-                    borderRadius: 14,
-                    marginBottom: 14,
-                    display: "grid",
-                    gap: 10,
-                  }}
-                >
-                  <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                    Send announcement
-                  </div>
-                  <input
-                    value={announcementForm.title}
-                    onChange={(e) =>
-                      setAnnouncementForm((prev) => ({
-                        ...prev,
-                        title: e.target.value,
-                      }))
-                    }
-                    placeholder="Title"
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                    }}
-                  />
-                  <textarea
-                    value={announcementForm.message}
-                    onChange={(e) =>
-                      setAnnouncementForm((prev) => ({
-                        ...prev,
-                        message: e.target.value,
-                      }))
-                    }
-                    placeholder="Message"
-                    rows={4}
-                    style={{
-                      padding: "10px 12px",
-                      borderRadius: 10,
-                      border: "1px solid #e2e8f0",
-                      resize: "vertical",
-                      fontFamily: "inherit",
-                    }}
-                  />
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <input
-                      value={announcementForm.resource}
-                      onChange={(e) =>
-                        setAnnouncementForm((prev) => ({
-                          ...prev,
-                          resource: e.target.value,
-                        }))
-                      }
-                      placeholder={`${labels.resource} name (optional)`}
-                      style={{
-                        flex: 1,
-                        minWidth: 160,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid #e2e8f0",
-                      }}
-                    />
-                    <input
-                      value={announcementForm.targetUserId}
-                      onChange={(e) =>
-                        setAnnouncementForm((prev) => ({
-                          ...prev,
-                          targetUserId: e.target.value,
-                        }))
-                      }
-                      placeholder={`${labels.userId} (optional)`}
-                      style={{
-                        flex: 1,
-                        minWidth: 160,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid #e2e8f0",
-                      }}
-                    />
-                    <input
-                      value={announcementForm.senderName}
-                      onChange={(e) =>
-                        setAnnouncementForm((prev) => ({
-                          ...prev,
-                          senderName: e.target.value,
-                        }))
-                      }
-                      placeholder="Your name"
-                      style={{
-                        flex: 1,
-                        minWidth: 160,
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        border: "1px solid #e2e8f0",
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={submitAnnouncement}
-                    disabled={announcementSubmitting}
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: announcementSubmitting ? "#94a3b8" : "#0f172a",
-                      color: "#fff",
-                      fontWeight: 700,
-                      cursor: announcementSubmitting ? "default" : "pointer",
-                      width: "fit-content",
-                    }}
-                  >
-                    {announcementSubmitting ? "Sending..." : "Send"}
-                  </button>
-                  {announcementError && (
-                    <div style={{ color: "#b91c1c" }}>{announcementError}</div>
-                  )}
-                  {announcementSent && (
-                    <div style={{ color: "#166534" }}>{announcementSent}</div>
-                  )}
-                </div>
-              )}
-
-              {announcementsLoading ? (
-                <div style={{ color: "#475569" }}>Loading announcements...</div>
-              ) : filteredAnnouncements.length === 0 ? (
-                <div style={{ color: "#475569" }}>
-                  No announcements yet.
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 12 }}>
-                  {filteredAnnouncements.map((a) => {
-                    const isUnread =
-                      role === "user" &&
-                      !seenAnnouncementSet.has(Number(a.id));
-                    const isSelected = selectedAnnouncementId === a.id;
-                    return (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedAnnouncementId(a.id);
-                          if (isUnread) {
-                            markAnnouncementSeen(a.id);
-                          }
-                        }}
-                        style={{
-                          width: "100%",
-                          textAlign: "left",
-                          padding: "16px 18px",
-                          borderRadius: 14,
-                          border: "1px solid #e2e8f0",
-                          background: "#fff",
-                          display: "grid",
-                          gap: 6,
-                          boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 10,
-                            alignItems: "center",
-                          }}
-                        >
-                          {isUnread && (
-                            <span
-                              style={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: 999,
-                                background: "#ef4444",
-                                display: "inline-block",
-                              }}
-                            />
-                          )}
-                          <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                            {a.title}
-                          </div>
-                        </div>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>
-                          {a.resource_name ? `${a.resource_name} • ` : ""}
-                          {a.sender_name || labels.manager} •{" "}
-                          {formatDate(a.created_at)}
-                        </div>
-                        {isSelected && (
-                          <div style={{ color: "#475569", fontSize: 14 }}>
-                            {a.message}
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>
+          <NotificationsSection
+            role={role}
+            isCinema={isCinema}
+            labels={labels}
+            labelsLower={labelsLower}
+            cinemaPrimaryButton={cinemaPrimaryButton}
+            cinemaSecondaryButton={cinemaSecondaryButton}
+            notificationTab={notificationTab}
+            setNotificationTab={setNotificationTab}
+            userRequestsQuery={userRequestsQuery}
+            setUserRequestsQuery={setUserRequestsQuery}
+            loadUserRequests={loadUserRequests}
+            userRequestsLoading={userRequestsLoading}
+            userRequestsError={userRequestsError}
+            userRequests={userRequests}
+            filteredUserRequests={filteredUserRequests}
+            groupedUserRequests={groupedUserRequests}
+            getUnreadCountForGroup={getUnreadCountForGroup}
+            setSelectedUserRequestKey={setSelectedUserRequestKey}
+            markRequestsSeen={markRequestsSeen}
+            selectedUserGroup={selectedUserGroup}
+            announcementsQuery={announcementsQuery}
+            setAnnouncementsQuery={setAnnouncementsQuery}
+            loadAnnouncements={loadAnnouncements}
+            announcementsLoading={announcementsLoading}
+            announcementsError={announcementsError}
+            announcementForm={announcementForm}
+            setAnnouncementForm={setAnnouncementForm}
+            submitAnnouncement={submitAnnouncement}
+            announcementSubmitting={announcementSubmitting}
+            announcementError={announcementError}
+            announcementSent={announcementSent}
+            filteredAnnouncements={filteredAnnouncements}
+            seenAnnouncementSet={seenAnnouncementSet}
+            selectedAnnouncementId={selectedAnnouncementId}
+            setSelectedAnnouncementId={setSelectedAnnouncementId}
+            markAnnouncementSeen={markAnnouncementSeen}
+          />
         )}
 
-        {cancelDialog.open && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 20,
-              zIndex: 60,
-            }}
-            onClick={() => setCancelDialog({ open: false, booking: null })}
-          >
-            <div
-              className="glass"
-              style={{
-                width: "min(560px, 92vw)",
-                padding: 20,
-                borderRadius: 18,
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                display: "grid",
-                gap: 12,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                Cancel {labelsLower.resource}
-              </div>
-              {cancelDialog.booking && (
-                <div style={{ color: "#475569", fontSize: 12 }}>
-                  {formatDate(cancelDialog.booking.date)} •{" "}
-                  {formatTime(cancelDialog.booking.start_time)} -{" "}
-                  {formatTime(cancelDialog.booking.end_time)}
-                </div>
-              )}
-              <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={rescheduleMode}
-                  onChange={(e) => setRescheduleMode(e.target.checked)}
-                />
-                Reschedule instead of cancel
-              </label>
-              {rescheduleMode && (
-                <div style={{ display: "grid", gap: 10 }}>
-                  <label style={{ fontSize: 12, color: "#475569" }}>
-                    New date
-                    <IsraelDateInput
-                      value={rescheduleDate}
-                      onChange={setRescheduleDate}
-                      style={{
-                        width: "100%",
-                        marginTop: 6,
-                        padding: "8px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #e2e8f0",
-                      }}
-                    />
-                  </label>
-                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      Start
-                      <input
-                        type="time"
-                        value={rescheduleStart}
-                        onChange={(e) => setRescheduleStart(e.target.value)}
-                        style={{
-                          marginTop: 6,
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      />
-                    </label>
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      End
-                      <input
-                        type="time"
-                        value={rescheduleEnd}
-                        onChange={(e) => setRescheduleEnd(e.target.value)}
-                        style={{
-                          marginTop: 6,
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      />
-                    </label>
-                    <label style={{ fontSize: 12, color: "#475569" }}>
-                      Location
-                      <select
-                        value={rescheduleLocation}
-                        onChange={(e) => setRescheduleLocation(e.target.value)}
-                        style={{
-                          marginTop: 6,
-                          padding: "8px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #e2e8f0",
-                        }}
-                      >
-                        <option value="onsite">On-site</option>
-                        <option value="zoom">Zoom</option>
-                      </select>
-                    </label>
-                  </div>
-                </div>
-              )}
-              <textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Reason (optional)"
-                rows={3}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #e2e8f0",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                }}
-              />
-              <input
-                value={cancelSenderName}
-                onChange={(e) => setCancelSenderName(e.target.value)}
-                placeholder="Your name (optional)"
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #e2e8f0",
-                }}
-              />
-              {cancelError && (
-                <div style={{ color: "#b91c1c" }}>{cancelError}</div>
-              )}
-              {cancelSuccess && (
-                <div style={{ color: "#166534" }}>{cancelSuccess}</div>
-              )}
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => setCancelDialog({ open: false, booking: null })}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={submitCancellation}
-                  disabled={cancelSubmitting}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: cancelSubmitting ? "#94a3b8" : "#b91c1c",
-                    color: "#fff",
-                    fontWeight: 700,
-                    cursor: cancelSubmitting ? "default" : "pointer",
-                  }}
-                >
-                  {cancelSubmitting
-                    ? rescheduleMode
-                      ? "Rescheduling..."
-                      : "Cancelling..."
-                    : rescheduleMode
-                      ? "Confirm reschedule"
-                      : "Confirm cancel"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {availabilityResource && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 20,
-              zIndex: 50,
-            }}
-            onClick={() => setAvailabilityResource(null)}
-          >
-            <div
-              className="glass"
-              style={{
-                width: "min(980px, 96vw)",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                padding: 20,
-                borderRadius: 18,
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 12,
-                  marginBottom: 12,
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 800, color: "#0f172a" }}>
-                    Availability calendar
-                  </div>
-                  <div style={{ color: "#475569", fontSize: 12 }}>
-                    {availabilityResource.name}{" "}
-                    {availabilityResource.type_name
-                      ? `(${formatTypeLabel(availabilityResource.type_name, labels)})`
-                      : ""}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!availabilityResource || !currentUserId.trim()) return;
-                    setAvailabilityLoading(true);
-                    Promise.all([
-                      getBookingsByResource(availabilityResource.id),
-                      getBookingsByUser(currentUserId.trim()),
-                    ])
-                      .then(([bookingsData, userBookings]) => {
-                        setAvailabilityBookings(
-                          Array.isArray(bookingsData) ? bookingsData : []
-                        );
-                        setBookings(
-                          Array.isArray(userBookings) ? userBookings : []
-                        );
-                      })
-                      .catch((err) => {
-                        setAvailabilityError(
-                          err?.message || "Failed to load availability."
-                        );
-                      })
-                      .finally(() => setAvailabilityLoading(false));
-                  }}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Refresh status
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAvailabilityResource(null)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-
-              {availabilityError && (
-                <div style={{ marginBottom: 10, color: "#b91c1c" }}>
-                  {availabilityError}
-                </div>
-              )}
-
-              {availabilityLoading ? (
-                <div style={{ color: "#475569" }}>Loading availability...</div>
-              ) : (
-                <>
-                  <MonthGrid
-                    monthLabel={availabilityMonthLabel}
-                    onPrev={() =>
-                      setAvailabilityMonthDate(
-                        (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1)
-                      )
-                    }
-                    onNext={() =>
-                      setAvailabilityMonthDate(
-                        (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1)
-                      )
-                    }
-                    days={availabilityDays}
-                    maxItems={null}
-                    renderBooking={(b) => (
-                      <div
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: 10,
-                          background: "linear-gradient(135deg,#0f172a,#1e293b)",
-                          color: "#fff",
-                          fontSize: 12,
-                        }}
-                      >
-                        <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                          {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                        </div>
-                        <div style={{ opacity: 0.9 }}>
-                          Reserved by: {b.user_id}
-                        </div>
-                      </div>
-                    )}
-                    renderDayAction={(day) => {
-                      const today = new Date();
-                      today.setHours(0, 0, 0, 0);
-                      const isPast = day.date < today;
-                      const isSelected = bookingDraft.date === day.key;
-                      const disabled =
-                        !day.inMonth || isPast || bookingSubmitting;
-
-                      let label = "Select";
-                      let background = "#fff";
-                      let color = "#0f172a";
-
-                      if (isSelected) {
-                        label = "Send request";
-                        background = "#2563eb";
-                        color = "#fff";
-                      }
-
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!day?.key) return;
-                            if (!isSelected) {
-                              pickBookingDate(day);
-                              return;
-                            }
-                            submitBookingRequest(day.key);
-                          }}
-                          disabled={disabled}
-                          style={{
-                            marginTop: 6,
-                            padding: "4px 8px",
-                            borderRadius: 8,
-                            border: "1px solid #e2e8f0",
-                            background: disabled ? "#f1f5f9" : background,
-                            color: disabled ? "#94a3b8" : color,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            cursor: disabled ? "not-allowed" : "pointer",
-                          }}
-                        >
-                          {label}
-                        </button>
-                      );
-                    }}
-                  />
-                  {availabilityBookings.length === 0 && (
-                    <div style={{ marginTop: 12, color: "#475569" }}>
-                      No bookings yet for this {labelsLower.resource}.
-                    </div>
-                  )}
-                  <div
-                    className="glass"
-                    style={{
-                      marginTop: 16,
-                      padding: 14,
-                      borderRadius: 14,
-                      border: "1px solid #e2e8f0",
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>
-                      Request this {labelsLower.resource}
-                    </div>
-                    <div style={{ marginTop: 6, color: "#475569", fontSize: 12 }}>
-                      Selected date:{" "}
-                      {bookingDraft.date ? formatDate(bookingDraft.date) : "None"}
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 10,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <label style={{ fontSize: 12, color: "#475569" }}>
-                        Start
-                        <input
-                          type="time"
-                          value={bookingDraft.start}
-                          onChange={(e) =>
-                            setBookingDraft((prev) => ({
-                              ...prev,
-                              start: e.target.value,
-                            }))
-                          }
-                          style={{
-                            marginLeft: 6,
-                            padding: "6px 8px",
-                            borderRadius: 8,
-                            border: "1px solid #e2e8f0",
-                          }}
-                        />
-                      </label>
-                      <label style={{ fontSize: 12, color: "#475569" }}>
-                        End
-                        <input
-                          type="time"
-                          value={bookingDraft.end}
-                          onChange={(e) =>
-                            setBookingDraft((prev) => ({
-                              ...prev,
-                              end: e.target.value,
-                            }))
-                          }
-                          style={{
-                            marginLeft: 6,
-                            padding: "6px 8px",
-                            borderRadius: 8,
-                            border: "1px solid #e2e8f0",
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => submitBookingRequest()}
-                        disabled={requestDisabled}
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: 10,
-                          border: "none",
-                          background: requestDisabled
-                            ? requestButtonBackground
-                            : requestButtonBackground,
-                          color: requestButtonColor,
-                          fontWeight: 700,
-                          cursor: requestDisabled ? "default" : "pointer",
-                        }}
-                      >
-                        {bookingSubmitting ? "Sending..." : requestButtonLabel}
-                      </button>
-                    </div>
-                    {bookingError && (
-                      <div style={{ marginTop: 8, color: "#b91c1c" }}>
-                        {bookingError}
-                      </div>
-                    )}
-                    {bookingSuccess && (
-                      <div style={{ marginTop: 8, color: "#166534" }}>
-                        {bookingSuccess}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {selectedScheduleBooking && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(15,23,42,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 20,
-              zIndex: 55,
-            }}
-            onClick={() => setSelectedScheduleBooking(null)}
-          >
-            <div
-              className="glass"
-              style={{
-                width: "min(560px, 92vw)",
-                maxHeight: "85vh",
-                overflowY: "auto",
-                padding: 20,
-                borderRadius: 18,
-                background: "#fff",
-                border: "1px solid #e2e8f0",
-                display: "grid",
-                gap: 14,
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 800, color: "#0f172a", fontSize: 20 }}>
-                    {(selectedScheduleBooking.resources || [])
-                      .map((resource) => resource.name)
-                      .filter(Boolean)
-                      .join(" / ")}
-                  </div>
-                  <div style={{ color: "#475569", fontSize: 13, marginTop: 4 }}>
-                    {formatDate(selectedScheduleBooking.date)} •{" "}
-                    {formatTime(selectedScheduleBooking.start_time)} -{" "}
-                    {formatTime(selectedScheduleBooking.end_time)}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedScheduleBooking(null)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #e2e8f0",
-                    background: "#fff",
-                    color: "#0f172a",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    height: "fit-content",
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-
-              {getBookingRoomLine(selectedScheduleBooking) && (
-                <div
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                    color: "#0f172a",
-                    fontWeight: 600,
-                  }}
-                >
-                  {getBookingRoomLine(selectedScheduleBooking)}
-                </div>
-              )}
-
-              <div style={{ display: "grid", gap: 10 }}>
-                {getBookingResources(selectedScheduleBooking).map((resource, index) => (
-                  <div
-                    key={`${resource?.id || "resource"}-${index}`}
-                    style={{
-                      padding: 12,
-                      borderRadius: 12,
-                      background: "#fff",
-                      border: "1px solid #e2e8f0",
-                    }}
-                  >
-                    <div style={{ fontWeight: 700, color: "#0f172a" }}>{resource?.name || "Resource"}</div>
-                    <div style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>
-                      {resource?.type_name ? `Type: ${formatTypeLabel(resource.type_name, labels)}` : ""}
-                      {resource?.role ? ` • Role: ${resource.role}` : ""}
-                    </div>
-                    {resource?.metadata && Object.keys(resource.metadata).length > 0 && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          display: "grid",
-                          gap: 4,
-                          color: "#475569",
-                          fontSize: 12,
-                        }}
-                      >
-                        {Object.entries(resource.metadata).map(([key, value]) => (
-                          <div key={key}>
-                            <span style={{ fontWeight: 700, color: "#0f172a" }}>{key}:</span>{" "}
-                            <span>{Array.isArray(value) ? value.join(", ") : String(value)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Section({ title, color, items, role, onCancel }) {
-  return (
-    <section>
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}
-      >
-        <span
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            background: color,
-            display: "inline-block",
-          }}
+        <CancelDialog
+          cancelDialog={cancelDialog}
+          setCancelDialog={setCancelDialog}
+          labelsLower={labelsLower}
+          rescheduleMode={rescheduleMode}
+          setRescheduleMode={setRescheduleMode}
+          rescheduleDate={rescheduleDate}
+          setRescheduleDate={setRescheduleDate}
+          rescheduleStart={rescheduleStart}
+          setRescheduleStart={setRescheduleStart}
+          rescheduleEnd={rescheduleEnd}
+          setRescheduleEnd={setRescheduleEnd}
+          rescheduleLocation={rescheduleLocation}
+          setRescheduleLocation={setRescheduleLocation}
+          cancelReason={cancelReason}
+          setCancelReason={setCancelReason}
+          cancelSenderName={cancelSenderName}
+          setCancelSenderName={setCancelSenderName}
+          cancelError={cancelError}
+          cancelSuccess={cancelSuccess}
+          submitCancellation={submitCancellation}
+          cancelSubmitting={cancelSubmitting}
         />
-        <h3 style={{ margin: 0, color: "#0f172a" }}>{title}</h3>
-      </div>
 
-      {items.length === 0 ? (
-        <div
-          className="glass"
-          style={{
-            padding: 14,
-            borderRadius: 14,
-            color: "#475569",
-            fontSize: 14,
-          }}
-        >
-          No bookings in this category.
-        </div>
-      ) : (
-        <div className="grid-auto">
-          {items.map((b) => (
-            <BookingCard key={b.id} booking={b} role={role} onCancel={onCancel} />
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
+        <ResourceAvailabilityModal
+          availabilityResource={availabilityResource}
+          setAvailabilityResource={setAvailabilityResource}
+          labels={labels}
+          labelsLower={labelsLower}
+          currentUserId={currentUserId}
+          refreshAvailabilityStatus={refreshAvailabilityStatus}
+          availabilityError={availabilityError}
+          availabilityLoading={availabilityLoading}
+          availabilityMonthLabel={availabilityMonthLabel}
+          setAvailabilityMonthDate={setAvailabilityMonthDate}
+          availabilityDays={availabilityDays}
+          bookingDraft={bookingDraft}
+          bookingSubmitting={bookingSubmitting}
+          pickBookingDate={pickBookingDate}
+          submitBookingRequest={submitBookingRequest}
+          availabilityBookings={availabilityBookings}
+          setBookingDraft={setBookingDraft}
+          bookingError={bookingError}
+          bookingSuccess={bookingSuccess}
+        />
 
-function BookingCard({ booking, role, onCancel }) {
-  const past = isPastBooking(booking);
-  const roomLine = getBookingRoomLine(booking);
-  return (
-    <div
-      className="glass"
-      style={{
-        padding: 16,
-        borderRadius: 16,
-        border: "1px solid #e2e8f0",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 8,
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <div>
-          <div style={{ color: "#475569", fontSize: 12 }}>
-            Booking #{booking.id}
-          </div>
-          <div style={{ color: "#0f172a", fontWeight: 600 }}>
-            {formatDate(booking.date)}
-          </div>
-        </div>
-        <div
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            background: "rgba(37, 99, 235, 0.1)",
-            color: "#1d4ed8",
-            fontSize: 13,
-            border: "1px solid rgba(37,99,235,0.25)",
-          }}
-        >
-          {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-        </div>
-      </div>
-      {roomLine && (
-        <div style={{ marginBottom: 8, color: "#0f172a", fontWeight: 700 }}>
-          {roomLine}
-        </div>
-      )}
-      {role === "manager" && (
-        <button
-          type="button"
-          onClick={() => onCancel?.(booking)}
-          disabled={past}
-          style={{
-            marginBottom: 10,
-            alignSelf: "flex-start",
-            padding: "6px 10px",
-            borderRadius: 10,
-            border: "1px solid #e2e8f0",
-            background: past ? "#e2e8f0" : "#0f172a",
-            color: past ? "#64748b" : "#fff",
-            fontWeight: 700,
-            cursor: past ? "not-allowed" : "pointer",
-          }}
-        >
-          Cancel {labelsLower.resource}
-        </button>
-      )}
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {(booking.resources || []).map((r) => (
-          <div
-            key={r.id}
-            style={{
-              padding: 10,
-              borderRadius: 12,
-              background: "#f8fafc",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <div style={{ color: "#0f172a", fontWeight: 600 }}>{r.name}</div>
-            <div style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>
-              {r.type_name ? `Type: ${formatTypeLabel(r.type_name, labels)}` : ""}
-              {r.role ? ` - Role: ${r.role}` : ""}
-            </div>
-            {r.metadata && Object.keys(r.metadata).length > 0 && (
-              <div
-                style={{
-                  color: "#64748b",
-                  fontSize: 12,
-                  marginTop: 4,
-                  lineHeight: 1.4,
-                }}
-              >
-                {Object.entries(r.metadata)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(" | ")}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MonthGrid({
-  monthLabel,
-  onPrev,
-  onNext,
-  days,
-  renderBooking,
-  maxItems = 3,
-  renderDayAction,
-}) {
-  const weeks = [];
-  for (let i = 0; i < days.length; i += 7) {
-    weeks.push(days.slice(i, i + 7));
-  }
-
-  return (
-    <div className="glass" style={{ padding: 16, borderRadius: 18 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-        }}
-      >
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            onClick={onPrev}
-            style={{
-              border: "1px solid #e2e8f0",
-              background: "#fff",
-              color: "#0f172a",
-              borderRadius: 10,
-              padding: "6px 10px",
-              cursor: "pointer",
-            }}
-          >
-            &lt;
-          </button>
-          <button
-            onClick={onNext}
-            style={{
-              border: "1px solid #e2e8f0",
-              background: "#fff",
-              color: "#0f172a",
-              borderRadius: 10,
-              padding: "6px 10px",
-              cursor: "pointer",
-            }}
-          >
-            &gt;
-          </button>
-          <div style={{ fontWeight: 700, color: "#0f172a" }}>{monthLabel}</div>
-        </div>
-        <div className="badge">
-          <span role="img" aria-label="calendar">
-            CAL
-          </span>
-          Month view
-        </div>
-      </div>
-
-      <div className="calendar-grid">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div
-            key={d}
-            style={{
-              textAlign: "center",
-              fontWeight: 700,
-              color: "#475569",
-            }}
-          >
-            {d}
-          </div>
-        ))}
-
-        {weeks.map((week, wi) =>
-          week.map((day, di) => (
-            <div
-              key={`${wi}-${di}`}
-              className="calendar-day"
-              style={{
-                opacity: day.inMonth ? 1 : 0.45,
-              }}
-            >
-              <div className="date">{day.date.getDate()}</div>
-              <div style={{ display: "grid", gap: 6 }}>
-                {(typeof maxItems === "number"
-                  ? day.bookings.slice(0, maxItems)
-                  : day.bookings
-                ).map((b) => (
-                  <div key={b.id}>
-                    {renderBooking ? (
-                      renderBooking(b)
-                    ) : (
-                      <div
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: 10,
-                          background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
-                          color: "#fff",
-                          fontSize: 12,
-                          boxShadow: "0 6px 18px rgba(37,99,235,0.25)",
-                        }}
-                      >
-                        <div style={{ fontWeight: 700, marginBottom: 2 }}>
-                          {(b.resources || [])
-                            .map((r) => r.name)
-                            .filter(Boolean)
-                            .join(" / ")}
-                        </div>
-                        <div style={{ opacity: 0.9 }}>
-                          {formatTime(b.start_time)} - {formatTime(b.end_time)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                {typeof maxItems === "number" &&
-                  day.bookings.length > maxItems && (
-                    <div style={{ fontSize: 11, color: "#475569" }}>
-                      +{day.bookings.length - maxItems} more
-                    </div>
-                  )}
-                {renderDayAction ? renderDayAction(day) : null}
-              </div>
-            </div>
-          ))
-        )}
+        <BookingDetailsModal
+          selectedScheduleBooking={selectedScheduleBooking}
+          setSelectedScheduleBooking={setSelectedScheduleBooking}
+          labels={labels}
+        />
       </div>
     </div>
   );
