@@ -92,6 +92,11 @@ export default function AutoScheduler({ embedded = false }) {
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [timeWindows, setTimeWindows] = useState(() => [
+    { id: "morning", label: "Morning", start_time: "08:00", end_time: "12:00" },
+    { id: "noon", label: "Noon", start_time: "12:00", end_time: "16:00" },
+    { id: "evening", label: "Evening", start_time: "16:00", end_time: "22:00" },
+  ]);
   const [selection, setSelection] = useState({
     typeIds: [],
     resourceIds: [],
@@ -99,6 +104,7 @@ export default function AutoScheduler({ embedded = false }) {
     userIds: "",
     hoursPerDay: String(DEFAULT_HOURS_PER_DAY),
     daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
+    preferredWindowId: "",
   });
   const [groups, setGroups] = useState([]);
   const [lastRun, setLastRun] = useState({ scheduled: [], skipped: [] });
@@ -292,6 +298,7 @@ export default function AutoScheduler({ embedded = false }) {
         7,
         Math.max(1, Number(selection.daysPerWeek) || DEFAULT_DAYS_PER_WEEK)
       ),
+      preferred_window_id: String(selection.preferredWindowId || "").trim(),
     };
     setGroups((prev) => [...prev, group]);
     setSelection({
@@ -301,6 +308,7 @@ export default function AutoScheduler({ embedded = false }) {
       userIds: "",
       hoursPerDay: String(DEFAULT_HOURS_PER_DAY),
       daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
+      preferredWindowId: "",
     });
     setResponsibleQuery("");
     setResponsibleOptions([]);
@@ -316,6 +324,43 @@ export default function AutoScheduler({ embedded = false }) {
 
   function removeGroup(groupId) {
     setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
+  }
+
+  function moveGroup(groupId, direction) {
+    setGroups((prev) => {
+      const idx = prev.findIndex((g) => g.group_id === groupId);
+      if (idx < 0) return prev;
+      const nextIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(idx, 1);
+      copy.splice(nextIdx, 0, item);
+      return copy;
+    });
+  }
+
+  function addTimeWindow() {
+    const id = `win_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setTimeWindows((prev) => [
+      ...prev,
+      { id, label: "Custom window", start_time: "08:00", end_time: "12:00" },
+    ]);
+  }
+
+  function updateTimeWindow(windowId, patch) {
+    setTimeWindows((prev) => prev.map((w) => (w.id === windowId ? { ...w, ...patch } : w)));
+  }
+
+  function removeTimeWindow(windowId) {
+    setTimeWindows((prev) => prev.filter((w) => w.id !== windowId));
+    setGroups((prev) =>
+      prev.map((g) =>
+        g.preferred_window_id === windowId ? { ...g, preferred_window_id: "" } : g
+      )
+    );
+    setSelection((prev) =>
+      prev.preferredWindowId === windowId ? { ...prev, preferredWindowId: "" } : prev
+    );
   }
 
   function applyAutoSuggestion(groupId, suggestion) {
@@ -363,10 +408,19 @@ export default function AutoScheduler({ embedded = false }) {
     setRunning(true);
     setMessage("");
     try {
+      const windowById = timeWindows.reduce((acc, w) => {
+        if (w?.id) acc[w.id] = w;
+        return acc;
+      }, {});
+      const payloadGroups = groups.map((g) => {
+        const w = g.preferred_window_id ? windowById[g.preferred_window_id] : null;
+        const preferred_time_windows = w ? [{ start_time: w.start_time, end_time: w.end_time }] : [];
+        return { ...g, preferred_time_windows };
+      });
       const data = await apiPost("/auto-schedule", {
         start_date: rangeStart,
         end_date: rangeEnd,
-        groups,
+        groups: payloadGroups,
       }, {
         timeoutMs: 20000,
         timeoutMessage:
@@ -388,12 +442,21 @@ export default function AutoScheduler({ embedded = false }) {
     } catch (err) {
       if (err?.code === "REQUEST_TIMEOUT") {
         try {
+          const windowById = timeWindows.reduce((acc, w) => {
+            if (w?.id) acc[w.id] = w;
+            return acc;
+          }, {});
+          const payloadGroups = groups.map((g) => {
+            const w = g.preferred_window_id ? windowById[g.preferred_window_id] : null;
+            const preferred_time_windows = w ? [{ start_time: w.start_time, end_time: w.end_time }] : [];
+            return { ...g, preferred_time_windows };
+          });
           const diagnostic = await apiPost(
             "/auto-schedule/diagnose",
             {
               start_date: rangeStart,
               end_date: rangeEnd,
-              groups,
+              groups: payloadGroups,
             },
             {
               timeoutMs: 10000,
@@ -470,11 +533,20 @@ export default function AutoScheduler({ embedded = false }) {
     setRunning(true);
     setMessage("");
     try {
+      const windowById = timeWindows.reduce((acc, w) => {
+        if (w?.id) acc[w.id] = w;
+        return acc;
+      }, {});
+      const payloadGroups = groups.map((g) => {
+        const w = g.preferred_window_id ? windowById[g.preferred_window_id] : null;
+        const preferred_time_windows = w ? [{ start_time: w.start_time, end_time: w.end_time }] : [];
+        return { ...g, preferred_time_windows };
+      });
       const job = await apiPost("/auto-schedule/jobs", {
         run_at: runAt.toISOString(),
         start_date: rangeStart,
         end_date: rangeEnd,
-        groups,
+        groups: payloadGroups,
       });
       setMessageTone("success");
       setMessage(
@@ -703,6 +775,77 @@ export default function AutoScheduler({ embedded = false }) {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-semibold text-slate-900">Time window priorities</h2>
+          <button
+            type="button"
+            onClick={addTimeWindow}
+            className="rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-50"
+          >
+            Add window
+          </button>
+        </div>
+        <div className="text-sm text-slate-600 mb-4">
+          Allocations assigned to a window will try to schedule inside that time range first.
+        </div>
+        {timeWindows.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+            No windows defined.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {timeWindows.map((w) => (
+              <div key={w.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                  <div className="md:col-span-2">
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Label
+                    </label>
+                    <input
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                      value={w.label}
+                      onChange={(e) => updateTimeWindow(w.id, { label: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Start
+                    </label>
+                    <input
+                      type="time"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                      value={w.start_time}
+                      onChange={(e) => updateTimeWindow(w.id, { start_time: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      End
+                    </label>
+                    <input
+                      type="time"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                      value={w.end_time}
+                      onChange={(e) => updateTimeWindow(w.id, { end_time: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      className="w-full rounded-2xl border border-red-200 bg-white px-3 py-2.5 text-red-600 transition hover:bg-red-50"
+                      onClick={() => removeTimeWindow(w.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
@@ -995,6 +1138,26 @@ export default function AutoScheduler({ embedded = false }) {
 
             <div>
               <label className="mb-2 block text-sm font-semibold text-slate-800">
+                Preferred time window (optional)
+              </label>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
+                value={selection.preferredWindowId}
+                onChange={(e) =>
+                  setSelection((prev) => ({ ...prev, preferredWindowId: e.target.value }))
+                }
+              >
+                <option value="">No preference</option>
+                {timeWindows.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.label} ({w.start_time}-{w.end_time})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-800">
                 Hours per day
               </label>
               <input
@@ -1044,12 +1207,15 @@ export default function AutoScheduler({ embedded = false }) {
 
       <div className="rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <h2 className="mb-4 text-xl font-semibold text-slate-900">Allocations</h2>
+        <div className="mb-4 text-sm text-slate-600">
+          Order matters: allocations at the top are scheduled first.
+        </div>
         {groups.length === 0 && (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">No allocations yet.</div>
         )}
         {groups.length > 0 && (
           <div className="space-y-4">
-            {groups.map((group) => {
+            {groups.map((group, index) => {
               const typeNames = Array.isArray(group.type_ids)
                 ? group.type_ids
                     .map((typeId) => resourceTypes.find((type) => Number(type.id) === Number(typeId))?.name || `Type ${typeId}`)
@@ -1063,7 +1229,29 @@ export default function AutoScheduler({ embedded = false }) {
                 : resourceNames;
               return (
                 <div key={group.group_id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="mb-2 font-semibold text-slate-900">{title}</div>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="font-semibold text-slate-900">
+                      #{index + 1} · {title}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        onClick={() => moveGroup(group.group_id, "up")}
+                        disabled={index === 0}
+                      >
+                        Up
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                        onClick={() => moveGroup(group.group_id, "down")}
+                        disabled={index === groups.length - 1}
+                      >
+                        Down
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1086,6 +1274,25 @@ export default function AutoScheduler({ embedded = false }) {
                           updateGroup(group.group_id, { user_ids: parseIds(e.target.value) })
                         }
                       />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Preferred window
+                      </label>
+                      <select
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                        value={group.preferred_window_id || ""}
+                        onChange={(e) =>
+                          updateGroup(group.group_id, { preferred_window_id: e.target.value })
+                        }
+                      >
+                        <option value="">No preference</option>
+                        {timeWindows.map((w) => (
+                          <option key={w.id} value={w.id}>
+                            {w.label} ({w.start_time}-{w.end_time})
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Hours per day</label>

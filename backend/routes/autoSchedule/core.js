@@ -11,6 +11,23 @@ import {
 import { loadCandidateRowsByTypeIds, loadResourceRowsByIds } from "./resources.js";
 import { buildAutoScheduleFailureSuggestions } from "./suggestions.js";
 
+function normalizePreferredWindows(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map((w) => ({
+      start_time: w?.start_time ? String(w.start_time).slice(0, 5) : "",
+      end_time: w?.end_time ? String(w.end_time).slice(0, 5) : "",
+    }))
+    .filter((w) => w.start_time && w.end_time && w.start_time < w.end_time);
+}
+
+function isWithinAnyPreferredWindow(preferredWindows, startTime, endTime) {
+  if (!preferredWindows || preferredWindows.length === 0) return true;
+  return preferredWindows.some(
+    (w) => startTime >= w.start_time && endTime <= w.end_time
+  );
+}
+
 function buildCandidateSlots(availability, durationMinutes) {
   const candidates = [];
   availability.forEach((slot) => {
@@ -47,6 +64,7 @@ export async function pickLockedSlot({
   orgId,
   client,
   excludedDayOfWeeks = [],
+  preferredTimeWindows = [],
 }) {
   const weekStarts = getWeekStartsInRange(startDate, endDate);
   const candidatesMap = new Map();
@@ -65,13 +83,15 @@ export async function pickLockedSlot({
       for (let candidate = slotStartMin; candidate + durationMinutes <= slotEndMin; candidate += 30) {
         const startTime = addMinutes("00:00", candidate);
         const endTime = addMinutes("00:00", candidate + durationMinutes);
+        if (!isWithinAnyPreferredWindow(preferredTimeWindows, startTime, endTime)) continue;
         const key = `${dayOfWeek}-${startTime}-${endTime}`;
         candidatesMap.set(key, { day_of_week: dayOfWeek, start_time: startTime, end_time: endTime });
       }
     }
   }
 
-  for (const candidate of candidatesMap.values()) {
+  const candidates = Array.from(candidatesMap.values());
+  for (const candidate of candidates) {
     const occurrences = [];
     for (const weekStart of weekStarts) {
       const dateObj = new Date(weekStart);
@@ -448,6 +468,7 @@ export async function scheduleGroup({
   let ruleConflicts = 0;
   let lockedSlots = [];
   let failureContext = null;
+  const preferredTimeWindows = normalizePreferredWindows(group?.preferred_time_windows);
 
   for (let lockIndex = 0; lockIndex < daysPerWeek; lockIndex += 1) {
     const lockedCandidate = await pickLockedSlot({
@@ -464,6 +485,7 @@ export async function scheduleGroup({
       orgId,
       client,
       excludedDayOfWeeks: lockedSlots.map((slot) => slot.day_of_week),
+      preferredTimeWindows,
     });
     if (lockedCandidate?.slot) {
       lockedSlots = [...lockedSlots, lockedCandidate.slot];
@@ -512,15 +534,24 @@ export async function scheduleGroup({
           if (!matchesWindow) continue;
         }
 
-        for (const slot of dayAvailability) {
-          const slotStart = normalizeTimeKey(slot.start_time);
-          const slotEnd = normalizeTimeKey(slot.end_time);
-          const slotStartMin = timeToMinutes(slotStart);
-          const slotEndMin = timeToMinutes(slotEnd);
-          for (let candidate = slotStartMin; candidate + durationMinutes <= slotEndMin; candidate += 30) {
-            weekSlots += 1;
-            const startTime = addMinutes("00:00", candidate);
-            const endTime = addMinutes("00:00", candidate + durationMinutes);
+        const timePreferencePasses = preferredTimeWindows.length > 0 ? 2 : 1;
+        for (let timePass = 0; timePass < timePreferencePasses; timePass += 1) {
+          const enforcePreferred = preferredTimeWindows.length > 0 && timePass === 0;
+
+          for (const slot of dayAvailability) {
+            const slotStart = normalizeTimeKey(slot.start_time);
+            const slotEnd = normalizeTimeKey(slot.end_time);
+            const slotStartMin = timeToMinutes(slotStart);
+            const slotEndMin = timeToMinutes(slotEnd);
+            for (let candidate = slotStartMin; candidate + durationMinutes <= slotEndMin; candidate += 30) {
+              weekSlots += 1;
+              const startTime = addMinutes("00:00", candidate);
+              const endTime = addMinutes("00:00", candidate + durationMinutes);
+
+              if (enforcePreferred && !isWithinAnyPreferredWindow(preferredTimeWindows, startTime, endTime)) {
+                continue;
+              }
+
             if (enforceLockedSlots) {
               const matchesAnyLock = lockedSlots.some((locked) => locked.day_of_week === dayOfWeek && locked.start_time === startTime && locked.end_time === endTime);
               if (!matchesAnyLock) continue;
@@ -678,6 +709,8 @@ export async function scheduleGroup({
             if (lockedSlots.length === 0) lockedSlots = [{ day_of_week: dayOfWeek, start_time: startTime, end_time: endTime }];
             scheduledThisWeekCount += 1;
             if (scheduledThisWeekCount >= daysPerWeek) break;
+          }
+          if (scheduledThisWeekCount >= daysPerWeek) break;
           }
           if (scheduledThisWeekCount >= daysPerWeek) break;
         }
