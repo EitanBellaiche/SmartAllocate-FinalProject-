@@ -247,6 +247,7 @@ async function buildCandidateEvaluationDetails({
   selectedResourceIds = [],
   selectedEvaluation = null,
   maxCandidatesPerType = null,
+  candidateOffsetByType = {},
   maxRulesPerCandidate = null,
   includeAlternatives = true,
   impactfulRulesOnly = false,
@@ -283,12 +284,14 @@ async function buildCandidateEvaluationDetails({
       if (Number(resource?.type_id) !== Number(typeId)) return false;
       return !comparisonBaseIds.includes(Number(resource?.id));
     });
-    const boundedCandidatesForType = Number.isFinite(Number(maxCandidatesPerType))
-      ? candidatesForType.slice(0, Number(maxCandidatesPerType))
-      : candidatesForType;
+    const pageSize = Number.isFinite(Number(maxCandidatesPerType))
+      ? Math.max(1, Number(maxCandidatesPerType))
+      : null;
+    const rawOffset = Number(candidateOffsetByType?.[typeId] ?? candidateOffsetByType?.[String(typeId)] ?? 0);
+    const candidateOffset = Number.isFinite(rawOffset) ? Math.max(0, rawOffset) : 0;
     const conflictingResourceIds = await loadConflictingResourceIds(
       client,
-      boundedCandidatesForType
+      candidatesForType
         .map((resource) => Number(resource?.id))
         .filter((id) => Number.isFinite(id)),
       bookingDate,
@@ -298,7 +301,7 @@ async function buildCandidateEvaluationDetails({
     );
 
     const evaluatedCandidates = [];
-    for (const candidate of boundedCandidatesForType) {
+    for (const candidate of candidatesForType) {
       const candidateId = Number(candidate?.id);
       const candidateResources = [...comparisonBase, candidate];
       const evaluation = evaluateRules({
@@ -356,12 +359,12 @@ async function buildCandidateEvaluationDetails({
     }
 
     evaluatedCandidates.sort((left, right) => {
+      if (right.final_score !== left.final_score) return right.final_score - left.final_score;
       if (left.is_selected !== right.is_selected) return left.is_selected ? -1 : 1;
       if (left.state !== right.state) {
         const order = { selected: 0, valid: 1, blocked: 2 };
         return (order[left.state] ?? 99) - (order[right.state] ?? 99);
       }
-      if (right.final_score !== left.final_score) return right.final_score - left.final_score;
       return String(left.name || "").localeCompare(String(right.name || ""));
     });
 
@@ -370,6 +373,9 @@ async function buildCandidateEvaluationDetails({
     const hasPerfectMatch = validCandidates.some(
       (candidate) => !candidate.score_breakdown.some((item) => Number(item.delta) < 0)
     );
+    const pagedCandidates = pageSize
+      ? evaluatedCandidates.slice(candidateOffset, candidateOffset + pageSize)
+      : evaluatedCandidates;
     candidateGroups.push({
       type_id: Number(typeId),
       type_name:
@@ -382,9 +388,13 @@ async function buildCandidateEvaluationDetails({
           ? Math.max(...validCandidates.map((candidate) => Number(candidate.final_score || 0)))
           : null,
       has_perfect_match: hasPerfectMatch,
-      total_candidates: candidatesForType.length,
-      shown_candidates: evaluatedCandidates.length,
-      candidates: evaluatedCandidates,
+      total_candidates: evaluatedCandidates.length,
+      shown_candidates: pagedCandidates.length,
+      candidate_offset: candidateOffset,
+      candidate_page_size: pageSize || evaluatedCandidates.length,
+      total_valid_candidates: validCandidates.length,
+      total_blocked_candidates: evaluatedCandidates.length - validCandidates.length,
+      candidates: pagedCandidates,
     });
   }
 
@@ -405,13 +415,13 @@ async function buildCandidateEvaluationDetails({
       selected_score: Number.isFinite(Number(selectedEvaluation?.score))
         ? Number(selectedEvaluation.score)
         : null,
-      total_candidates: candidateGroups.reduce((sum, group) => sum + group.candidates.length, 0),
+      total_candidates: candidateGroups.reduce((sum, group) => sum + Number(group.total_candidates || 0), 0),
       valid_candidates: candidateGroups.reduce(
-        (sum, group) => sum + group.candidates.filter((candidate) => candidate.state !== "blocked").length,
+        (sum, group) => sum + Number(group.total_valid_candidates || 0),
         0
       ),
       blocked_candidates: candidateGroups.reduce(
-        (sum, group) => sum + group.candidates.filter((candidate) => candidate.state === "blocked").length,
+        (sum, group) => sum + Number(group.total_blocked_candidates || 0),
         0
       ),
       has_perfect_match: candidateGroups.every((group) => group.has_perfect_match),
@@ -1305,6 +1315,7 @@ router.post("/preview", async (req, res) => {
     start_time,
     end_time,
     user_id,
+    preview_candidate_offsets,
   } = req.body || {};
   const orgId = getOrgId(req);
   const explicitResourceIds = uniqueNumericIds(resources);
@@ -1348,6 +1359,10 @@ router.post("/preview", async (req, res) => {
       candidateTypeIds,
       rules: ruleRows,
       roles: roleMap,
+      candidateOffsetByType:
+        preview_candidate_offsets && typeof preview_candidate_offsets === "object"
+          ? preview_candidate_offsets
+          : {},
       maxCandidatesPerType: 3,
       maxRulesPerCandidate: 3,
       includeAlternatives: false,

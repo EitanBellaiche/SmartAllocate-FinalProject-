@@ -304,7 +304,7 @@ export async function diagnoseGroupFailure({
     availability = availabilityResult.rows;
     availabilityOverrides = overridesResult.rows;
     if (availability.length === 0 && availabilityOverrides.length === 0) {
-      return { group_id: group?.group_id || null, reason: "No availability defined for the responsible user.", failure_type: "missing_availability", suggestions: [] };
+      availability = buildFallbackAvailability();
     }
   } else {
     availability = buildFallbackAvailability();
@@ -480,7 +480,7 @@ export async function scheduleGroup({
     availability = availabilityResult.rows;
     availabilityOverrides = overridesResult.rows;
     if (availability.length === 0 && availabilityOverrides.length === 0) {
-      return { scheduled: [], skipped: { group_id: group?.group_id || null, reason: "No availability for responsible" } };
+      availability = buildFallbackAvailability();
     }
   } else {
     availability = buildFallbackAvailability();

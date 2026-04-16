@@ -296,13 +296,62 @@ export function getBookingShortLocation(booking) {
   return room.name || room.metadata?.building || "On-site";
 }
 
+function dedupeResources(resources) {
+  const list = Array.isArray(resources) ? resources.filter(Boolean) : [];
+  const seen = new Set();
+  const deduped = [];
+  for (const resource of list) {
+    const key = [
+      String(resource?.id ?? ""),
+      String(resource?.name || "").trim().toLowerCase(),
+      String(resource?.type_name || "").trim().toLowerCase(),
+      String(resource?.role || "").trim().toLowerCase(),
+    ].join("::");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(resource);
+  }
+  return deduped;
+}
+
+function buildBookingDisplaySignature(booking, resources) {
+  const resourceSignature = dedupeResources(resources)
+    .map((resource) =>
+      [
+        String(resource?.id ?? ""),
+        String(resource?.name || "").trim().toLowerCase(),
+        String(resource?.type_name || "").trim().toLowerCase(),
+      ].join(":")
+    )
+    .sort()
+    .join("|");
+
+  return [
+    String(booking?.date || ""),
+    String(booking?.start_time || ""),
+    String(booking?.end_time || ""),
+    String(booking?.location || "").trim().toLowerCase(),
+    resourceSignature,
+  ].join("##");
+}
+
 export function filterBookingsToPrimaryResources(bookings) {
-  return bookings.map((booking) => {
-    const allResources = booking.resources || [];
+  const list = Array.isArray(bookings) ? bookings : [];
+  const seen = new Set();
+  const dedupedBookings = [];
+
+  for (const booking of list) {
+    const allResources = dedupeResources(booking?.resources || []);
     const primaryResources = allResources.filter(isPrimaryResource);
     const resources = primaryResources.length > 0 ? primaryResources : allResources;
-    return { ...booking, resources, all_resources: allResources };
-  });
+    const normalizedBooking = { ...booking, resources, all_resources: allResources };
+    const signature = buildBookingDisplaySignature(normalizedBooking, resources);
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    dedupedBookings.push(normalizedBooking);
+  }
+
+  return dedupedBookings;
 }
 
 export function normalizeRole(value) {

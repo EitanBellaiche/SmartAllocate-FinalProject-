@@ -54,6 +54,7 @@ export default function Booking() {
   const [alertDetails, setAlertDetails] = useState([]);
   const [resourceEvaluation, setResourceEvaluation] = useState(null);
   const [resourceEvaluationLoading, setResourceEvaluationLoading] = useState(false);
+  const [previewCandidateOffsets, setPreviewCandidateOffsets] = useState({});
   const [conflictResolution, setConflictResolution] = useState(null);
   const [conflictStrategy, setConflictStrategy] = useState("");
   const [mode, setMode] = useState("booking");
@@ -139,6 +140,7 @@ export default function Booking() {
           end_time: endTime,
           date: previewDate,
           user_id: assignUsers ? String(responsibleUser?.national_id || "").trim() || undefined : undefined,
+          preview_candidate_offsets: previewCandidateOffsets,
         });
         setResourceEvaluation(preview?.resource_evaluation || null);
       } catch {
@@ -160,6 +162,22 @@ export default function Booking() {
     rangeStart,
     assignUsers,
     responsibleUser,
+    previewCandidateOffsets,
+  ]);
+
+  useEffect(() => {
+    setPreviewCandidateOffsets({});
+  }, [
+    mode,
+    date,
+    startTime,
+    endTime,
+    recurring,
+    rangeStart,
+    assignUsers,
+    responsibleUser?.national_id,
+    selectedResources.join(","),
+    selectedTypeIds.join(","),
   ]);
 
   useEffect(() => {
@@ -257,6 +275,20 @@ export default function Booking() {
         return prev.filter((day) => day !== dayValue);
       }
       return [...prev, dayValue];
+    });
+  }
+
+  function changePreviewCandidatePage(typeId, nextOffset) {
+    const normalizedTypeId = String(typeId || "").trim();
+    if (!normalizedTypeId) return;
+    const safeOffset = Math.max(0, Number(nextOffset) || 0);
+    setPreviewCandidateOffsets((prev) => {
+      const current = Number(prev?.[normalizedTypeId] || 0);
+      if (current === safeOffset) return prev;
+      return {
+        ...prev,
+        [normalizedTypeId]: safeOffset,
+      };
     });
   }
 
@@ -666,6 +698,7 @@ export default function Booking() {
               evaluation={resourceEvaluation}
               preview
               loading={resourceEvaluationLoading}
+              onPreviewPageChange={changePreviewCandidatePage}
             />
 
             {(violationDetails.length > 0 || alertDetails.length > 0) && (

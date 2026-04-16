@@ -46,7 +46,12 @@ function SummaryStat({ label, value, tone = "slate" }) {
   );
 }
 
-export default function ResourceEvaluationPanel({ evaluation, preview = false, loading = false }) {
+export default function ResourceEvaluationPanel({
+  evaluation,
+  preview = false,
+  loading = false,
+  onPreviewPageChange = null,
+}) {
   if (!evaluation?.candidate_groups?.length) return null;
 
   const summary = evaluation.summary || {};
@@ -99,7 +104,17 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
       </div>
 
       <div className="mt-6 space-y-6">
-        {evaluation.candidate_groups.map((group) => (
+        {evaluation.candidate_groups.map((group) => {
+          const totalCandidates = Number(group.total_candidates || 0);
+          const shownCandidates = Number(group.shown_candidates || group.candidates?.length || 0);
+          const candidateOffset = Number(group.candidate_offset || 0);
+          const pageSize = Math.max(1, Number(group.candidate_page_size || shownCandidates || 1));
+          const showingStart = totalCandidates > 0 ? candidateOffset + 1 : 0;
+          const showingEnd = totalCandidates > 0 ? Math.min(candidateOffset + shownCandidates, totalCandidates) : 0;
+          const hasPreviousPage = candidateOffset > 0;
+          const hasNextPage = candidateOffset + shownCandidates < totalCandidates;
+
+          return (
           <div
             key={`candidate-group-${group.type_id}`}
             className="rounded-[24px] border border-slate-200 bg-white/80 p-4 sm:p-5"
@@ -122,13 +137,34 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
                     Best valid score {Number(group.best_valid_score)}
                   </span>
                 )}
-                {preview && Number(group.total_candidates) > Number(group.shown_candidates) && (
+                {preview && totalCandidates > 0 && (
                   <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                    Showing {group.shown_candidates} of {group.total_candidates}
+                    Showing {showingStart}-{showingEnd} of {totalCandidates}
                   </span>
                 )}
               </div>
             </div>
+
+            {preview && (hasPreviousPage || hasNextPage) && (
+              <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => onPreviewPageChange?.(group.type_id, Math.max(0, candidateOffset - pageSize))}
+                  disabled={loading || !hasPreviousPage}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPreviewPageChange?.(group.type_id, candidateOffset + pageSize)}
+                  disabled={loading || !hasNextPage}
+                  className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            )}
 
             <div className={`mt-4 grid gap-4 ${preview ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               {group.candidates.map((candidate) => {
@@ -261,7 +297,8 @@ export default function ResourceEvaluationPanel({ evaluation, preview = false, l
               })}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {!preview && !summary.has_perfect_match && alternatives.length > 0 && (

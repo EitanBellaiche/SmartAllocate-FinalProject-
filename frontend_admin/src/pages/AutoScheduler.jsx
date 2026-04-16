@@ -259,6 +259,137 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
   );
 }
 
+function AvailabilityDetailsModal({
+  open,
+  user,
+  userId,
+  slots,
+  overrides,
+  loading,
+  error,
+  onClose,
+}) {
+  if (!open) return null;
+
+  const hasSlots = Array.isArray(slots) && slots.length > 0;
+  const hasOverrides = Array.isArray(overrides) && overrides.length > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <div className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Responsible availability
+            </div>
+            <div className="mt-1 text-xl font-semibold text-slate-900">
+              {user?.full_name || "Responsible"}
+            </div>
+            <div className="mt-1 text-sm text-slate-500">{userId || "No ID"}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="max-h-[calc(85vh-96px)] overflow-y-auto px-6 py-5">
+          {loading ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Loading availability...
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-700">
+              {error}
+            </div>
+          ) : !hasSlots && !hasOverrides ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-6 text-sm text-emerald-800">
+              No availability defined. Treated as available every day.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Weekly availability
+                </div>
+                {hasSlots ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {slots.map((slot) => (
+                      <div
+                        key={`availability-slot-${slot.id}`}
+                        className="rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <div className="text-sm font-semibold text-slate-900">
+                          {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-700">
+                          {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                        </div>
+                        {(slot.start_date || slot.end_date) && (
+                          <div className="mt-2 text-xs text-slate-500">
+                            {formatIsraelDateRange(slot.start_date, slot.end_date)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
+                    No weekly availability records.
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Date overrides
+                </div>
+                {hasOverrides ? (
+                  <div className="space-y-3">
+                    {overrides.map((slot) => (
+                      <div
+                        key={`availability-override-${slot.id}`}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+                      >
+                        <div>
+                          <div className="text-sm font-semibold text-slate-900">
+                            {formatIsraelDate(slot.date)}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            {slot.start_time && slot.end_time
+                              ? `${formatIsraelTime(slot.start_time)}-${formatIsraelTime(slot.end_time)}`
+                              : "Full day"}
+                          </div>
+                        </div>
+                        <div
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            slot.is_available
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-red-100 text-red-700"
+                          }`}
+                        >
+                          {slot.is_available ? "Available" : "Blocked"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
+                    No override records.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SkippedResultCards({
   skipped,
   groupById,
@@ -385,6 +516,7 @@ function SkippedResultCards({
       {skipped.length > 10 && (
         <div className="text-xs text-red-700">+{skipped.length - 10} more</div>
       )}
+
     </div>
   );
 }
@@ -465,6 +597,14 @@ export default function AutoScheduler({ embedded = false }) {
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [expandedJobIds, setExpandedJobIds] = useState([]);
+  const [availabilityModal, setAvailabilityModal] = useState({
+    open: false,
+    userId: "",
+    slots: [],
+    overrides: [],
+    loading: false,
+    error: "",
+  });
 
   useEffect(() => {
     (async () => {
@@ -565,6 +705,56 @@ export default function AutoScheduler({ embedded = false }) {
       active = false;
     };
   }, [responsibleUser]);
+
+  async function openAvailabilityModal(userId) {
+    const normalizedUserId = String(userId || "").trim();
+    if (!normalizedUserId) return;
+
+    setAvailabilityModal({
+      open: true,
+      userId: normalizedUserId,
+      slots: [],
+      overrides: [],
+      loading: true,
+      error: "",
+    });
+
+    try {
+      const [availabilityData, overrideData] = await Promise.all([
+        apiGet(`/user-availability?user_id=${encodeURIComponent(normalizedUserId)}`),
+        apiGet(`/user-availability/overrides?user_id=${encodeURIComponent(normalizedUserId)}`),
+      ]);
+
+      setAvailabilityModal({
+        open: true,
+        userId: normalizedUserId,
+        slots: Array.isArray(availabilityData) ? availabilityData : [],
+        overrides: Array.isArray(overrideData) ? overrideData : [],
+        loading: false,
+        error: "",
+      });
+    } catch (err) {
+      setAvailabilityModal({
+        open: true,
+        userId: normalizedUserId,
+        slots: [],
+        overrides: [],
+        loading: false,
+        error: err?.message || "Failed to load availability details.",
+      });
+    }
+  }
+
+  function closeAvailabilityModal() {
+    setAvailabilityModal({
+      open: false,
+      userId: "",
+      slots: [],
+      overrides: [],
+      loading: false,
+      error: "",
+    });
+  }
 
   const availabilityByUser = useMemo(() => {
     return availability.reduce((acc, row) => {
@@ -1581,7 +1771,7 @@ export default function AutoScheduler({ embedded = false }) {
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-slate-700">
                 <div className="mb-2 font-semibold text-slate-900">Responsible availability</div>
                 {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
-                  <div>No availability defined yet.</div>
+                  <div>No availability defined. Treated as available every day.</div>
                 ) : (
                   <>
                     {responsibleAvailability.length > 0 && (
@@ -1835,13 +2025,21 @@ export default function AutoScheduler({ embedded = false }) {
                       </button>
                     </div>
                   </div>
-                  {group.responsible_user_id &&
-                    availabilityByUser[group.responsible_user_id]?.length > 0 && (
-                      <div className="mt-3 text-xs text-slate-600">
+                  {group.responsible_user_id && (
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <div className="text-xs text-slate-600">
                         Availability records:{" "}
-                        {availabilityByUser[group.responsible_user_id].length}
+                        {availabilityByUser[group.responsible_user_id]?.length || 0}
                       </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => openAvailabilityModal(group.responsible_user_id)}
+                        className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                      >
+                        View full availability
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -2039,12 +2237,23 @@ export default function AutoScheduler({ embedded = false }) {
                 </div>
               );
             })}
-            {lastRun.skipped.length > 10 && (
+      {lastRun.skipped.length > 10 && (
               <div className="text-xs text-red-700">+{lastRun.skipped.length - 10} more</div>
             )}
           </div>
         </div>
       )}
+
+      <AvailabilityDetailsModal
+        open={availabilityModal.open}
+        user={responsibleById[availabilityModal.userId]}
+        userId={availabilityModal.userId}
+        slots={availabilityModal.slots}
+        overrides={availabilityModal.overrides}
+        loading={availabilityModal.loading}
+        error={availabilityModal.error}
+        onClose={closeAvailabilityModal}
+      />
     </div>
   );
 }

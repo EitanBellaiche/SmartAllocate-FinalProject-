@@ -300,31 +300,6 @@ async function findNextScheduledJobForResponsible({ orgId, responsibleUserId }) 
   return rows[0] || null;
 }
 
-async function hasAnyAvailability({ orgId, responsibleUserId }) {
-  const rid = String(responsibleUserId || "").trim();
-  if (!rid) return false;
-
-  const params = [rid];
-  let orgWhere = "";
-  if (orgId) {
-    params.push(String(orgId));
-    orgWhere = `AND organization_id = $${params.length}`;
-  }
-
-  const { rows } = await pool.query(
-    `
-    SELECT
-      (SELECT COUNT(*)::int FROM user_availability WHERE user_id = $1 ${orgWhere}) AS base_count,
-      (SELECT COUNT(*)::int FROM user_availability_overrides WHERE user_id = $1 ${orgWhere}) AS override_count
-    `,
-    params
-  );
-
-  const baseCount = Number(rows?.[0]?.base_count || 0);
-  const overrideCount = Number(rows?.[0]?.override_count || 0);
-  return baseCount + overrideCount > 0;
-}
-
 async function findNextScheduledJobForOrg({ orgId }) {
   await ensureAutoScheduleJobsTable();
   const params = [];
@@ -363,10 +338,6 @@ export async function getOrgSchedulingDeadlineInfo({ orgId, responsibleUserId })
 
   const runAt = new Date(job.run_at);
   const locked = !Number.isNaN(runAt.getTime()) && Date.now() >= runAt.getTime();
-  const filled = responsibleUserId
-    ? await hasAnyAvailability({ orgId, responsibleUserId })
-    : true;
-
   const payload = job.payload || {};
   const startDate = payload?.start_date ? String(payload.start_date) : null;
   const endDate = payload?.end_date ? String(payload.end_date) : null;
@@ -394,7 +365,7 @@ export async function getOrgSchedulingDeadlineInfo({ orgId, responsibleUserId })
     job_id: job.id,
     run_at: job.run_at,
     locked,
-    must_fill_availability: Boolean(responsibleUserId) ? !filled && !locked : false,
+    must_fill_availability: false,
     scheduling_range: startDate && endDate ? { start_date: startDate, end_date: endDate } : null,
     time_windows: uniqueWindows,
     scope: "org",
@@ -416,14 +387,12 @@ export async function getResponsibleSchedulingDeadlineInfo({ orgId, responsibleU
 
   const runAt = new Date(job.run_at);
   const locked = !Number.isNaN(runAt.getTime()) && Date.now() >= runAt.getTime();
-  const filled = await hasAnyAvailability({ orgId, responsibleUserId });
-
   return {
     has_deadline: true,
     job_id: job.id,
     run_at: job.run_at,
     locked,
-    must_fill_availability: !filled && !locked,
+    must_fill_availability: false,
     scope: "responsible",
   };
 }
