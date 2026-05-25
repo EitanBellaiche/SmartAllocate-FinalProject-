@@ -1,5 +1,7 @@
 import React from "react";
 
+const PROMO_VIDEO_SRC = "/SmartAllocateVideo.mp4";
+
 export default function LoginView({
   labels,
   labelsLower,
@@ -22,6 +24,34 @@ export default function LoginView({
             <div className="login-greeting-sub">
               Sign in to manage your {labelsLower.resources}, review your activity, and stay
               aligned with your organization from one elegant workspace.
+            </div>
+          </div>
+
+          <div className="login-showcase-video-card">
+            <div className="login-showcase-video-header">
+              <span className="login-video-chip login-video-chip-problem">Before SmartAllocate</span>
+              <span className="login-video-chip login-video-chip-solution">After SmartAllocate</span>
+            </div>
+            <div className="login-showcase-video-frame">
+              <video
+                className="login-showcase-video"
+                src={PROMO_VIDEO_SRC}
+                autoPlay
+                muted
+                loop
+                controls
+                playsInline
+                preload="metadata"
+              >
+                Your browser does not support HTML5 video.
+              </video>
+            </div>
+            <div className="login-showcase-video-copy">
+              <strong>See the full transformation.</strong>
+              <p>
+                Watch how manual scheduling, booking conflicts, and resource overload turn into
+                a clean SmartAllocate workflow with automated assignments and calmer operations.
+              </p>
             </div>
           </div>
 

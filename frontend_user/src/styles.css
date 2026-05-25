@@ -579,6 +579,78 @@ select {
   max-width: 34rem;
 }
 
+.login-showcase-video-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+}
+
+.login-showcase-video-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.login-video-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  backdrop-filter: blur(10px);
+}
+
+.login-video-chip-problem {
+  background: rgba(127, 29, 29, 0.78);
+  color: #fee2e2;
+  border: 1px solid rgba(248, 113, 113, 0.24);
+}
+
+.login-video-chip-solution {
+  background: rgba(6, 95, 70, 0.78);
+  color: #d1fae5;
+  border: 1px solid rgba(52, 211, 153, 0.24);
+}
+
+.login-showcase-video-frame {
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(2, 6, 23, 0.72);
+  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.22);
+}
+
+.login-showcase-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #020617;
+}
+
+.login-showcase-video-copy {
+  max-width: 38rem;
+}
+
+.login-showcase-video-copy strong {
+  display: block;
+  font-size: 0.84rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.login-showcase-video-copy p {
+  margin: 10px 0 0;
+  color: rgba(226, 232, 240, 0.78);
+  line-height: 1.8;
+  font-size: 0.98rem;
+}
+
 .login-showcase-panel {
   position: relative;
   z-index: 1;
@@ -1221,6 +1293,14 @@ select {
   .login-showcase-panel {
     margin-left: auto;
     margin-right: auto;
+  }
+
+  .login-showcase-video-header {
+    justify-content: center;
+  }
+
+  .login-showcase-video-copy {
+    text-align: center;
   }
 
   .login-showcase-metrics {
