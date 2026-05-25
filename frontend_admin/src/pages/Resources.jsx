@@ -797,7 +797,7 @@ async function saveHallLayout() {
     const matchesType = !typeFilter || String(resource.type_id) === typeFilter;
 
     if (!hasNameFilter) {
-      return isCinema || isRestaurant ? matchesType : false;
+      return hasTypeFilter || isCinema || isRestaurant ? matchesType : false;
     }
 
     const haystack = [
@@ -932,7 +932,7 @@ async function saveHallLayout() {
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <SummaryPill
               label={config.resources.matchedResults}
-              value={isCinema ? filteredResources.length : hasNameFilter ? filteredResources.length : 0}
+              value={isCinema ? filteredResources.length : hasActiveFilter ? filteredResources.length : 0}
               tone="blue"
             />
             <SummaryPill label={config.resources.selectedFilter} value={selectedTypeName} tone="slate" />
@@ -1193,7 +1193,7 @@ async function saveHallLayout() {
               })}
             </div>
           )
-        ) : !hasNameFilter ? (
+        ) : !hasActiveFilter ? (
           <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-14 text-center">
             <div className="text-lg font-semibold text-slate-800">{config.resources.emptyTitle}</div>
             <div className="mt-2 text-sm text-slate-500">{config.resources.emptySubtitle}</div>
