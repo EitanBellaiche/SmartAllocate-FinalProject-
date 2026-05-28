@@ -80,6 +80,7 @@ router.post("/diagnose", async (req, res) => {
           endDate,
           orgId,
           ruleRows,
+          allowSaturday: req.body?.allow_saturday,
           durationMinutes: (() => {
             const daysPerWeek = clampDaysPerWeek(group?.days_per_week ?? 1);
             const hoursPerDay = Number(group?.hours_per_day);
@@ -110,6 +111,7 @@ router.post("/", async (req, res) => {
       end_date: req.body?.end_date,
       groups: req.body?.groups,
       orgId,
+      allow_saturday: req.body?.allow_saturday,
     });
     await recordCompletedAutoScheduleRun({
       start_date: req.body?.start_date,
@@ -117,6 +119,7 @@ router.post("/", async (req, res) => {
       groups: req.body?.groups,
       orgId,
       createdBy: getCreatedBy(req),
+      allow_saturday: req.body?.allow_saturday,
       result: data,
     });
     res.json(data);
@@ -151,6 +154,7 @@ router.post("/jobs", async (req, res) => {
       groups: req.body?.groups,
       orgId,
       createdBy,
+      allow_saturday: req.body?.allow_saturday,
     });
     res.status(201).json(job);
   } catch (err) {

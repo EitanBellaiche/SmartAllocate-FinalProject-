@@ -8,6 +8,15 @@ import AutoScheduler from "./AutoScheduler";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function getWeekdayIndex(dateValue) {
+  const text = String(dateValue || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const [year, month, day] = text.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  const weekday = parsed.getDay();
+  return Number.isFinite(weekday) ? weekday : null;
+}
+
 export default function Booking() {
   const labels = getOrgLabels();
   const config = getOrgConfig();
@@ -28,6 +37,11 @@ export default function Booking() {
   const [resourceQuery, setResourceQuery] = useState("");
   const [resourceFilterTypeId, setResourceFilterTypeId] = useState("");
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+  const [sidebarTypeFilterId, setSidebarTypeFilterId] = useState("");
+  const [sidebarSelectedResourceId, setSidebarSelectedResourceId] = useState("");
+  const [sidebarResourceQuery, setSidebarResourceQuery] = useState("");
+  const [expandedScheduleGroups, setExpandedScheduleGroups] = useState({});
+  const [deletingScheduleGroupKey, setDeletingScheduleGroupKey] = useState("");
 
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -110,6 +124,126 @@ export default function Booking() {
       return matchesQuery && matchesType && matchesSelected;
     });
   }, [resources, resourceQuery, resourceFilterTypeId, showSelectedOnly, selectedResources]);
+
+  const filteredSidebarBookings = useMemo(() => {
+    const query = sidebarResourceQuery.trim().toLowerCase();
+    const selectedResourceId = Number(sidebarSelectedResourceId);
+    const selectedTypeId = String(sidebarTypeFilterId || "").trim();
+    if (!query && !selectedTypeId && !Number.isFinite(selectedResourceId)) return [];
+
+    return bookings.filter((booking) =>
+      (booking.resources || []).some((resource) => {
+        const resourceName = String(resource?.name || "").toLowerCase();
+        const resourceTypeName = String(resource?.type_name || "").toLowerCase();
+        const matchesType = !selectedTypeId || String(resource?.type_id) === selectedTypeId;
+        const matchesResource =
+          !Number.isFinite(selectedResourceId) || Number(resource?.id) === selectedResourceId;
+        const matchesQuery =
+          !query || resourceName.includes(query) || resourceTypeName.includes(query);
+        return matchesType && matchesResource && matchesQuery;
+      })
+    );
+  }, [bookings, sidebarResourceQuery, sidebarSelectedResourceId, sidebarTypeFilterId]);
+
+  const sidebarTypeOptions = useMemo(() => {
+    const typeIdsInResources = new Set(resources.map((resource) => String(resource?.type_id || "")));
+    return resourceTypes
+      .filter((type) => typeIdsInResources.has(String(type?.id || "")))
+      .sort((left, right) =>
+        String(left?.name || "").localeCompare(String(right?.name || ""))
+      );
+  }, [resourceTypes, resources]);
+
+  const sidebarResourcesForType = useMemo(() => {
+    const selectedTypeId = String(sidebarTypeFilterId || "").trim();
+    const query = sidebarResourceQuery.trim().toLowerCase();
+
+    return resources
+      .filter((resource) => {
+        const matchesType = !selectedTypeId || String(resource?.type_id) === selectedTypeId;
+        const matchesQuery =
+          !query || String(resource?.name || "").toLowerCase().includes(query);
+        return matchesType && matchesQuery;
+      })
+      .sort((left, right) =>
+        String(left?.name || "").localeCompare(String(right?.name || ""))
+      );
+  }, [resources, sidebarTypeFilterId, sidebarResourceQuery]);
+
+  const sidebarScheduleGroups = useMemo(() => {
+    const query = sidebarResourceQuery.trim().toLowerCase();
+    const selectedResourceId = Number(sidebarSelectedResourceId);
+    const selectedTypeId = String(sidebarTypeFilterId || "").trim();
+    if (!query && !selectedTypeId && !Number.isFinite(selectedResourceId)) return [];
+
+    const groups = new Map();
+
+    filteredSidebarBookings.forEach((booking) => {
+      const matchingResources = (booking.resources || []).filter((resource) => {
+        const resourceName = String(resource?.name || "").toLowerCase();
+        const resourceTypeName = String(resource?.type_name || "").toLowerCase();
+        const matchesType = !selectedTypeId || String(resource?.type_id) === selectedTypeId;
+        const matchesResource =
+          !Number.isFinite(selectedResourceId) || Number(resource?.id) === selectedResourceId;
+        const matchesQuery =
+          !query || resourceName.includes(query) || resourceTypeName.includes(query);
+        return matchesType && matchesResource && matchesQuery;
+      });
+
+      if (matchingResources.length === 0) return;
+
+      const weekdayIndex = getWeekdayIndex(booking.date);
+      const resourceKey = matchingResources
+        .map((resource) => String(resource?.id || ""))
+        .sort()
+        .join(",");
+      const groupKey = [
+        weekdayIndex ?? "unknown",
+        String(booking.start_time || ""),
+        String(booking.end_time || ""),
+        String(booking.location || ""),
+        resourceKey,
+        booking.cancelled_at ? "cancelled" : "active",
+      ].join("|");
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          key: groupKey,
+          weekdayIndex,
+          startTime: booking.start_time,
+          endTime: booking.end_time,
+          location: booking.location || "",
+          matchingResources,
+          cancelled: Boolean(booking.cancelled_at),
+          bookings: [],
+        });
+      }
+
+      groups.get(groupKey).bookings.push(booking);
+    });
+
+    return Array.from(groups.values())
+      .map((group) => {
+        const sortedBookings = [...group.bookings].sort((left, right) => {
+          const leftKey = `${left.date || ""} ${left.start_time || ""} ${left.id || ""}`;
+          const rightKey = `${right.date || ""} ${right.start_time || ""} ${right.id || ""}`;
+          return leftKey.localeCompare(rightKey);
+        });
+
+        return {
+          ...group,
+          bookings: sortedBookings,
+          count: sortedBookings.length,
+          firstDate: sortedBookings[0]?.date || "",
+          lastDate: sortedBookings[sortedBookings.length - 1]?.date || "",
+        };
+      })
+      .sort((left, right) => {
+        const leftKey = `${left.firstDate || ""} ${left.startTime || ""}`;
+        const rightKey = `${right.firstDate || ""} ${right.startTime || ""}`;
+        return leftKey.localeCompare(rightKey);
+      });
+  }, [filteredSidebarBookings, sidebarResourceQuery, sidebarSelectedResourceId, sidebarTypeFilterId]);
 
   useEffect(() => {
     loadResources();
@@ -276,6 +410,13 @@ export default function Booking() {
       }
       return [...prev, dayValue];
     });
+  }
+
+  function toggleScheduleGroup(groupKey) {
+    setExpandedScheduleGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
   }
 
   function changePreviewCandidatePage(typeId, nextOffset) {
@@ -471,9 +612,6 @@ export default function Booking() {
     try {
       const userIds = assignUsers ? parseUserIds(userIdsInput) : [];
       const responsibleId = String(responsibleUser?.national_id || "").trim();
-      const targetIds = assignUsers
-        ? Array.from(new Set([responsibleId, ...userIds].filter(Boolean)))
-        : [null];
 
       if (assignUsers && !responsibleId) {
         setMessage("Responsible user must have a national ID.");
@@ -485,59 +623,11 @@ export default function Booking() {
         await updateResourceAssignments(responsibleId, userIds);
       }
 
-      if (targetIds.length === 0) {
-        const result = await apiPost("/bookings", basePayload);
-        setResourceEvaluation(result?.resource_evaluation || null);
-      } else {
-        const results = await Promise.allSettled(
-          targetIds.map((id) =>
-            apiPost("/bookings", {
-              ...basePayload,
-              user_id: id ? String(id).trim() : undefined,
-            })
-          )
-        );
-        const failures = results.filter((result) => result.status === "rejected");
-        if (failures.length > 0) {
-          const firstFailureDetails = extractFailureDetails(failures[0]?.reason);
-          const violations = failures
-            .map((failure) => extractFailureDetails(failure?.reason).violations)
-            .flat();
-          const nextSuggestions = failures
-            .map((failure) => extractFailureDetails(failure?.reason).suggestions)
-            .flat();
-          const nextViolationDetails = failures
-            .map((failure) => extractFailureDetails(failure?.reason).violationDetails)
-            .flat();
-          const nextAlertDetails = failures
-            .map((failure) => extractFailureDetails(failure?.reason).alertDetails)
-            .flat();
-          const nextConflictResolution =
-            failures
-              .map((failure) => extractFailureDetails(failure?.reason).conflictResolution)
-              .find(Boolean) || null;
-          setResourceEvaluation(firstFailureDetails.resourceEvaluation || null);
-          if (violations.length > 0) {
-            setMessage(formatViolationMessage(violations));
-            setSuggestions(nextSuggestions);
-            setViolationDetails(nextViolationDetails);
-            setAlertDetails(nextAlertDetails);
-            setConflictResolution(nextConflictResolution);
-          } else {
-            setMessage(
-              `Created ${results.length - failures.length} bookings; ${failures.length} failed.`
-            );
-            setSuggestions(nextSuggestions);
-            setViolationDetails(nextViolationDetails);
-            setAlertDetails(nextAlertDetails);
-            setConflictResolution(nextConflictResolution);
-          }
-          setSubmitting(false);
-          return;
-        }
-        const firstSuccess = results.find((result) => result.status === "fulfilled");
-        setResourceEvaluation(firstSuccess?.value?.resource_evaluation || null);
-      }
+      const result = await apiPost("/bookings", {
+        ...basePayload,
+        user_id: assignUsers ? responsibleId : undefined,
+      });
+      setResourceEvaluation(result?.resource_evaluation || null);
 
       setMessage("Booking created successfully!");
       resetBookingForm();
@@ -640,6 +730,55 @@ export default function Booking() {
       await loadResources();
     } catch (err) {
       setMessage(err?.message || "Failed to delete booking.");
+    }
+  }
+
+  async function deleteBookingGroup(group) {
+    const bookingIds = Array.isArray(group?.bookings)
+      ? group.bookings
+          .map((booking) => Number(booking?.id))
+          .filter((id) => Number.isFinite(id))
+      : [];
+    if (bookingIds.length === 0) return;
+
+    const weekdayLabel =
+      group?.weekdayIndex === null || group?.weekdayIndex === undefined
+        ? "this schedule"
+        : `${WEEKDAY_LABELS[group.weekdayIndex] || "this schedule"} ${formatIsraelTime(
+            group?.startTime
+          )}-${formatIsraelTime(group?.endTime)}`;
+
+    const shouldDelete = confirm(
+      `Delete all ${bookingIds.length} bookings in ${weekdayLabel} between ${formatIsraelDate(
+        group?.firstDate
+      )} and ${formatIsraelDate(group?.lastDate)}?`
+    );
+    if (!shouldDelete) return;
+
+    setDeletingScheduleGroupKey(group.key);
+    try {
+      const results = await Promise.allSettled(
+        bookingIds.map((bookingId) => apiDelete(`/bookings/${bookingId}`))
+      );
+      const failures = results.filter((result) => result.status === "rejected");
+      if (failures.length > 0) {
+        setMessage(
+          `Deleted ${bookingIds.length - failures.length} bookings; ${failures.length} failed.`
+        );
+      } else {
+        setExpandedScheduleGroups((prev) => {
+          if (!prev[group.key]) return prev;
+          const next = { ...prev };
+          delete next[group.key];
+          return next;
+        });
+        setMessage(`Deleted ${bookingIds.length} bookings from this series.`);
+      }
+      await loadResources();
+    } catch (err) {
+      setMessage(err?.message || "Failed to delete the booking series.");
+    } finally {
+      setDeletingScheduleGroupKey("");
     }
   }
 
@@ -1456,7 +1595,7 @@ export default function Booking() {
                     <div>
                       <h2 className="text-xl font-semibold text-slate-900">Existing Bookings</h2>
                       <p className="mt-1 text-sm text-slate-500">
-                        The live schedule stays visible here while the user fills the form.
+                        Search for a resource to see only its booked dates and hours.
                       </p>
                     </div>
                     <div className="group relative inline-flex items-center justify-center" aria-label="Live list">
@@ -1467,76 +1606,227 @@ export default function Booking() {
                     </div>
                   </div>
 
+                  <div className="mt-5">
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Resource type
+                    </label>
+                    <select
+                      value={sidebarTypeFilterId}
+                      onChange={(event) => {
+                        const nextTypeId = event.target.value;
+                        setSidebarTypeFilterId(nextTypeId);
+                        setSidebarSelectedResourceId("");
+                        setSidebarResourceQuery("");
+                      }}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+                    >
+                      <option value="">All resource types</option>
+                      {sidebarTypeOptions.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Resource name
+                    </label>
+                    <input
+                      type="text"
+                      value={sidebarResourceQuery}
+                      onChange={(event) => {
+                        setSidebarResourceQuery(event.target.value);
+                        setSidebarSelectedResourceId("");
+                      }}
+                      placeholder="Search resource name..."
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+                    />
+                  </div>
+
+                  {sidebarTypeFilterId && (
+                    <div className="mt-4">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Resources in this type
+                      </div>
+                      <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
+                        {sidebarResourcesForType.map((resource) => {
+                          const isActive = String(sidebarSelectedResourceId) === String(resource.id);
+                          return (
+                            <button
+                              key={resource.id}
+                              type="button"
+                              onClick={() => {
+                                setSidebarSelectedResourceId(String(resource.id));
+                                setSidebarResourceQuery(String(resource.name || ""));
+                              }}
+                              className={`rounded-full border px-3 py-1.5 text-sm transition ${
+                                isActive
+                                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                              }`}
+                            >
+                              {resource.name}
+                            </button>
+                          );
+                        })}
+                        {sidebarResourcesForType.length === 0 && (
+                          <div className="text-sm text-slate-500">
+                            No resources found in this type.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {(sidebarResourceQuery.trim() || sidebarTypeFilterId) && sidebarScheduleGroups.length > 0 && (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600">
+                      {filteredSidebarBookings.length} bookings grouped into {sidebarScheduleGroups.length} recurring series.
+                    </div>
+                  )}
+
                   <div className="mt-5 space-y-3">
-                    {bookings.map((booking) => (
-                      <div
-                        key={booking.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
-                      >
-                        <div className="flex flex-col gap-2">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="font-semibold text-slate-900">
-                              {formatIsraelDate(booking.date)} | {formatIsraelTime(booking.start_time)} -{" "}
-                              {formatIsraelTime(booking.end_time)}
-                            </div>
-                            <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
-                              Booking #{booking.id}
-                            </div>
-                          </div>
+                    {sidebarScheduleGroups.map((group) => {
+                      const isExpanded = Boolean(expandedScheduleGroups[group.key]);
+                      const isDeletingGroup = deletingScheduleGroupKey === group.key;
+                      const weekdayLabel =
+                        group.weekdayIndex === null
+                          ? "Unknown day"
+                          : WEEKDAY_LABELS[group.weekdayIndex] || "Unknown day";
 
-                          <div className="text-sm text-slate-600">
-                            {booking.user_id ? `User: ${booking.user_id}` : "No user assigned"}
-                          </div>
-
-                          {booking.location && (
-                            <div className="text-sm text-slate-500">Location: {booking.location}</div>
-                          )}
-
-                          {booking.cancelled_at && (
-                            <div className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
-                              Cancelled
-                              {booking.cancelled_reason ? `: ${booking.cancelled_reason}` : ""}
-                            </div>
-                          )}
-
-                          <div className="pt-1">
-                            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                              Resources
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {(booking.resources || []).map((resource) => (
-                                <span
-                                  key={`${booking.id}-${resource.id}`}
-                                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
+                      return (
+                        <div
+                          key={group.key}
+                          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
+                        >
+                          <div className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <div className="font-semibold text-slate-900">
+                                  {weekdayLabel} | {formatIsraelTime(group.startTime)} -{" "}
+                                  {formatIsraelTime(group.endTime)}
+                                </div>
+                                <div className="mt-1 text-sm text-slate-500">
+                                  {group.count > 1
+                                    ? `${group.count} bookings · ${formatIsraelDateRange(
+                                        group.firstDate,
+                                        group.lastDate
+                                      )}`
+                                    : formatIsraelDate(group.firstDate)}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleScheduleGroup(group.key)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300"
                                 >
-                                  {resource.name}
-                                  {resource.type_name ? ` · ${resource.type_name}` : ""}
-                                </span>
-                              ))}
+                                  {isExpanded ? "Hide dates" : "Show dates"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteBookingGroup(group)}
+                                  disabled={isDeletingGroup}
+                                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isDeletingGroup ? "Deleting..." : "Delete series"}
+                                </button>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="flex flex-wrap gap-2 pt-2">
-                            <button
-                              type="button"
-                              onClick={() => openEditBooking(booking)}
-                              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonWarning}`}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteBooking(booking.id)}
-                              className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonDanger}`}
-                            >
-                              Delete
-                            </button>
+                            {group.location && (
+                              <div className="text-sm text-slate-500">Location: {group.location}</div>
+                            )}
+
+                            {group.cancelled && (
+                              <div className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                This series includes cancelled bookings.
+                              </div>
+                            )}
+
+                            <div className="pt-1">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                Matching resources
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {group.matchingResources.map((resource) => (
+                                  <span
+                                    key={`${group.key}-${resource.id}`}
+                                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
+                                  >
+                                    {resource.name}
+                                    {resource.type_name ? ` · ${resource.type_name}` : ""}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="rounded-2xl border border-slate-200 bg-white/90">
+                                {group.bookings.map((booking, index) => (
+                                  <div
+                                    key={booking.id}
+                                    className={`flex flex-col gap-3 px-4 py-3 ${
+                                      index > 0 ? "border-t border-slate-100" : ""
+                                    }`}
+                                  >
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                      <div className="font-medium text-slate-900">
+                                        {formatIsraelDate(booking.date)} |{" "}
+                                        {formatIsraelTime(booking.start_time)} -{" "}
+                                        {formatIsraelTime(booking.end_time)}
+                                      </div>
+                                      <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                                        Booking #{booking.id}
+                                      </div>
+                                    </div>
+
+                                    {booking.cancelled_at && (
+                                      <div className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                        Cancelled
+                                        {booking.cancelled_reason ? `: ${booking.cancelled_reason}` : ""}
+                                      </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => openEditBooking(booking)}
+                                        className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonWarning}`}
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => deleteBooking(booking.id)}
+                                        className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonDanger}`}
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
 
-                    {bookings.length === 0 && (
+                    {!sidebarResourceQuery.trim() && !sidebarTypeFilterId && (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                        Choose a resource type or type a resource name to inspect its schedule.
+                      </div>
+                    )}
+
+                    {(sidebarResourceQuery.trim() || sidebarTypeFilterId) && sidebarScheduleGroups.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                        No bookings found for this resource.
+                      </div>
+                    )}
+
+                    {(sidebarResourceQuery.trim() || sidebarTypeFilterId) && bookings.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
                         No bookings have been created yet.
                       </div>

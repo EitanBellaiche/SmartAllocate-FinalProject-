@@ -572,6 +572,7 @@ export default function AutoScheduler({ embedded = false }) {
   const [rangeEnd, setRangeEnd] = useState(() =>
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
   );
+  const [allowSaturday, setAllowSaturday] = useState(true);
   const [runMode, setRunMode] = useState("manual"); // manual | deadline
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
@@ -1010,6 +1011,7 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
+        allow_saturday: allowSaturday,
       });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
@@ -1096,6 +1098,7 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
+        allow_saturday: allowSaturday,
       });
       setMessageTone("success");
       setMessage(
@@ -1261,6 +1264,23 @@ export default function AutoScheduler({ embedded = false }) {
           >
             {running ? "Running..." : "Run auto schedule"}
           </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={allowSaturday}
+              onChange={(event) => setAllowSaturday(event.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            Allow Saturday scheduling
+          </label>
+          <div className="text-sm text-slate-500">
+            {allowSaturday
+              ? "Saturday is included when availability allows it."
+              : "The auto scheduler will skip every Saturday slot."}
+          </div>
         </div>
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">

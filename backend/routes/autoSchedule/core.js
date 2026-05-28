@@ -29,6 +29,10 @@ function isWithinAnyPreferredWindow(preferredWindows, startTime, endTime) {
   );
 }
 
+function isSaturdayBlocked(dayOfWeek, allowSaturday) {
+  return !allowSaturday && Number(dayOfWeek) === 6;
+}
+
 function buildCandidateSlots(availability, durationMinutes) {
   const candidates = [];
   availability.forEach((slot) => {
@@ -93,6 +97,7 @@ export async function pickLockedSlot({
   client,
   excludedDayOfWeeks = [],
   preferredTimeWindows = [],
+  allowSaturday = true,
 }) {
   const weekStarts = getWeekStartsInRange(startDate, endDate);
   const candidatesMap = new Map();
@@ -103,6 +108,7 @@ export async function pickLockedSlot({
   for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
     const dayKey = formatDate(day);
     const dayOfWeek = day.getDay();
+    if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
     if (excluded.has(dayOfWeek)) continue;
     const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
     for (const window of windows) {
@@ -258,6 +264,7 @@ export async function diagnoseGroupFailure({
   orgId,
   ruleRows,
   durationMinutes,
+  allowSaturday = true,
 }) {
   const resourceIds = Array.isArray(group?.resource_ids)
     ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
@@ -318,6 +325,7 @@ export async function diagnoseGroupFailure({
     for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
       const dayKey = formatDate(day);
       const dayOfWeek = day.getDay();
+      if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
       const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
       for (const window of windows) {
         const slotStartMin = timeToMinutes(window.start_time);
@@ -423,6 +431,7 @@ export async function scheduleGroup({
   ruleRows,
   durationMinutes,
   daysPerWeek,
+  allowSaturday = true,
 }) {
   const resourceIds = Array.isArray(group?.resource_ids)
     ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
@@ -514,6 +523,7 @@ export async function scheduleGroup({
       client,
       excludedDayOfWeeks: lockedSlots.map((slot) => slot.day_of_week),
       preferredTimeWindows,
+      allowSaturday,
     });
     if (lockedCandidate?.slot) {
       lockedSlots = [...lockedSlots, lockedCandidate.slot];
@@ -549,6 +559,7 @@ export async function scheduleGroup({
 
       for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
         const dayOfWeek = day.getDay();
+        if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
         const dayKey = formatDate(day);
         const dayAvailability = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
         if (dayAvailability.length === 0) continue;
@@ -853,7 +864,16 @@ export async function scheduleGroup({
       });
     }
     if (!suggestions || suggestions.length === 0) {
-      const diagnosis = await diagnoseGroupFailure({ client, group, startDate, endDate, orgId, ruleRows, durationMinutes });
+      const diagnosis = await diagnoseGroupFailure({
+        client,
+        group,
+        startDate,
+        endDate,
+        orgId,
+        ruleRows,
+        durationMinutes,
+        allowSaturday,
+      });
       suggestions = Array.isArray(diagnosis?.suggestions) ? diagnosis.suggestions : [];
       if (diagnosis?.reason) reason = diagnosis.reason;
     }

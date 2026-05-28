@@ -1,14 +1,23 @@
 const ISRAEL_LOCALE = "he-IL";
 const ISRAEL_TIMEZONE = "Asia/Jerusalem";
+const WEEKDAY_INDEX_BY_ENGLISH_SHORT = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
 
 function parseDateOnly(value) {
   if (!value) return null;
-  const text = String(value).slice(0, 10);
+  const text = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     const [y, m, d] = text.split("-").map(Number);
     return new Date(y, m - 1, d);
   }
-  const parsed = new Date(value);
+  const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed;
 }
@@ -48,6 +57,18 @@ export function formatIsraelTime(value) {
 export function formatIsraelDateRange(start, end) {
   if (!start && !end) return "";
   return `${start ? formatIsraelDate(start) : "כל תאריך"} -> ${end ? formatIsraelDate(end) : "כל תאריך"}`;
+}
+
+export function getIsraelDayOfWeek(value) {
+  const date = parseDateOnly(value);
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: ISRAEL_TIMEZONE,
+    weekday: "short",
+  }).format(date);
+  return Number.isFinite(WEEKDAY_INDEX_BY_ENGLISH_SHORT[weekday])
+    ? WEEKDAY_INDEX_BY_ENGLISH_SHORT[weekday]
+    : null;
 }
 
 export function getIsraelDateValue(date = new Date()) {
