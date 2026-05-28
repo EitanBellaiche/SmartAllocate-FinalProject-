@@ -41,24 +41,22 @@ export default function NotificationsSection({
 }) {
   return (
     <>
-      <header
-        style={{
-          padding: "12px 0",
-          borderBottom: "1px solid #e2e8f0",
-          marginBottom: 16,
-        }}
-      >
-        <h1 style={{ margin: 0, color: "#0f172a" }}>
-          {role === "user" ? "Notifications" : "Request Updates"}
-        </h1>
-        <p style={{ margin: 0, color: "#475569" }}>
-          {role === "user"
-            ? `Updates from ${labelsLower.managers} about cancelled ${labelsLower.resource}.`
-            : "Track the status of allocation requests."}
-        </p>
+      <header className="user-page-header notifications-page-header">
+        <div>
+          <h1 className="user-page-title">
+            {role === "user" ? "Notifications" : "Request Updates"}
+          </h1>
+          <p className="user-page-subtitle">
+            {role === "user"
+              ? `Stay current with messages from ${labelsLower.managers} about schedule changes.`
+              : "Track the status of allocation requests."}
+          </p>
+        </div>
+        <div className="user-page-pill">Message center</div>
       </header>
 
       <div
+        className="notifications-tabs"
         style={{
           display: "flex",
           gap: 8,
@@ -70,6 +68,7 @@ export default function NotificationsSection({
           <button
             type="button"
             onClick={() => setNotificationTab("requests")}
+            className={`notifications-tab ${notificationTab === "requests" ? "active" : ""}`}
             style={{
               padding: "12px 18px",
               borderRadius: 16,
@@ -100,6 +99,7 @@ export default function NotificationsSection({
           <button
             type="button"
             onClick={() => setNotificationTab("announcements")}
+            className={`notifications-tab ${notificationTab === "announcements" ? "active" : ""}`}
             style={{
               padding: "12px 18px",
               borderRadius: 16,
@@ -129,7 +129,7 @@ export default function NotificationsSection({
       </div>
 
       <div
-        className="glass"
+        className="glass notifications-panel"
         style={{
           padding: 16,
           borderRadius: 18,
@@ -137,6 +137,7 @@ export default function NotificationsSection({
         }}
       >
         <div
+          className="notifications-toolbar"
           style={{
             display: "flex",
             flexWrap: "wrap",
@@ -146,6 +147,7 @@ export default function NotificationsSection({
           }}
         >
           <input
+            className="notifications-search-input"
             value={userRequestsQuery}
             onChange={(e) => setUserRequestsQuery(e.target.value)}
             placeholder={`Search by ${labelsLower.resource}, date, or status...`}
@@ -160,6 +162,7 @@ export default function NotificationsSection({
             }}
           />
           <button
+            className="notifications-refresh-button"
             onClick={loadUserRequests}
             disabled={userRequestsLoading}
             style={{
@@ -196,6 +199,7 @@ export default function NotificationsSection({
                     <button
                       key={group.key}
                       type="button"
+                      className="notifications-resource-card"
                       onClick={() => {
                         setSelectedUserRequestKey(group.key);
                         markRequestsSeen(group.resource_id);
@@ -330,7 +334,7 @@ export default function NotificationsSection({
       </div>
 
       <div
-        className="glass"
+        className="glass notifications-panel"
         style={{
           padding: 16,
           borderRadius: 18,
@@ -338,6 +342,7 @@ export default function NotificationsSection({
         }}
       >
         <div
+          className="notifications-toolbar"
           style={{
             display: "flex",
             flexWrap: "wrap",
@@ -347,6 +352,7 @@ export default function NotificationsSection({
           }}
         >
           <input
+            className="notifications-search-input"
             value={announcementsQuery}
             onChange={(e) => setAnnouncementsQuery(e.target.value)}
             placeholder="Search announcements..."
@@ -361,6 +367,7 @@ export default function NotificationsSection({
             }}
           />
           <button
+            className="notifications-refresh-button"
             onClick={loadAnnouncements}
             disabled={announcementsLoading}
             style={{
@@ -527,6 +534,9 @@ export default function NotificationsSection({
                 <button
                   key={announcement.id}
                   type="button"
+                  className={`notification-card ${isUnread ? "notification-card--unread" : ""} ${
+                    isSelected ? "notification-card--selected" : ""
+                  }`}
                   onClick={() => {
                     setSelectedAnnouncementId(announcement.id);
                     if (isUnread) {
@@ -567,8 +577,8 @@ export default function NotificationsSection({
                     <div style={{ fontWeight: 700, color: "#0f172a" }}>{announcement.title}</div>
                   </div>
                   <div style={{ fontSize: 12, color: "#64748b" }}>
-                    {announcement.resource_name ? `${announcement.resource_name} • ` : ""}
-                    {announcement.sender_name || labels.manager} • {formatDate(announcement.created_at)}
+                    {announcement.resource_name ? `${announcement.resource_name} - ` : ""}
+                    {announcement.sender_name || labels.manager} - {formatDate(announcement.created_at)}
                   </div>
                   {isSelected && (
                     <div style={{ color: "#475569", fontSize: 14 }}>{announcement.message}</div>
