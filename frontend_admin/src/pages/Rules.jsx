@@ -405,6 +405,7 @@ export default function Rules() {
   const theme = config.theme;
   const isCinema = config.domain === "cinema";
 
+  const [mode, setMode] = useState("single"); // single | pair
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -1258,64 +1259,79 @@ export default function Rules() {
         ? { field: "resource.type_id", op: "==", value: Number(form.typeAId) }
         : { field: "resource.id", op: "==", value: Number(form.resourceAId) };
 
-    if (!form.comparisons.length) return alert("Add at least one comparison.");
-    target_type = "pair";
-    const clauses = [aScopeClause];
+    if (mode === "single") {
+      if (!form.fieldA) return alert("Please choose a field for Resource A.");
+      if (String(form.constValue ?? "").trim() === "") return alert("Please enter a value.");
+      condition = {
+        all: [
+          aScopeClause,
+          {
+            field: `resource.${form.fieldA}`,
+            op: form.op,
+            value: parseInputValue(form.constValue, form.op),
+          },
+        ],
+      };
+    } else {
+      if (!form.comparisons.length) return alert("Add at least one comparison.");
+      target_type = "pair";
+      const clauses = [aScopeClause];
 
-    for (const [idx, comp] of form.comparisons.entries()) {
-      const usesFieldComparison = (comp.rightMode || "field") === "field";
-      if (!comp.fieldA) {
-        return alert(usesFieldComparison ? `Choose Field A for row ${idx + 1}` : `Choose a field for row ${idx + 1}`);
-      }
-      if (usesFieldComparison && !comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
-      if (!usesFieldComparison && String(comp.constValue ?? "").trim() === "") {
-        return alert(`Enter a value for row ${idx + 1}`);
-      }
+      for (const [idx, comp] of form.comparisons.entries()) {
+        const usesFieldComparison = (comp.rightMode || "field") === "field";
+        if (!comp.fieldA) {
+          return alert(usesFieldComparison ? `Choose Field A for row ${idx + 1}` : `Choose a field for row ${idx + 1}`);
+        }
+        if (usesFieldComparison && !comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
+        if (!usesFieldComparison && String(comp.constValue ?? "").trim() === "") {
+          return alert(`Enter a value for row ${idx + 1}`);
+        }
 
-      if (comp.bMode === "resource") {
-        if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
-        const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
-        if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
+        if (comp.bMode === "resource") {
+          if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
+          const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
+          if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
 
-        const typeIdB = Number(resourceB.type_id);
-        clauses.push({
-          field: `resources_by_type_id.${typeIdB}.id`,
-          op: "==",
-          value: Number(comp.resourceBId),
-        });
-        if (!usesFieldComparison) {
+          const typeIdB = Number(resourceB.type_id);
+          clauses.push({
+            field: `resources_by_type_id.${typeIdB}.id`,
+            op: "==",
+            value: Number(comp.resourceBId),
+          });
+          if (!usesFieldComparison) {
+            clauses.push({
+              field: `resources_by_type_id.${typeIdB}.${comp.fieldA}`,
+              op: comp.op,
+              value: parseInputValue(comp.constValue, comp.op),
+            });
+            continue;
+          }
+          clauses.push({
+            field: `resource.${comp.fieldA}`,
+            op: comp.op,
+            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+          });
+        } else if (usesFieldComparison) {
+          if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+          const typeIdB = Number(comp.typeBId);
+          clauses.push({
+            field: `resource.${comp.fieldA}`,
+            op: comp.op,
+            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+          });
+        } else {
+          if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+          const typeIdB = Number(comp.typeBId);
           clauses.push({
             field: `resources_by_type_id.${typeIdB}.${comp.fieldA}`,
             op: comp.op,
             value: parseInputValue(comp.constValue, comp.op),
           });
-          continue;
         }
-        clauses.push({
-          field: `resource.${comp.fieldA}`,
-          op: comp.op,
-          value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-        });
-      } else if (usesFieldComparison) {
-        if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
-        const typeIdB = Number(comp.typeBId);
-        clauses.push({
-          field: `resource.${comp.fieldA}`,
-          op: comp.op,
-          value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-        });
-      } else {
-        if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
-        const typeIdB = Number(comp.typeBId);
-        clauses.push({
-          field: `resources_by_type_id.${typeIdB}.${comp.fieldA}`,
-          op: comp.op,
-          value: parseInputValue(comp.constValue, comp.op),
-        });
       }
-    }
 
-    condition = { all: clauses };
+      condition = { all: clauses };
+    }
 
     let action;
     if (form.effect === "alert") action = { effect: "alert" };
@@ -1385,6 +1401,13 @@ export default function Rules() {
         : form.effect === "alert"
         ? "Alert"
         : `Score ${Number(form.scoreDelta) || 0}`;
+
+    if (mode === "single") {
+      if (!form.fieldA || !form.op || form.constValue === "") {
+        return `If ${aName} matches the condition → ${action}.`;
+      }
+      return `If ${aName}.${fieldLabel(form.fieldA)} ${form.op} ${form.constValue} → ${action}.`;
+    }
 
     if (!form.comparisons.length) {
       return `If ${aName} matches the comparisons → ${action}.`;
@@ -1470,6 +1493,25 @@ export default function Rules() {
         </div>
         {!showSimpleBuilder ? null : (
           <>
+        <div className="flex flex-wrap gap-4 mb-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              checked={mode === "single"}
+              onChange={() => setMode("single")}
+            />
+            <span>Rule on a single resource</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              checked={mode === "pair"}
+              onChange={() => setMode("pair")}
+            />
+            <span>Compare with multiple resources</span>
+          </label>
+        </div>
+
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium mb-1">A Source</label>
@@ -1531,6 +1573,33 @@ export default function Rules() {
           </div>
         </div>
 
+        {mode === "single" ? (
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Operator</label>
+              <select
+                className={`w-full p-2 border rounded ${theme.input}`}
+                value={form.op}
+                onChange={(e) => updateForm({ op: e.target.value })}
+              >
+                {OP_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Value</label>
+              <input
+                type="text"
+                className={`w-full p-2 border rounded ${theme.input}`}
+                value={form.constValue}
+                onChange={(e) => updateForm({ constValue: e.target.value })}
+                placeholder="50, true, text..."
+              />
+            </div>
+          </div>
+        ) : (
           <div className="mb-4">
             <div className="text-sm font-medium mb-2">Comparisons</div>
             <div className="space-y-3">
@@ -1714,6 +1783,7 @@ export default function Rules() {
               Tip: choose "Resource type" to apply the rule to any resource of that type.
             </div>
           </div>
+        )}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium mb-1">Rule Name</label>

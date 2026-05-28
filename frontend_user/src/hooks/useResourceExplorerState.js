@@ -46,6 +46,17 @@ function collectBookedResources(bookings) {
   return Array.from(byKey.values());
 }
 
+function mergeResourcesByKey(...groups) {
+  const byKey = new Map();
+  for (const group of groups) {
+    for (const resource of Array.isArray(group) ? group : []) {
+      if (!resource) continue;
+      byKey.set(getResourceKey(resource), resource);
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 export default function useResourceExplorerState({
   role,
   currentUserId,
@@ -108,9 +119,11 @@ export default function useResourceExplorerState({
             const bookedResources = collectBookedResources(bookings).sort((a, b) =>
               String(a.name || "").localeCompare(String(b.name || ""))
             );
-            if (bookedResources.length > 0) return bookedResources;
-            return sortedResources.filter((resource) =>
+            const assignedResources = sortedResources.filter((resource) =>
               isResourceAssignedToUser(resource, userId)
+            );
+            return mergeResourcesByKey(assignedResources, bookedResources).sort((a, b) =>
+              String(a.name || "").localeCompare(String(b.name || ""))
             );
           })()
         : sortedResources;
