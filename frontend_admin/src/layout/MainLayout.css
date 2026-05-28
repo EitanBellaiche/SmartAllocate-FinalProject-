@@ -1,5 +1,6 @@
 .admin-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
   background:
@@ -19,6 +20,10 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: 24px 20px 18px;
   background:
     linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(17, 24, 39, 0.98) 42%, rgba(30, 41, 59, 0.98) 100%);
@@ -243,6 +248,8 @@
 
 .admin-workspace {
   min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 24px;
@@ -349,6 +356,10 @@
     inset: 0 auto 0 0;
     z-index: 100;
     width: min(340px, 88vw);
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     transform: translateX(-104%);
     transition: transform 180ms ease;
   }
