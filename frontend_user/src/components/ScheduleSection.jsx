@@ -12,6 +12,7 @@ export default function ScheduleSection({
   setViewMode,
   scheduleBookings,
   loading,
+  error,
   monthLabel,
   setMonthDate,
   monthDays,
@@ -59,78 +60,43 @@ export default function ScheduleSection({
 
   return (
     <>
-      <header
-        style={{
-          padding: "12px 0",
-          borderBottom: "1px solid #e2e8f0",
-          marginBottom: 16,
-        }}
-      >
-        <h1 style={{ margin: 0, color: "#0f172a" }}>
-          {isCinema ? "My Screenings" : "My Schedule"}
-        </h1>
-        <p style={{ margin: 0, color: "#475569" }}>
-          {isCinema
-            ? "Follow your upcoming screenings in month or list view."
-            : `Month or list view of your ${labelsLower.resources}.`}
-        </p>
+      <header className="user-page-header">
+        <div>
+          <h1 className="user-page-title">
+            {isCinema ? "My Screenings" : "My Schedule"}
+          </h1>
+          <p className="user-page-subtitle">
+            {isCinema
+              ? "Follow your upcoming screenings in month or list view."
+              : `Plan, search, and review your scheduled ${labelsLower.resources}.`}
+          </p>
+        </div>
+        <div className="user-page-pill">Live schedule</div>
       </header>
 
-      <div
-        className="glass"
-        style={{
-          padding: 16,
-          borderRadius: 18,
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <h3 style={{ margin: 0, color: "#0f172a" }}>My {labels.resources}</h3>
-          <p style={{ margin: "4px 0 0", color: "#475569", fontSize: 13 }}>
+      <div className="glass schedule-control-panel">
+        <div className="schedule-control-panel__copy">
+          <h3>My {labels.resources}</h3>
+          <p>
             Search by {labelsLower.resource} or tag. Switch between month grid and list.
           </p>
         </div>
         <input
+          className="schedule-search-input"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Search..."
-          style={{
-            width: 220,
-            padding: "10px 12px",
-            borderRadius: 12,
-            border: "1px solid #e2e8f0",
-            background: "#fff",
-            color: "#0f172a",
-          }}
         />
-        <div
-          className="glass"
-          style={{
-            display: "flex",
-            borderRadius: 12,
-            overflow: "hidden",
-            border: "1px solid #e2e8f0",
-          }}
-        >
+        <div className="schedule-view-toggle" role="group" aria-label="Schedule view">
           {[
             { key: "month", label: "Month" },
             { key: "list", label: "List" },
           ].map((opt) => (
             <button
+              type="button"
               key={opt.key}
               onClick={() => setViewMode(opt.key)}
-              style={{
-                padding: "10px 14px",
-                border: "none",
-                background:
-                  viewMode === opt.key ? "rgba(37,99,235,0.1)" : "transparent",
-                color: "#0f172a",
-                cursor: "pointer",
-                fontWeight: 700,
-              }}
+              className={viewMode === opt.key ? "active" : ""}
             >
               {opt.label}
             </button>
@@ -138,21 +104,18 @@ export default function ScheduleSection({
         </div>
       </div>
 
-      {scheduleBookings.length === 0 && !loading ? (
+      {loading ? (
+        <div className="glass user-state-panel">
+          Loading your schedule...
+        </div>
+      ) : scheduleBookings.length === 0 ? (
         <div
-          className="glass"
-          style={{
-            marginTop: 18,
-            padding: 16,
-            borderRadius: 16,
-            color: "#475569",
-            textAlign: "center",
-          }}
+          className={`glass user-state-panel ${error ? "user-state-panel--warn" : ""}`}
         >
-          No {labelsLower.resources} yet. Enter an ID and click "Load bookings".
+          {error || `No scheduled ${labelsLower.resources} were found for your account.`}
         </div>
       ) : (
-        <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
+        <div className="schedule-content">
           {viewMode === "month" ? (
             <MobileMonthAgenda
               monthLabel={monthLabel}
@@ -183,7 +146,7 @@ export default function ScheduleSection({
                       {shortLocation ? <div className="mobile-agenda__sub">{shortLocation}</div> : null}
                     </div>
                     <div className="mobile-agenda__time">
-                      {formatTime(b.start_time)}–{formatTime(b.end_time)}
+                      {formatTime(b.start_time)} - {formatTime(b.end_time)}
                     </div>
                   </button>
                 );
@@ -216,31 +179,15 @@ export default function ScheduleSection({
 
       {selectedDay && (
         <div
+          className="schedule-day-modal"
           onClick={() => setSelectedDay(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 120,
-            background: "rgba(15, 23, 42, 0.55)",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "center",
-            padding: 12,
-          }}
         >
           <div
-            className="glass"
+            className="glass schedule-day-modal__card"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(720px, 100%)",
-              borderRadius: 18,
-              padding: 14,
-              maxHeight: "80vh",
-              overflow: "auto",
-            }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <div style={{ fontWeight: 900, color: "#0f172a" }}>
+            <div className="schedule-day-modal__header">
+              <div>
                 {selectedDayLabel ? `Bookings on ${selectedDayLabel}` : "Bookings"}
               </div>
               <button
@@ -252,7 +199,7 @@ export default function ScheduleSection({
               </button>
             </div>
 
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+            <div className="schedule-day-modal__list">
               {Array.isArray(selectedDay.bookings) && selectedDay.bookings.length > 0 ? (
                 selectedDay.bookings.map((b) => {
                   const shortLocation = getBookingShortLocation(b);
@@ -260,26 +207,20 @@ export default function ScheduleSection({
                     <button
                       key={b.id}
                       type="button"
-                      className="btn"
+                      className="schedule-day-modal__booking"
                       onClick={() => {
                         setSelectedScheduleBooking(b);
                         setSelectedDay(null);
                       }}
-                      style={{
-                        textAlign: "left",
-                        background: "#fff",
-                        borderRadius: 14,
-                        padding: 12,
-                      }}
                     >
-                      <div style={{ fontWeight: 900, color: "#0f172a" }}>
+                      <div className="schedule-day-modal__booking-title">
                         {(b.resources || []).map((r) => r.name).filter(Boolean).join(" / ") || "Booking"}
                       </div>
-                      <div style={{ marginTop: 4, color: "#475569", fontWeight: 700 }}>
+                      <div className="schedule-day-modal__booking-time">
                         {formatTime(b.start_time)} - {formatTime(b.end_time)}
                       </div>
                       {shortLocation && (
-                        <div style={{ marginTop: 2, color: "#64748b", fontSize: 12 }}>
+                        <div className="schedule-day-modal__booking-location">
                           {shortLocation}
                         </div>
                       )}

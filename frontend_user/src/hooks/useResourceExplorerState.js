@@ -5,7 +5,12 @@ import {
   getBookingsByResource,
   getBookingsByUser,
 } from "../api";
-import { buildMonthGrid, isPrimaryResource } from "../utils/appHelpers";
+import {
+  buildMonthGrid,
+  getBookingResources,
+  isPrimaryResource,
+  isResourceAssignedToUser,
+} from "../utils/appHelpers";
 
 function isResourceAvailable(resource) {
   const meta = resource?.metadata || {};
@@ -23,9 +28,28 @@ function resourceMatchesQuery(resource, query) {
   return hay.includes(q);
 }
 
+function getResourceKey(resource) {
+  if (resource?.id != null) return `id:${resource.id}`;
+  return `name:${String(resource?.name || "").trim().toLowerCase()}`;
+}
+
+function collectBookedResources(bookings) {
+  const byKey = new Map();
+  for (const booking of Array.isArray(bookings) ? bookings : []) {
+    if (booking?.cancelled_at) continue;
+    for (const resource of getBookingResources(booking)) {
+      if (!resource) continue;
+      const key = getResourceKey(resource);
+      if (!byKey.has(key)) byKey.set(key, resource);
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 export default function useResourceExplorerState({
   role,
   currentUserId,
+  isCinema,
   labels,
   labelsLower,
   bookings,
@@ -77,12 +101,28 @@ export default function useResourceExplorerState({
     const sortedResources = [...visibleResources].sort((a, b) =>
       String(a.name || "").localeCompare(String(b.name || ""))
     );
-    if (role === "user" && !resourceQuery.trim()) return sortedResources;
+    const userId = String(currentUserId || "").trim();
+    const userScopedResources =
+      role === "user" && !isCinema
+        ? (() => {
+            const bookedResources = collectBookedResources(bookings).sort((a, b) =>
+              String(a.name || "").localeCompare(String(b.name || ""))
+            );
+            if (bookedResources.length > 0) return bookedResources;
+            return sortedResources.filter((resource) =>
+              isResourceAssignedToUser(resource, userId)
+            );
+          })()
+        : sortedResources;
+
+    if (role === "user" && !resourceQuery.trim()) {
+      return userScopedResources;
+    }
     if (!resourceQuery.trim()) return [];
-    return sortedResources.filter((resource) =>
+    return userScopedResources.filter((resource) =>
       resourceMatchesQuery(resource, resourceQuery)
     );
-  }, [resources, resourceQuery, role]);
+  }, [resources, resourceQuery, role, isCinema, currentUserId, bookings]);
 
   const filteredRequestResources = useMemo(() => {
     return resources.filter((resource) => {
@@ -95,8 +135,13 @@ export default function useResourceExplorerState({
 
   const selectedResource = useMemo(() => {
     if (!selectedResourceId) return null;
-    return resources.find((resource) => resource.id === selectedResourceId) || null;
-  }, [resources, selectedResourceId]);
+    const selectedId = String(selectedResourceId);
+    return (
+      resources.find((resource) => String(resource.id) === selectedId) ||
+      filteredResources.find((resource) => String(resource.id) === selectedId) ||
+      null
+    );
+  }, [resources, filteredResources, selectedResourceId]);
 
   const selectedRequestResource = useMemo(() => {
     if (!requestResourceId) return null;

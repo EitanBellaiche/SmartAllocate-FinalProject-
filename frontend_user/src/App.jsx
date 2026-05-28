@@ -24,7 +24,7 @@ import {
   deleteUserAvailability,
   getResponsibleSchedulingDeadline,
 } from "./api";
-import { getOrgLabels, getSessionOrgId } from "./orgConfig";
+import { getOrgConfig, getSessionOrgId } from "./orgConfig";
 import {
   buildMonthGrid,
   filterBookingsToPrimaryResources,
@@ -62,6 +62,8 @@ function formatCountdown(msLeft) {
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bookings, setBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState("");
   const [filter, setFilter] = useState("");
   const [viewMode, setViewMode] = useState("month"); // month | list
   const [monthDate, setMonthDate] = useState(new Date());
@@ -99,7 +101,9 @@ export default function App() {
   const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
   const [deadlineInfo, setDeadlineInfo] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const sessionLabels = getOrgLabels(getSessionOrgId(SESSION_KEY));
+  const sessionOrgId = getSessionOrgId(SESSION_KEY);
+  const sessionConfig = useMemo(() => getOrgConfig(sessionOrgId), [sessionOrgId]);
+  const sessionLabels = sessionConfig.labels;
   const {
     currentUserId,
     setCurrentUserId,
@@ -117,14 +121,12 @@ export default function App() {
     onLogoutReset: () => {
       setSection("schedule");
       setBookings([]);
+      setBookingsError("");
       setUserRequests([]);
       setAnnouncements([]);
     },
   });
-  const labels = useMemo(
-    () => getOrgLabels(getSessionOrgId(SESSION_KEY)),
-    [role, hasUser]
-  );
+  const labels = sessionConfig.labels;
   const labelsLower = useMemo(
     () => ({
       user: String(labels.user || "").toLowerCase(),
@@ -175,6 +177,7 @@ export default function App() {
   } = useResourceExplorerState({
     role,
     currentUserId,
+    isCinema: sessionConfig.domain === "cinema",
     labels,
     labelsLower,
     bookings,
@@ -226,7 +229,7 @@ export default function App() {
     labels,
   });
 
-  const isCinema = true;
+  const isCinema = sessionConfig.domain === "cinema";
 
   const cinemaPrimaryButton = {
     border: "none",
@@ -293,26 +296,53 @@ export default function App() {
     let active = true;
 
     async function refreshUserData() {
+      if (bookings.length === 0) setBookingsLoading(true);
+      setBookingsError("");
       try {
         const userId = currentUserId.trim();
-        const [bookingsData, allResources] = await Promise.all([
+        const [bookingsResult, resourcesResult] = await Promise.allSettled([
           getBookingsByUser(userId),
           getAllResources(),
         ]);
         if (!active) return;
-        const baseBookings = Array.isArray(bookingsData) ? bookingsData : [];
-        const resourcesList = Array.isArray(allResources) ? allResources : [];
+
+        if (bookingsResult.status === "rejected") {
+          setBookingsError(bookingsResult.reason?.message || "Failed to load your schedule.");
+          setBookings([]);
+          setResources([]);
+          return;
+        }
+
+        const rawBookings = Array.isArray(bookingsResult.value) ? bookingsResult.value : [];
+        const scopedBaseBookings =
+          role === "user" && sessionConfig.domain !== "cinema"
+            ? rawBookings
+                .map((booking) => {
+                  if (String(booking?.user_id || "").trim() === userId) return booking;
+                  const scopedResources = (booking.resources || []).filter((resource) =>
+                    isResourceAssignedToUser(resource, userId)
+                  );
+                  return scopedResources.length > 0
+                    ? { ...booking, resources: scopedResources, all_resources: booking.resources || [] }
+                    : null;
+                })
+                .filter(Boolean)
+            : rawBookings;
+        const resourcesList =
+          resourcesResult.status === "fulfilled" && Array.isArray(resourcesResult.value)
+            ? resourcesResult.value
+            : [];
         setResources(resourcesList);
         const assignedResources = resourcesList.filter((r) =>
           isResourceAssignedToUser(r, userId)
         );
-        let mergedBookings = baseBookings;
+        let mergedBookings = scopedBaseBookings;
         if (assignedResources.length > 0) {
           const extra = await Promise.all(
             assignedResources.map((r) => getBookingsByResource(r.id).catch(() => []))
           );
           const all = new Map();
-          for (const b of baseBookings) {
+          for (const b of scopedBaseBookings) {
             if (b?.id != null) all.set(String(b.id), b);
           }
           for (const list of extra) {
@@ -325,8 +355,17 @@ export default function App() {
           mergedBookings = Array.from(all.values());
         }
         setBookings(mergedBookings);
-      } catch {
+        if (resourcesResult.status === "rejected") {
+          setBookingsError(
+            "Your schedule loaded, but the full resource directory is temporarily unavailable."
+          );
+        }
+      } catch (err) {
         if (!active) return;
+        setBookingsError(err?.message || "Failed to load your schedule.");
+      }
+      finally {
+        if (active) setBookingsLoading(false);
       }
     }
 
@@ -336,7 +375,7 @@ export default function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [hasUser, currentUserId, setResources]);
+  }, [hasUser, currentUserId, role, sessionConfig.domain, bookings.length, setResources]);
 
   async function submitResourceRequest() {
     if (!selectedRequestResource) return;
@@ -584,7 +623,7 @@ export default function App() {
       style={{
         minHeight: "100vh",
         display: "flex",
-        background: isCinema ? "#f1f5f9" : "#f8fafc",
+        background: isCinema ? "#f1f5f9" : "transparent",
       }}
     >
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
@@ -745,7 +784,8 @@ export default function App() {
             viewMode={viewMode}
             setViewMode={setViewMode}
             scheduleBookings={scheduleBookings}
-            loading={loading}
+            loading={loading || bookingsLoading}
+            error={bookingsError}
             monthLabel={monthLabel}
             setMonthDate={setMonthDate}
             monthDays={monthDays}
@@ -759,6 +799,7 @@ export default function App() {
           <SearchSection
             isCinema={isCinema}
             role={role}
+            currentUserId={currentUserId}
             labels={labels}
             labelsLower={labelsLower}
             bookings={bookings}

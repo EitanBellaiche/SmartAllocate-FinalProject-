@@ -42,24 +42,50 @@ const CINEMA_CONFIG = {
   },
 };
 
+const ORG_DOMAIN_OVERRIDES = {
+  shenkar: "generic",
+  yesplanetramatgan: "cinema",
+};
+
 function getStorageKey(orgId) {
   return `${STORAGE_PREFIX}${orgId || "default"}`;
 }
 
+function normalizeConfig(parsed, forcedDomain) {
+  const domain = forcedDomain || parsed?.domain || DEFAULT_CONFIG.domain;
+
+  if (domain === "cinema") {
+    return {
+      ...DEFAULT_CONFIG,
+      ...CINEMA_CONFIG,
+      ...parsed,
+      domain: "cinema",
+      labels: { ...DEFAULT_LABELS, ...CINEMA_CONFIG.labels, ...(parsed?.labels || {}) },
+      ui: { ...DEFAULT_CONFIG.ui, ...CINEMA_CONFIG.ui, ...(parsed?.ui || {}) },
+    };
+  }
+
+  const genericOverrides = forcedDomain === "generic" ? {} : parsed;
+  return {
+    ...DEFAULT_CONFIG,
+    ...genericOverrides,
+    domain: "generic",
+    labels: { ...DEFAULT_LABELS, ...(genericOverrides?.labels || {}) },
+    ui: { ...DEFAULT_CONFIG.ui, ...(genericOverrides?.ui || {}) },
+  };
+}
+
 export function getOrgConfig(orgId) {
+  const normalizedOrgId = String(orgId || "").trim().toLowerCase();
+  const forcedDomain = ORG_DOMAIN_OVERRIDES[normalizedOrgId];
   const raw = localStorage.getItem(getStorageKey(orgId));
-  if (!raw) return DEFAULT_CONFIG;
+  if (!raw) return normalizeConfig({}, forcedDomain);
 
   try {
     const parsed = JSON.parse(raw);
-
-    return {
-      ...DEFAULT_CONFIG,
-      ...parsed,
-      labels: { ...DEFAULT_LABELS, ...(parsed.labels || {}) },
-    };
+    return normalizeConfig(parsed, forcedDomain);
   } catch {
-    return DEFAULT_CONFIG;
+    return normalizeConfig({}, forcedDomain);
   }
 }
 
