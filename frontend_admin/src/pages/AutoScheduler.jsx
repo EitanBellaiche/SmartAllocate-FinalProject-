@@ -1010,10 +1010,6 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
-      }, {
-        timeoutMs: 20000,
-        timeoutMessage:
-          "Auto schedule did not return within 20 seconds. The request likely got stuck on the server or no valid slot could be resolved. Check the selected room/course combination or inspect the backend logs.",
       });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
@@ -1028,46 +1024,10 @@ export default function AutoScheduler({ embedded = false }) {
           : `Auto schedule completed. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
       );
       await loadAllocations();
+      await loadJobs();
     } catch (err) {
-      if (err?.code === "REQUEST_TIMEOUT") {
-        try {
-          const windowById = timeWindows.reduce((acc, w) => {
-            if (w?.id) acc[w.id] = w;
-            return acc;
-          }, {});
-          const payloadGroups = groups.map((g) => {
-            const w = g.preferred_window_id ? windowById[g.preferred_window_id] : null;
-            const preferred_time_windows = w ? [{ start_time: w.start_time, end_time: w.end_time }] : [];
-            return { ...g, preferred_time_windows };
-          });
-          const diagnostic = await apiPost(
-            "/auto-schedule/diagnose",
-            {
-              start_date: rangeStart,
-              end_date: rangeEnd,
-              groups: payloadGroups,
-            },
-            {
-              timeoutMs: 10000,
-              timeoutMessage: "Could not analyze the scheduling conflict in time.",
-            }
-          );
-          const skipped = Array.isArray(diagnostic?.skipped) ? diagnostic.skipped : [];
-          setLastRun({ scheduled: [], skipped });
-          const first = skipped[0];
-          setMessageTone("error");
-          setMessage(
-            first?.reason ||
-              "Auto schedule timed out, but a conflict analysis was returned below."
-          );
-        } catch (diagnosticErr) {
-          setMessageTone("error");
-          setMessage(diagnosticErr?.message || err?.message || "Auto schedule failed.");
-        }
-      } else {
-        setMessageTone("error");
-        setMessage(err?.message || "Auto schedule failed.");
-      }
+      setMessageTone("error");
+      setMessage(err?.message || "Auto schedule failed.");
     } finally {
       setRunning(false);
     }

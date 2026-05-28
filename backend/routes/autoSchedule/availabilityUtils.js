@@ -30,6 +30,29 @@ export async function ensureAvailabilityTables(client) {
   `);
 }
 
+export async function ensureAutoScheduleIndexes(client) {
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_bookings_user_date_time
+    ON bookings (user_id, date, start_time, end_time)
+  `);
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_booking_resources_resource_booking
+    ON booking_resources (resource_id, booking_id)
+  `);
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_resources_org_type_active
+    ON resources (organization_id, type_id, active)
+  `);
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_availability_user_org_day
+    ON user_availability (user_id, organization_id, day_of_week, start_time, end_time)
+  `);
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_user_availability_overrides_user_org_date
+    ON user_availability_overrides (user_id, organization_id, date, start_time, end_time)
+  `);
+}
+
 function mergeIntervals(intervals) {
   if (!intervals.length) return [];
   const sorted = intervals
@@ -141,4 +164,3 @@ export function normalizeDateKeyFromAny(value) {
   if (value instanceof Date) return formatDate(value);
   return normalizeDateKey(value);
 }
-

@@ -1,5 +1,8 @@
 import pool from "../db.js";
-import { ensureAvailabilityTables } from "../routes/autoSchedule/availabilityUtils.js";
+import {
+  ensureAutoScheduleIndexes,
+  ensureAvailabilityTables,
+} from "../routes/autoSchedule/availabilityUtils.js";
 import {
   clampDaysPerWeek,
   formatDate,
@@ -51,6 +54,7 @@ export async function executeAutoScheduleWithClient({
   orgId,
 }) {
   await ensureAvailabilityTables(client);
+  await ensureAutoScheduleIndexes(client);
   const ruleRows = await loadActiveRules(client, orgId);
 
   const scheduled = [];
@@ -136,4 +140,3 @@ export function toJobSummary({ startDate, endDate, groups }) {
     allocations: Array.isArray(groups) ? groups.length : 0,
   };
 }
-

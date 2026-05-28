@@ -76,6 +76,43 @@ export async function createAutoScheduleJob({
   return rows[0];
 }
 
+export async function recordCompletedAutoScheduleRun({
+  start_date,
+  end_date,
+  groups,
+  orgId,
+  createdBy,
+  result,
+}) {
+  await ensureAutoScheduleJobsTable();
+  validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups });
+
+  const payload = serializeAutoSchedulePayload({ start_date, end_date, groups, orgId });
+  const { rows } = await pool.query(
+    `
+    INSERT INTO ${JOBS_TABLE} (
+      organization_id,
+      created_by,
+      run_at,
+      payload,
+      status,
+      started_at,
+      finished_at,
+      result
+    )
+    VALUES ($1, $2, NOW(), $3::jsonb, 'completed', NOW(), NOW(), $4::jsonb)
+    RETURNING *
+    `,
+    [
+      orgId,
+      createdBy || null,
+      JSON.stringify(payload),
+      JSON.stringify(result || { scheduled: [], skipped: [] }),
+    ]
+  );
+  return rows[0];
+}
+
 export async function listAutoScheduleJobs({ status, orgId, limit = 50 } = {}) {
   await ensureAutoScheduleJobsTable();
   const params = [];

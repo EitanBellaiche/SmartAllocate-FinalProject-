@@ -12,6 +12,17 @@ const OP_OPTIONS = [
 ];
 const WIZARD_OP_OPTIONS = [...OP_OPTIONS, { label: "in", value: "in" }];
 
+const EMPTY_COMPARISON = {
+  bMode: "resource",
+  resourceBId: "",
+  typeBId: "",
+  fieldA: "",
+  op: "<",
+  rightMode: "field",
+  fieldB: "",
+  constValue: "",
+};
+
 /** @typedef {{ id: string, side: "A" | "B", field: string, op: string, compare: "value" | "field", value: string, refField: string }} WizardCondition */
 /** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
 
@@ -394,7 +405,6 @@ export default function Rules() {
   const theme = config.theme;
   const isCinema = config.domain === "cinema";
 
-  const [mode, setMode] = useState("single"); // single | pair
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -407,9 +417,7 @@ export default function Rules() {
     effect: "forbid", // forbid | alert | score
     scoreDelta: 10,
     is_active: true,
-    comparisons: [
-      { bMode: "resource", resourceBId: "", typeBId: "", fieldA: "", op: "<", fieldB: "" },
-    ],
+    comparisons: [{ ...EMPTY_COMPARISON }],
   });
 
   const createEmptyWizard = () => ({
@@ -1196,7 +1204,9 @@ export default function Rules() {
     if (!updated.fieldA && fieldsA[0]) updated.fieldA = fieldsA[0].value;
     if (Array.isArray(updated.comparisons)) {
       updated.comparisons = updated.comparisons.map((c) => ({
+        ...EMPTY_COMPARISON,
         ...c,
+        rightMode: c.rightMode || "field",
         fieldA: c.fieldA || updated.fieldA || "",
       }));
     }
@@ -1221,7 +1231,7 @@ export default function Rules() {
         ...prev,
         comparisons: [
           ...prev.comparisons,
-          { bMode: "resource", resourceBId: "", typeBId: "", fieldA: prev.fieldA || "", op: "<", fieldB: "" },
+          { ...EMPTY_COMPARISON, fieldA: prev.fieldA || "" },
         ],
       };
       return ensureDefaultFieldA(next);
@@ -1248,56 +1258,64 @@ export default function Rules() {
         ? { field: "resource.type_id", op: "==", value: Number(form.typeAId) }
         : { field: "resource.id", op: "==", value: Number(form.resourceAId) };
 
-    if (mode === "single") {
-      if (!form.fieldA) return alert("Please choose a field for Resource A.");
-      condition = {
-        all: [
-          aScopeClause,
-          {
-            field: `resource.${form.fieldA}`,
-            op: form.op,
-            value: toNumberIfPossible(form.constValue),
-          },
-        ],
-      };
-    } else {
-      if (!form.comparisons.length) return alert("Add at least one resource to compare.");
-      target_type = "pair";
-      const clauses = [aScopeClause];
+    if (!form.comparisons.length) return alert("Add at least one comparison.");
+    target_type = "pair";
+    const clauses = [aScopeClause];
 
-      for (const [idx, comp] of form.comparisons.entries()) {
-        if (!comp.fieldA) return alert(`Choose Field A for row ${idx + 1}`);
-        if (!comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
-
-        if (comp.bMode === "resource") {
-          if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
-          const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
-          if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
-
-          const typeIdB = Number(resourceB.type_id);
-          clauses.push({
-            field: `resources_by_type_id.${typeIdB}.id`,
-            op: "==",
-            value: Number(comp.resourceBId),
-          });
-          clauses.push({
-            field: `resource.${comp.fieldA}`,
-            op: comp.op,
-            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-          });
-        } else {
-          if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
-          const typeIdB = Number(comp.typeBId);
-          clauses.push({
-            field: `resource.${comp.fieldA}`,
-            op: comp.op,
-            value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
-          });
-        }
+    for (const [idx, comp] of form.comparisons.entries()) {
+      const usesFieldComparison = (comp.rightMode || "field") === "field";
+      if (!comp.fieldA) {
+        return alert(usesFieldComparison ? `Choose Field A for row ${idx + 1}` : `Choose a field for row ${idx + 1}`);
+      }
+      if (usesFieldComparison && !comp.fieldB) return alert(`Choose Field B for row ${idx + 1}`);
+      if (!usesFieldComparison && String(comp.constValue ?? "").trim() === "") {
+        return alert(`Enter a value for row ${idx + 1}`);
       }
 
-      condition = { all: clauses };
+      if (comp.bMode === "resource") {
+        if (!comp.resourceBId) return alert(`Choose Resource B for row ${idx + 1}`);
+        const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId));
+        if (!resourceB?.type_id) return alert(`Resource B (row ${idx + 1}) is missing type.`);
+
+        const typeIdB = Number(resourceB.type_id);
+        clauses.push({
+          field: `resources_by_type_id.${typeIdB}.id`,
+          op: "==",
+          value: Number(comp.resourceBId),
+        });
+        if (!usesFieldComparison) {
+          clauses.push({
+            field: `resources_by_type_id.${typeIdB}.${comp.fieldA}`,
+            op: comp.op,
+            value: parseInputValue(comp.constValue, comp.op),
+          });
+          continue;
+        }
+        clauses.push({
+          field: `resource.${comp.fieldA}`,
+          op: comp.op,
+          value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+        });
+      } else if (usesFieldComparison) {
+        if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+        const typeIdB = Number(comp.typeBId);
+        clauses.push({
+          field: `resource.${comp.fieldA}`,
+          op: comp.op,
+          value: { ref: `resources_by_type_id.${typeIdB}.${comp.fieldB}` },
+        });
+      } else {
+        if (!comp.typeBId) return alert(`Choose Resource Type for row ${idx + 1}`);
+        const typeIdB = Number(comp.typeBId);
+        clauses.push({
+          field: `resources_by_type_id.${typeIdB}.${comp.fieldA}`,
+          op: comp.op,
+          value: parseInputValue(comp.constValue, comp.op),
+        });
+      }
     }
+
+    condition = { all: clauses };
 
     let action;
     if (form.effect === "alert") action = { effect: "alert" };
@@ -1368,18 +1386,19 @@ export default function Rules() {
         ? "Alert"
         : `Score ${Number(form.scoreDelta) || 0}`;
 
-    if (mode === "single") {
-      if (!form.fieldA || !form.op || form.constValue === "") {
-        return `If ${aName} matches the condition → ${action}.`;
-      }
-      return `If ${aName}.${fieldLabel(form.fieldA)} ${form.op} ${form.constValue} → ${action}.`;
-    }
-
     if (!form.comparisons.length) {
-      return `If ${aName} is compared to other resources → ${action}.`;
+      return `If ${aName} matches the comparisons → ${action}.`;
     }
     const parts = form.comparisons.map((c) => {
       const left = fieldLabel(c.fieldA || form.fieldA);
+      if ((c.rightMode || "field") === "value") {
+        if (c.bMode === "type") {
+          const typeLabel = typeOptions.find((t) => String(t.type_id) === String(c.typeBId))?.type_name || "Type";
+          return `${typeLabel}.${left} ${c.op} ${c.constValue || "value"}`;
+        }
+        const bName = resourceNameById.get(String(c.resourceBId)) || "Resource";
+        return `${bName}.${left} ${c.op} ${c.constValue || "value"}`;
+      }
       if (c.bMode === "type") {
         const typeLabel = typeOptions.find((t) => String(t.type_id) === String(c.typeBId))?.type_name || "Type";
         return `${aName}.${left} ${c.op} ${typeLabel}.${fieldLabel(c.fieldB)}`;
@@ -1451,26 +1470,6 @@ export default function Rules() {
         </div>
         {!showSimpleBuilder ? null : (
           <>
-
-        <div className="flex gap-4 mb-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              checked={mode === "single"}
-              onChange={() => setMode("single")}
-            />
-            <span>Rule on a single resource</span>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              checked={mode === "pair"}
-              onChange={() => setMode("pair")}
-            />
-            <span>Compare with multiple resources</span>
-          </label>
-        </div>
-
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium mb-1">A Source</label>
@@ -1532,48 +1531,32 @@ export default function Rules() {
           </div>
         </div>
 
-        {mode === "single" ? (
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Operator</label>
-              <select
-                className={`w-full p-2 border rounded ${theme.input}`}
-                value={form.op}
-                onChange={(e) => updateForm({ op: e.target.value })}
-              >
-                {OP_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Value</label>
-              <input
-                type="text"
-                className={`w-full p-2 border rounded ${theme.input}`}
-                value={form.constValue}
-                onChange={(e) => updateForm({ constValue: e.target.value })}
-              />
-            </div>
-          </div>
-        ) : (
           <div className="mb-4">
-            <div className="text-sm font-medium mb-2">Comparisons (A vs multiple B)</div>
+            <div className="text-sm font-medium mb-2">Comparisons</div>
             <div className="space-y-3">
               {form.comparisons.map((comp, idx) => {
                 const resourceB = resources.find((r) => String(r.id) === String(comp.resourceBId)) ?? null;
                 const fieldsB = comp.bMode === "type"
                   ? getTypeFieldOptions(comp.typeBId)
                   : getResourceFieldOptions(resourceB);
+                const comparesToValue = (comp.rightMode || "field") === "value";
+                const leftFieldOptions = comparesToValue ? fieldsB : fieldsA;
                 return (
-                  <div key={`comp-${idx}`} className="grid grid-cols-6 gap-3 items-end">
+                  <div key={`comp-${idx}`} className="grid grid-cols-7 gap-3 items-end">
                     <div>
                       <label className="block text-xs font-medium mb-1">B Source</label>
                       <select
                         className={`w-full p-2 border rounded ${theme.input}`}
                         value={comp.bMode}
-                        onChange={(e) => updateComparison(idx, { bMode: e.target.value, resourceBId: "", typeBId: "", fieldB: "" })}
+                        onChange={(e) =>
+                          updateComparison(idx, {
+                            bMode: e.target.value,
+                            resourceBId: "",
+                            typeBId: "",
+                            fieldB: "",
+                            ...(comparesToValue ? { fieldA: "" } : {}),
+                          })
+                        }
                       >
                         <option value="resource">Specific resource</option>
                         <option value="type">Resource type</option>
@@ -1586,7 +1569,13 @@ export default function Rules() {
                         <select
                           className={`w-full p-2 border rounded ${theme.input}`}
                           value={comp.typeBId}
-                          onChange={(e) => updateComparison(idx, { typeBId: e.target.value, fieldB: "" })}
+                          onChange={(e) =>
+                            updateComparison(idx, {
+                              typeBId: e.target.value,
+                              fieldB: "",
+                              ...(comparesToValue ? { fieldA: "" } : {}),
+                            })
+                          }
                         >
                           <option value="">Choose type…</option>
                           {typeOptions.map((t) => (
@@ -1599,7 +1588,13 @@ export default function Rules() {
                         <select
                           className={`w-full p-2 border rounded ${theme.input}`}
                           value={comp.resourceBId}
-                          onChange={(e) => updateComparison(idx, { resourceBId: e.target.value, fieldB: "" })}
+                          onChange={(e) =>
+                            updateComparison(idx, {
+                              resourceBId: e.target.value,
+                              fieldB: "",
+                              ...(comparesToValue ? { fieldA: "" } : {}),
+                            })
+                          }
                         >
                           <option value="">Choose resource…</option>
                           {resourceOptions.map((r) => (
@@ -1612,15 +1607,25 @@ export default function Rules() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium mb-1">Field (A)</label>
+                      <label className="block text-xs font-medium mb-1">
+                        {comparesToValue ? "Field" : "Field (A)"}
+                      </label>
                       <select
                         className={`w-full p-2 border rounded ${theme.input}`}
                         value={comp.fieldA}
                         onChange={(e) => updateComparison(idx, { fieldA: e.target.value })}
-                        disabled={form.aMode === "type" ? !form.typeAId : !form.resourceAId}
+                        disabled={
+                          comparesToValue
+                            ? comp.bMode === "type"
+                              ? !comp.typeBId
+                              : !comp.resourceBId
+                            : form.aMode === "type"
+                            ? !form.typeAId
+                            : !form.resourceAId
+                        }
                       >
                         <option value="">Choose field…</option>
-                        {fieldsA.map((f) => (
+                        {leftFieldOptions.map((f) => (
                           <option key={f.value} value={f.value}>{f.label}</option>
                         ))}
                       </select>
@@ -1640,18 +1645,49 @@ export default function Rules() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium mb-1">Field (B)</label>
+                      <label className="block text-xs font-medium mb-1">Compare to</label>
                       <select
                         className={`w-full p-2 border rounded ${theme.input}`}
-                        value={comp.fieldB}
-                        onChange={(e) => updateComparison(idx, { fieldB: e.target.value })}
-                        disabled={comp.bMode === "type" ? !comp.typeBId : !comp.resourceBId}
+                        value={comp.rightMode || "field"}
+                        onChange={(e) =>
+                          updateComparison(idx, {
+                            rightMode: e.target.value,
+                            fieldA: "",
+                            fieldB: "",
+                            constValue: "",
+                          })
+                        }
                       >
+                        <option value="field">Field</option>
+                        <option value="value">Value</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1">
+                        {(comp.rightMode || "field") === "value" ? "Value" : "Field (B)"}
+                      </label>
+                      {(comp.rightMode || "field") === "value" ? (
+                        <input
+                          type="text"
+                          className={`w-full p-2 border rounded ${theme.input}`}
+                          value={comp.constValue || ""}
+                          onChange={(e) => updateComparison(idx, { constValue: e.target.value })}
+                          placeholder="true, 20, text..."
+                        />
+                      ) : (
+                        <select
+                          className={`w-full p-2 border rounded ${theme.input}`}
+                          value={comp.fieldB}
+                          onChange={(e) => updateComparison(idx, { fieldB: e.target.value })}
+                          disabled={comp.bMode === "type" ? !comp.typeBId : !comp.resourceBId}
+                        >
                         <option value="">Choose field…</option>
                         {fieldsB.map((f) => (
                           <option key={f.value} value={f.value}>{f.label}</option>
                         ))}
-                      </select>
+                        </select>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1678,8 +1714,6 @@ export default function Rules() {
               Tip: choose "Resource type" to apply the rule to any resource of that type.
             </div>
           </div>
-        )}
-
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium mb-1">Rule Name</label>
@@ -1760,12 +1794,10 @@ export default function Rules() {
           Preview: {previewText}
         </div>
 
-        {mode === "pair" && (
-          <div className={`text-xs mt-2 ${theme.textSoft}`}>
-            Note: when using "Resource type", the comparison uses the first matching resource of that type
-            in the booking.
-          </div>
-        )}
+        <div className={`text-xs mt-2 ${theme.textSoft}`}>
+          Note: when using "Resource type", the comparison uses the first matching resource of that type
+          in the booking.
+        </div>
           </>
         )}
       </section>

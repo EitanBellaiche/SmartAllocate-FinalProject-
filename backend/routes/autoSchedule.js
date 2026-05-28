@@ -6,7 +6,10 @@ import {
   parseDate,
   roundDurationToGrid,
 } from "./autoSchedule/timeUtils.js";
-import { ensureAvailabilityTables } from "./autoSchedule/availabilityUtils.js";
+import {
+  ensureAutoScheduleIndexes,
+  ensureAvailabilityTables,
+} from "./autoSchedule/availabilityUtils.js";
 import { diagnoseGroupFailure } from "./autoSchedule/core.js";
 import { executeAutoSchedule, normalizeOrgId } from "../services/autoScheduleService.js";
 import {
@@ -16,6 +19,7 @@ import {
   getOrgSchedulingDeadlineInfo,
   getResponsibleSchedulingDeadlineInfo,
   listAutoScheduleJobs,
+  recordCompletedAutoScheduleRun,
 } from "../services/autoScheduleJobs.js";
 
 const router = express.Router();
@@ -54,6 +58,7 @@ router.post("/diagnose", async (req, res) => {
   const client = await pool.connect();
   try {
     await ensureAvailabilityTables(client);
+    await ensureAutoScheduleIndexes(client);
     const ruleParams = [];
     let ruleWhere = "WHERE is_active = true";
     if (orgId) {
@@ -105,6 +110,14 @@ router.post("/", async (req, res) => {
       end_date: req.body?.end_date,
       groups: req.body?.groups,
       orgId,
+    });
+    await recordCompletedAutoScheduleRun({
+      start_date: req.body?.start_date,
+      end_date: req.body?.end_date,
+      groups: req.body?.groups,
+      orgId,
+      createdBy: getCreatedBy(req),
+      result: data,
     });
     res.json(data);
   } catch (err) {
