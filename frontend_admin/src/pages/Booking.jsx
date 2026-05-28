@@ -3,19 +3,15 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
 import { getOrgConfig, getOrgLabels } from "../orgConfig";
-import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
+import {
+  formatIsraelDate,
+  formatIsraelDateRange,
+  formatIsraelTime,
+  getIsraelDayOfWeek,
+} from "../utils/datetime";
 import AutoScheduler from "./AutoScheduler";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function getWeekdayIndex(dateValue) {
-  const text = String(dateValue || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
-  const [year, month, day] = text.split("-").map(Number);
-  const parsed = new Date(year, month - 1, day);
-  const weekday = parsed.getDay();
-  return Number.isFinite(weekday) ? weekday : null;
-}
 
 export default function Booking() {
   const labels = getOrgLabels();
@@ -192,7 +188,7 @@ export default function Booking() {
 
       if (matchingResources.length === 0) return;
 
-      const weekdayIndex = getWeekdayIndex(booking.date);
+      const weekdayIndex = getIsraelDayOfWeek(booking.date);
       const resourceKey = matchingResources
         .map((resource) => String(resource?.id || ""))
         .sort()
