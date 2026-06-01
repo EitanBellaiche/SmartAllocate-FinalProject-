@@ -6,6 +6,7 @@ import {
   findUserConflict,
   hasExactBooking,
   hasResourceConflict,
+  hasUserConflict,
   weekAlreadyScheduled,
 } from "./conflicts.js";
 import { buildAutoScheduleDecisionExplanation } from "./explain.js";
@@ -31,6 +32,86 @@ function isWithinAnyPreferredWindow(preferredWindows, startTime, endTime) {
 
 function isSaturdayBlocked(dayOfWeek, allowSaturday) {
   return !allowSaturday && Number(dayOfWeek) === 6;
+}
+
+function normalizeMetadata(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function extractAssignedUserIds(meta) {
+  if (!meta || typeof meta !== "object") return [];
+  const list = [];
+  const rawUserIds = [meta.user_ids, meta.userIds];
+  for (const value of rawUserIds) {
+    if (!value) continue;
+    if (Array.isArray(value)) list.push(...value);
+    else if (typeof value === "string") list.push(...value.split(/[\s,]+/));
+  }
+  const responsibleIds = [
+    meta.responsible_user_id,
+    meta.responsibleUserId,
+    meta.responsible_id,
+    meta.responsibleId,
+  ];
+  list.push(...responsibleIds);
+  return Array.from(
+    new Set(
+      list
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function collectAssignedUserIdsFromResourceRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return Array.from(
+    new Set(
+      rows.flatMap((row) => extractAssignedUserIds(normalizeMetadata(row?.metadata || row?.resource_metadata)))
+    )
+  );
+}
+
+function buildAutoSuggestedGroupVariant(group, suggestion) {
+  if (!group || !suggestion) return null;
+
+  if (suggestion.type === "timeslot") {
+    const nextGroup = {
+      ...group,
+      preferred_time_windows: [
+        {
+          start_time: String(suggestion.start_time || "").slice(0, 5),
+          end_time: String(suggestion.end_time || "").slice(0, 5),
+        },
+      ],
+    };
+    if (Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0) {
+      nextGroup.resource_ids = suggestion.resource_ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+      nextGroup.type_ids = [];
+    }
+    return nextGroup;
+  }
+
+  if (suggestion.type === "resource") {
+    if (!Array.isArray(suggestion.resource_ids) || suggestion.resource_ids.length === 0) return null;
+    return {
+      ...group,
+      resource_ids: suggestion.resource_ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id)),
+      type_ids: [],
+    };
+  }
+
+  return null;
 }
 
 function normalizeBlockedDateSet(values) {
@@ -449,6 +530,7 @@ export async function scheduleGroup({
   daysPerWeek,
   allowSaturday = true,
   blockedDates = [],
+  autoSuggestionDepth = 0,
 }) {
   const resourceIds = Array.isArray(group?.resource_ids)
     ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
@@ -700,6 +782,38 @@ export async function scheduleGroup({
                   .filter((id) => Number.isFinite(id));
               }
 
+              const resolvedAssignedUserIds = Array.from(
+                new Set([
+                  ...uniqueUserIds,
+                  ...collectAssignedUserIdsFromResourceRows(resolvedResourceRows),
+                ])
+              ).filter((userId) => userId && userId !== responsibleId);
+
+              const assignedUserConflict = await hasUserConflict(
+                client,
+                resolvedAssignedUserIds,
+                dayKey,
+                startTime,
+                endTime,
+                orgId
+              );
+              if (assignedUserConflict) {
+                weekFailure = `One of the assigned users is already booked at ${dayKey} ${startTime}-${endTime}`;
+                userConflicts += 1;
+                localUserConflicts += 1;
+                if (!failureContext) {
+                  failureContext = {
+                    type: "user_conflict",
+                    bookingDate: dayKey,
+                    startTime,
+                    endTime,
+                    resources: [...resolvedResourceRows],
+                    candidateTypeIds: [...typeIds],
+                  };
+                }
+                continue;
+              }
+
               const resourceConflict = await hasResourceConflict(client, resolvedResourceIds, dayKey, startTime, endTime, orgId);
               if (resourceConflict) {
                 const conflictDetails = await findResourceConflictDetails(client, resolvedResourceIds, dayKey, startTime, endTime, orgId);
@@ -893,9 +1007,33 @@ export async function scheduleGroup({
         ruleRows,
         durationMinutes,
         allowSaturday,
+        blockedDates,
       });
       suggestions = Array.isArray(diagnosis?.suggestions) ? diagnosis.suggestions : [];
       if (diagnosis?.reason) reason = diagnosis.reason;
+    }
+
+    if (autoSuggestionDepth < 2 && Array.isArray(suggestions) && suggestions.length > 0) {
+      for (const suggestion of suggestions) {
+        const suggestedGroup = buildAutoSuggestedGroupVariant(group, suggestion);
+        if (!suggestedGroup) continue;
+        const retried = await scheduleGroup({
+          client,
+          group: suggestedGroup,
+          startDate,
+          endDate,
+          orgId,
+          ruleRows,
+          durationMinutes,
+          daysPerWeek,
+          allowSaturday,
+          blockedDates,
+          autoSuggestionDepth: autoSuggestionDepth + 1,
+        });
+        if (Array.isArray(retried?.scheduled) && retried.scheduled.length > 0) {
+          return retried;
+        }
+      }
     }
 
     return {
