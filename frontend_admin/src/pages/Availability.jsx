@@ -22,6 +22,36 @@ const EMPTY_DAY_MODAL = {
   date: "",
 };
 
+function normalizeResourceMetadata(raw) {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function isLocationLikeResource(resource) {
+  const meta = normalizeResourceMetadata(resource?.metadata);
+  return Boolean(
+    meta.room ||
+    meta.location ||
+    meta.site ||
+    meta.space ||
+    meta.building ||
+    meta.floor
+  );
+}
+
+function buildCompactBookingResources(resources) {
+  const list = Array.isArray(resources) ? resources.filter(Boolean) : [];
+  const locationResources = list.filter(isLocationLikeResource);
+  const nonLocationResources = list.filter((resource) => !isLocationLikeResource(resource));
+  if (locationResources.length <= 1) return list;
+  return [locationResources[0], ...nonLocationResources];
+}
+
 function getMovieStorageKey() {
   const raw = localStorage.getItem("smartallocate.admin.session");
   try {
@@ -400,7 +430,7 @@ useEffect(() => {
         const bookingResources = Array.isArray(booking.resources) ? booking.resources : [];
         const filteredResources = selectedResource
           ? bookingResources.filter((resource) => String(resource.id) === String(selectedResource))
-          : bookingResources;
+          : buildCompactBookingResources(bookingResources);
 
         return {
           ...booking,

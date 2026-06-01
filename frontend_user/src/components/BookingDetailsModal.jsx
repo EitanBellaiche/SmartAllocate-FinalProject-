@@ -1,5 +1,11 @@
 import React from "react";
-import { formatDate, formatTime, formatTypeLabel, getBookingResources, getBookingRoomLine } from "../utils/appHelpers";
+import {
+  formatDate,
+  formatTime,
+  formatTypeLabel,
+  getBookingResources,
+  getBookingRoomLine,
+} from "../utils/appHelpers";
 
 export default function BookingDetailsModal({
   selectedScheduleBooking,

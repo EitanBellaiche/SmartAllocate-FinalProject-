@@ -3,6 +3,16 @@ import { minutesToTime, timeToMinutes } from "./timeUtils.js";
 import { hasResourceConflict, findUserConflict } from "./conflicts.js";
 import { loadCandidateRowsByTypeIds } from "./resources.js";
 
+function normalizePreferredWindows(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map((window) => ({
+      start_time: window?.start_time ? String(window.start_time).slice(0, 5) : "",
+      end_time: window?.end_time ? String(window.end_time).slice(0, 5) : "",
+    }))
+    .filter((window) => window.start_time && window.end_time && window.start_time < window.end_time);
+}
+
 export async function buildAlternativeSuggestions({
   client,
   orgId,
@@ -189,17 +199,24 @@ export async function buildTimeSlotSuggestions({
       continue;
     }
 
-    if (candidateTypeIds.length > 0) {
+    const uncoveredTypeIds = (Array.isArray(candidateTypeIds) ? candidateTypeIds : []).filter(
+      (typeId) =>
+        !resolvedResourceRows.some(
+          (resource) => Number(resource?.type_id) === Number(typeId)
+        )
+    );
+
+    if (uncoveredTypeIds.length > 0) {
       const candidateRows = await loadCandidateRowsByTypeIds(
         client,
-        candidateTypeIds,
+        uncoveredTypeIds,
         orgId,
         bookingDate,
         slot.start_time,
         slot.end_time,
         resolvedResourceIds
       );
-      const candidatePools = candidateTypeIds.map((typeId) => ({
+      const candidatePools = uncoveredTypeIds.map((typeId) => ({
         typeId,
         candidates: candidateRows.filter(
           (resource) => Number(resource.type_id) === Number(typeId)
@@ -292,7 +309,10 @@ export async function buildAutoScheduleFailureSuggestions({
   rules,
   roles,
   pickBestResourceCombination,
+  preferredTimeWindows = [],
 }) {
+  const normalizedPreferredTimeWindows = normalizePreferredWindows(preferredTimeWindows);
+  const allowTimeSuggestions = normalizedPreferredTimeWindows.length === 0;
   const [resourceSuggestions, timeSuggestions] = await Promise.all([
     buildAlternativeSuggestions({
       client,
@@ -310,19 +330,21 @@ export async function buildAutoScheduleFailureSuggestions({
       },
       roles,
     }),
-    buildTimeSlotSuggestions({
-      client,
-      orgId,
-      bookingDate,
-      startTime,
-      endTime,
-      userId,
-      fixedResources: resources,
-      candidateTypeIds,
-      rules,
-      roles,
-      pickBestResourceCombination,
-    }),
+    allowTimeSuggestions
+      ? buildTimeSlotSuggestions({
+          client,
+          orgId,
+          bookingDate,
+          startTime,
+          endTime,
+          userId,
+          fixedResources: resources,
+          candidateTypeIds,
+          rules,
+          roles,
+          pickBestResourceCombination,
+        })
+      : Promise.resolve([]),
   ]);
 
   return [...resourceSuggestions, ...timeSuggestions]
@@ -332,4 +354,3 @@ export async function buildAutoScheduleFailureSuggestions({
     })
     .slice(0, 5);
 }
-
