@@ -221,7 +221,13 @@ export default function UserBookings() {
           }
 
           meta.user_ids = nextList;
-          meta.users = nextList.length;
+          delete meta.users;
+          if (
+            Object.prototype.hasOwnProperty.call(meta, "students_number") ||
+            Object.prototype.hasOwnProperty.call(meta, "department")
+          ) {
+            meta.students_number = nextList.length;
+          }
 
           await apiPut(`/resources/${resource.id}`, {
             name: resource.name,
@@ -258,7 +264,13 @@ export default function UserBookings() {
         : [];
       const nextList = currentList.filter((v) => v !== id);
       meta.user_ids = nextList;
-      meta.users = nextList.length;
+      delete meta.users;
+      if (
+        Object.prototype.hasOwnProperty.call(meta, "students_number") ||
+        Object.prototype.hasOwnProperty.call(meta, "department")
+      ) {
+        meta.students_number = nextList.length;
+      }
 
       await apiPut(`/resources/${resource.id}`, {
         name: resource.name,

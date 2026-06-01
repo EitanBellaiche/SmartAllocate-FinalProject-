@@ -13,6 +13,10 @@ import AutoScheduler from "./AutoScheduler";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function isSaturdayDateValue(value) {
+  return getIsraelDayOfWeek(value) === 6;
+}
+
 export default function Booking() {
   const labels = getOrgLabels();
   const config = getOrgConfig();
@@ -55,6 +59,9 @@ export default function Booking() {
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [weekdays, setWeekdays] = useState([]);
+  const [avoidSaturday, setAvoidSaturday] = useState(false);
+  const [blockedDateDraft, setBlockedDateDraft] = useState("");
+  const [blockedDates, setBlockedDates] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [updatingBooking, setUpdatingBooking] = useState(false);
@@ -269,6 +276,8 @@ export default function Booking() {
           start_time: startTime,
           end_time: endTime,
           date: previewDate,
+          allow_saturday: !avoidSaturday,
+          blocked_dates: blockedDates,
           user_id: assignUsers ? String(responsibleUser?.national_id || "").trim() || undefined : undefined,
           preview_candidate_offsets: previewCandidateOffsets,
         });
@@ -293,6 +302,8 @@ export default function Booking() {
     assignUsers,
     responsibleUser,
     previewCandidateOffsets,
+    avoidSaturday,
+    blockedDates,
   ]);
 
   useEffect(() => {
@@ -308,7 +319,14 @@ export default function Booking() {
     responsibleUser?.national_id,
     selectedResources.join(","),
     selectedTypeIds.join(","),
+    avoidSaturday,
+    blockedDates.join(","),
   ]);
+
+  useEffect(() => {
+    if (!avoidSaturday) return;
+    setWeekdays((prev) => (prev.includes(6) ? prev.filter((day) => day !== 6) : prev));
+  }, [avoidSaturday]);
 
   useEffect(() => {
     if (!assignUsers) return;
@@ -400,12 +418,26 @@ export default function Booking() {
   }
 
   function toggleWeekday(dayValue) {
+    if (avoidSaturday && dayValue === 6) return;
     setWeekdays((prev) => {
       if (prev.includes(dayValue)) {
         return prev.filter((day) => day !== dayValue);
       }
       return [...prev, dayValue];
     });
+  }
+
+  function addBlockedDate() {
+    const nextDate = String(blockedDateDraft || "").trim();
+    if (!nextDate) return;
+    setBlockedDates((prev) =>
+      prev.includes(nextDate) ? prev : [...prev, nextDate].sort((left, right) => left.localeCompare(right))
+    );
+    setBlockedDateDraft("");
+  }
+
+  function removeBlockedDate(dateValue) {
+    setBlockedDates((prev) => prev.filter((value) => value !== dateValue));
   }
 
   function toggleScheduleGroup(groupKey) {
@@ -503,7 +535,13 @@ export default function Booking() {
             : {};
         meta.responsible_user_id = responsibleId || meta.responsible_user_id || "";
         meta.user_ids = userIds;
-        meta.users = userIds.length;
+        delete meta.users;
+        if (
+          Object.prototype.hasOwnProperty.call(meta, "students_number") ||
+          Object.prototype.hasOwnProperty.call(meta, "department")
+        ) {
+          meta.students_number = userIds.length;
+        }
         await apiPut(`/resources/${resource.id}`, {
           name: resource.name,
           type_id: resource.type_id,
@@ -533,6 +571,9 @@ export default function Booking() {
     setRangeStart("");
     setRangeEnd("");
     setWeekdays([]);
+    setAvoidSaturday(false);
+    setBlockedDateDraft("");
+    setBlockedDates([]);
   }
 
   async function moveExistingBookingAndRetry(basePayload, targetUserId, conflictData, suggestion) {
@@ -576,6 +617,12 @@ export default function Booking() {
     } else if (!date) {
       setMessage("Please select a date.");
       return;
+    } else if (avoidSaturday && isSaturdayDateValue(date)) {
+      setMessage("Saturday bookings are disabled.");
+      return;
+    } else if (blockedDates.includes(date)) {
+      setMessage("This date is blocked for scheduling.");
+      return;
     }
 
     setSubmitting(true);
@@ -593,6 +640,8 @@ export default function Booking() {
       resource_type_ids: selectedTypeIds,
       start_time: startTime,
       end_time: endTime,
+      allow_saturday: !avoidSaturday,
+      blocked_dates: blockedDates,
     };
 
     if (recurring) {
@@ -1264,7 +1313,11 @@ export default function Booking() {
                           {weekdayOptions.map((day) => (
                             <label
                               key={day.value}
-                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                                avoidSaturday && day.value === 6
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                  : "cursor-pointer"
+                              } ${
                                 weekdays.includes(day.value)
                                   ? "border-blue-600 bg-blue-600 text-white"
                                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
@@ -1273,6 +1326,7 @@ export default function Booking() {
                               <input
                                 type="checkbox"
                                 checked={weekdays.includes(day.value)}
+                                disabled={avoidSaturday && day.value === 6}
                                 onChange={() => toggleWeekday(day.value)}
                                 className="sr-only"
                               />
@@ -1282,6 +1336,61 @@ export default function Booking() {
                         </div>
                       </div>
                     )}
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-col gap-4">
+                        <label
+                          htmlFor="avoid-saturday-toggle"
+                          className="inline-flex items-center gap-3 text-sm font-semibold text-slate-800"
+                        >
+                          <input
+                            id="avoid-saturday-toggle"
+                            type="checkbox"
+                            checked={avoidSaturday}
+                            onChange={(e) => setAvoidSaturday(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          Do not schedule on Saturdays
+                        </label>
+
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                          <div>
+                            <label className="mb-2 block text-sm font-semibold text-slate-800">
+                              Block specific date
+                            </label>
+                            <IsraelDateInput
+                              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
+                              value={blockedDateDraft}
+                              onChange={setBlockedDateDraft}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={addBlockedDate}
+                            disabled={!blockedDateDraft}
+                            className="inline-flex h-[50px] items-center justify-center rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                          >
+                            Add blocked date
+                          </button>
+                        </div>
+
+                        {blockedDates.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {blockedDates.map((blockedDate) => (
+                              <button
+                                key={blockedDate}
+                                type="button"
+                                onClick={() => removeBlockedDate(blockedDate)}
+                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                              >
+                                <span>{formatIsraelDate(blockedDate)}</span>
+                                <span className="text-slate-400">Remove</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>

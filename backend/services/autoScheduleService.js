@@ -34,11 +34,29 @@ export function normalizeAllowSaturday(value) {
   return true;
 }
 
-export function validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday }) {
+export function normalizeBlockedDates(values) {
+  if (!Array.isArray(values)) return [];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+    )
+  ).sort();
+}
+
+export function validateAndNormalizeAutoScheduleInput({
+  start_date,
+  end_date,
+  groups,
+  allow_saturday,
+  blocked_dates,
+}) {
   const startDateValue = String(start_date || "").trim();
   const endDateValue = String(end_date || "").trim();
   const normalizedGroups = Array.isArray(groups) ? groups : [];
   const allowSaturday = normalizeAllowSaturday(allow_saturday);
+  const blockedDates = normalizeBlockedDates(blocked_dates);
 
   const startDate = parseDate(startDateValue);
   const endDate = parseDate(endDateValue);
@@ -53,7 +71,7 @@ export function validateAndNormalizeAutoScheduleInput({ start_date, end_date, gr
     throw err;
   }
 
-  return { startDate, endDate, groups: normalizedGroups, allowSaturday };
+  return { startDate, endDate, groups: normalizedGroups, allowSaturday, blockedDates };
 }
 
 export async function executeAutoScheduleWithClient({
@@ -63,6 +81,7 @@ export async function executeAutoScheduleWithClient({
   groups,
   orgId,
   allowSaturday = true,
+  blockedDates = [],
 }) {
   await ensureAvailabilityTables(client);
   await ensureAutoScheduleIndexes(client);
@@ -93,6 +112,7 @@ export async function executeAutoScheduleWithClient({
         durationMinutes,
         daysPerWeek,
         allowSaturday,
+        blockedDates,
       });
 
       if (Array.isArray(result?.scheduled) && result.scheduled.length > 0) {
@@ -111,17 +131,26 @@ export async function executeAutoScheduleWithClient({
   }
 }
 
-export async function executeAutoSchedule({ start_date, end_date, groups, orgId, allow_saturday }) {
+export async function executeAutoSchedule({
+  start_date,
+  end_date,
+  groups,
+  orgId,
+  allow_saturday,
+  blocked_dates,
+}) {
   const {
     startDate,
     endDate,
     groups: normalizedGroups,
     allowSaturday,
+    blockedDates,
   } = validateAndNormalizeAutoScheduleInput({
     start_date,
     end_date,
     groups,
     allow_saturday,
+    blocked_dates,
   });
 
   const client = await pool.connect();
@@ -133,18 +162,27 @@ export async function executeAutoSchedule({ start_date, end_date, groups, orgId,
       groups: normalizedGroups,
       orgId,
       allowSaturday,
+      blockedDates,
     });
   } finally {
     client.release();
   }
 }
 
-export function serializeAutoSchedulePayload({ start_date, end_date, groups, orgId, allow_saturday }) {
+export function serializeAutoSchedulePayload({
+  start_date,
+  end_date,
+  groups,
+  orgId,
+  allow_saturday,
+  blocked_dates,
+}) {
   return {
     start_date: String(start_date || "").trim(),
     end_date: String(end_date || "").trim(),
     groups: Array.isArray(groups) ? groups : [],
     allow_saturday: normalizeAllowSaturday(allow_saturday),
+    blocked_dates: normalizeBlockedDates(blocked_dates),
     org_id: orgId || null,
   };
 }

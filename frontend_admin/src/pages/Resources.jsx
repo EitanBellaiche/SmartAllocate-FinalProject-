@@ -18,7 +18,9 @@ function getTypeFieldNames(type) {
 
 function getCustomMetadataEntries(metadata, type) {
   const typeFieldNames = getTypeFieldNames(type);
-  return Object.entries(metadata || {}).filter(([key]) => !typeFieldNames.has(key));
+  return Object.entries(metadata || {}).filter(
+    ([key]) => !typeFieldNames.has(key) && !shouldHideResourceEditorMetadataKey(key)
+  );
 }
 
 function normalizeCustomFieldValue(value, fieldType) {
@@ -85,6 +87,14 @@ function getMetadataUserIds(metadata) {
   );
 }
 
+function shouldSyncAssignedCountToStudentsNumber(metadata) {
+  if (!metadata || typeof metadata !== "object") return false;
+  return (
+    Object.prototype.hasOwnProperty.call(metadata, "students_number") ||
+    Object.prototype.hasOwnProperty.call(metadata, "department")
+  );
+}
+
 function withAssignedUserIds(metadata, userIds) {
   const normalizedIds = Array.from(
     new Set(
@@ -94,11 +104,17 @@ function withAssignedUserIds(metadata, userIds) {
     )
   );
 
-  return {
+  const nextMetadata = {
     ...(metadata || {}),
     user_ids: normalizedIds,
-    users: normalizedIds.length,
   };
+
+  delete nextMetadata.users;
+  if (shouldSyncAssignedCountToStudentsNumber(metadata)) {
+    nextMetadata.students_number = normalizedIds.length;
+  }
+
+  return nextMetadata;
 }
 
 function mergeUsersByNationalId(existingUsers, nextUsers) {
@@ -114,6 +130,10 @@ function mergeUsersByNationalId(existingUsers, nextUsers) {
 }
 
 function shouldHideResourceCardMetadataKey(key) {
+  return key === "user_ids" || key === "users";
+}
+
+function shouldHideResourceEditorMetadataKey(key) {
   return key === "user_ids" || key === "users";
 }
 
@@ -204,9 +224,9 @@ function applyDerivedMetadataValue(metadata, field, value) {
   if (field === "user_ids") {
     const nextUserIds = Array.isArray(value) ? value : parseIdList(value);
     nextMetadata.user_ids = nextUserIds;
-
-    if (Object.prototype.hasOwnProperty.call(metadata || {}, "users")) {
-      nextMetadata.users = nextUserIds.length;
+    delete nextMetadata.users;
+    if (shouldSyncAssignedCountToStudentsNumber(metadata)) {
+      nextMetadata.students_number = nextUserIds.length;
     }
   }
 

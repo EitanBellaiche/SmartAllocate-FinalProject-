@@ -33,6 +33,14 @@ function isSaturdayBlocked(dayOfWeek, allowSaturday) {
   return !allowSaturday && Number(dayOfWeek) === 6;
 }
 
+function normalizeBlockedDateSet(values) {
+  return new Set(
+    (Array.isArray(values) ? values : [])
+      .map((value) => String(value || "").trim())
+      .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+  );
+}
+
 function buildCandidateSlots(availability, durationMinutes) {
   const candidates = [];
   availability.forEach((slot) => {
@@ -98,17 +106,20 @@ export async function pickLockedSlot({
   excludedDayOfWeeks = [],
   preferredTimeWindows = [],
   allowSaturday = true,
+  blockedDates = [],
 }) {
   const weekStarts = getWeekStartsInRange(startDate, endDate);
   const candidatesMap = new Map();
   let lastFailure = "No available slot found";
   let firstCandidateFailure = null;
   const excluded = new Set((excludedDayOfWeeks || []).map((d) => Number(d)));
+  const blockedDateSet = normalizeBlockedDateSet(blockedDates);
 
   for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
     const dayKey = formatDate(day);
     const dayOfWeek = day.getDay();
     if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
+    if (blockedDateSet.has(dayKey)) continue;
     if (excluded.has(dayOfWeek)) continue;
     const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
     for (const window of windows) {
@@ -132,6 +143,7 @@ export async function pickLockedSlot({
       dateObj.setDate(weekStart.getDate() + candidate.day_of_week);
       if (dateObj < startDate || dateObj > endDate) continue;
       const dayKey = formatDate(dateObj);
+      if (blockedDateSet.has(dayKey)) continue;
       const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, candidate.day_of_week);
       const covered = windows.some((window) => candidate.start_time >= window.start_time && candidate.end_time <= window.end_time);
       if (!covered) continue;
@@ -265,6 +277,7 @@ export async function diagnoseGroupFailure({
   ruleRows,
   durationMinutes,
   allowSaturday = true,
+  blockedDates = [],
 }) {
   const resourceIds = Array.isArray(group?.resource_ids)
     ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
@@ -317,6 +330,8 @@ export async function diagnoseGroupFailure({
     availability = buildFallbackAvailability();
   }
 
+  const blockedDateSet = normalizeBlockedDateSet(blockedDates);
+
   for (const weekStart of getWeekStartsInRange(startDate, endDate)) {
     const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
     const weekStartBound = new Date(Math.max(weekStart.getTime(), startDate.getTime()));
@@ -326,6 +341,7 @@ export async function diagnoseGroupFailure({
       const dayKey = formatDate(day);
       const dayOfWeek = day.getDay();
       if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
+      if (blockedDateSet.has(dayKey)) continue;
       const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
       for (const window of windows) {
         const slotStartMin = timeToMinutes(window.start_time);
@@ -432,6 +448,7 @@ export async function scheduleGroup({
   durationMinutes,
   daysPerWeek,
   allowSaturday = true,
+  blockedDates = [],
 }) {
   const resourceIds = Array.isArray(group?.resource_ids)
     ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
@@ -506,6 +523,7 @@ export async function scheduleGroup({
   let lockedSlots = [];
   let failureContext = null;
   const preferredTimeWindows = normalizePreferredWindows(group?.preferred_time_windows);
+  const blockedDateSet = normalizeBlockedDateSet(blockedDates);
 
   for (let lockIndex = 0; lockIndex < daysPerWeek; lockIndex += 1) {
     const lockedCandidate = await pickLockedSlot({
@@ -524,6 +542,7 @@ export async function scheduleGroup({
       excludedDayOfWeeks: lockedSlots.map((slot) => slot.day_of_week),
       preferredTimeWindows,
       allowSaturday,
+      blockedDates,
     });
     if (lockedCandidate?.slot) {
       lockedSlots = [...lockedSlots, lockedCandidate.slot];
@@ -561,6 +580,7 @@ export async function scheduleGroup({
         const dayOfWeek = day.getDay();
         if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
         const dayKey = formatDate(day);
+        if (blockedDateSet.has(dayKey)) continue;
         const dayAvailability = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
         if (dayAvailability.length === 0) continue;
         availabilityDays += 1;

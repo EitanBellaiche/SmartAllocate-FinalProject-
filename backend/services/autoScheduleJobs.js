@@ -47,6 +47,7 @@ export async function createAutoScheduleJob({
   orgId,
   createdBy,
   allow_saturday,
+  blocked_dates,
 }) {
   await ensureAutoScheduleJobsTable();
 
@@ -58,7 +59,7 @@ export async function createAutoScheduleJob({
   }
 
   // Validate scheduling payload early so jobs don't fail later.
-  validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday });
+  validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday, blocked_dates });
 
   const payload = serializeAutoSchedulePayload({
     start_date,
@@ -66,6 +67,7 @@ export async function createAutoScheduleJob({
     groups,
     orgId,
     allow_saturday,
+    blocked_dates,
   });
   const { rows } = await pool.query(
     `
@@ -90,10 +92,11 @@ export async function recordCompletedAutoScheduleRun({
   orgId,
   createdBy,
   allow_saturday,
+  blocked_dates,
   result,
 }) {
   await ensureAutoScheduleJobsTable();
-  validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday });
+  validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday, blocked_dates });
 
   const payload = serializeAutoSchedulePayload({
     start_date,
@@ -101,6 +104,7 @@ export async function recordCompletedAutoScheduleRun({
     groups,
     orgId,
     allow_saturday,
+    blocked_dates,
   });
   const { rows } = await pool.query(
     `
@@ -275,11 +279,12 @@ export async function processDueAutoScheduleJobs({ maxPerTick = 1 } = {}) {
         const endDateValue = payload.end_date || null;
         const groupsValue = payload.groups || [];
 
-        const { startDate, endDate, groups, allowSaturday } = validateAndNormalizeAutoScheduleInput({
+        const { startDate, endDate, groups, allowSaturday, blockedDates } = validateAndNormalizeAutoScheduleInput({
           start_date: startDateValue,
           end_date: endDateValue,
           groups: groupsValue,
           allow_saturday: payload.allow_saturday,
+          blocked_dates: payload.blocked_dates,
         });
 
         const result = await executeAutoScheduleWithClient({
@@ -289,6 +294,7 @@ export async function processDueAutoScheduleJobs({ maxPerTick = 1 } = {}) {
           groups,
           orgId,
           allowSaturday,
+          blockedDates,
         });
 
         await client.query(

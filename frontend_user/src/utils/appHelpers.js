@@ -162,7 +162,7 @@ export function weekdayLabel(dayValue) {
 
 export function extractAssignedUserIds(meta) {
   if (!meta || typeof meta !== "object") return [];
-  const raw = meta.user_ids ?? meta.userIds ?? meta.users;
+  const raw = meta.user_ids ?? meta.userIds;
   if (Array.isArray(raw)) {
     return raw.map((v) => String(v).trim()).filter(Boolean);
   }

@@ -65,11 +65,15 @@ function normalizeMetadata(raw) {
 
 function extractUserIds(meta) {
   if (!meta || typeof meta !== "object") return [];
-  const candidates = [
-    meta.user_ids,
-    meta.userIds,
-    meta.users,
-  ];
+  const candidates = [meta.user_ids, meta.userIds];
+  if (Array.isArray(meta.users)) {
+    candidates.push(meta.users);
+  } else if (typeof meta.users === "string") {
+    const trimmed = meta.users.trim();
+    if (/[,\s]/.test(trimmed) || /^\d{6,}$/.test(trimmed)) {
+      candidates.push(trimmed);
+    }
+  }
   const list = [];
   for (const value of candidates) {
     if (!value) continue;
@@ -82,19 +86,44 @@ function extractUserIds(meta) {
   return list.map((v) => String(v).trim()).filter(Boolean);
 }
 
+function extractResponsibleUserIds(meta) {
+  if (!meta || typeof meta !== "object") return [];
+  return Array.from(
+    new Set(
+      [
+        meta.responsible_user_id,
+        meta.responsibleUserId,
+        meta.responsible_id,
+        meta.responsibleId,
+      ]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function hasAssignedUsers(meta) {
   if (extractUserIds(meta).length > 0) return true;
-  const responsible =
-    meta.responsible_user_id ||
-    meta.responsibleUserId ||
-    meta.responsible_id ||
-    meta.responsibleId;
-  return Boolean(responsible);
+  return extractResponsibleUserIds(meta).length > 0;
 }
 
 function getPrimaryResourceRows(rows) {
   const primary = rows.filter((row) => hasAssignedUsers(normalizeMetadata(row.resource_metadata)));
   return primary.length > 0 ? primary : rows;
+}
+
+function collectAssignedUserIdsFromResourceRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return Array.from(
+    new Set(
+      rows.flatMap((row) => {
+        const meta = normalizeMetadata(row?.metadata || row?.resource_metadata);
+        return [...extractUserIds(meta), ...extractResponsibleUserIds(meta)];
+      })
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
 }
 
 function uniqueNumericIds(values) {
@@ -106,6 +135,29 @@ function uniqueNumericIds(values) {
         .filter((value) => Number.isFinite(value))
     )
   );
+}
+
+function normalizeBlockedDates(values) {
+  if (!Array.isArray(values)) return [];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter((value) => /^\d{4}-\d{2}-\d{2}$/.test(value))
+    )
+  ).sort();
+}
+
+function getDayOfWeekFromDateString(value) {
+  const parts = String(value || "").split("-");
+  if (parts.length !== 3) return null;
+  const [year, month, day] = parts.map((part) => Number(part));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return new Date(year, month - 1, day).getDay();
+}
+
+function isSaturdayDate(value) {
+  return getDayOfWeekFromDateString(value) === 6;
 }
 
 function timeToMinutes(value) {
@@ -798,29 +850,95 @@ async function buildAlternativeSuggestions({
 }
 
 async function findUserConflict(client, userId, date, startTime, endTime, orgId) {
-  if (!userId) return null;
-  const params = [String(userId), date, startTime, endTime];
+  const conflict = await findAnyUserConflict(
+    client,
+    userId ? [String(userId)] : [],
+    date,
+    startTime,
+    endTime,
+    orgId
+  );
+  return conflict;
+}
+
+async function findAnyUserConflict(
+  client,
+  userIds,
+  date,
+  startTime,
+  endTime,
+  orgId,
+  excludeBookingId = null
+) {
+  const normalizedUserIds = Array.from(
+    new Set(
+      (Array.isArray(userIds) ? userIds : [])
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+  if (normalizedUserIds.length === 0) return null;
+
+  const params = [normalizedUserIds, date, startTime, endTime];
+  let excludeWhere = "";
+  if (Number.isFinite(Number(excludeBookingId))) {
+    params.push(Number(excludeBookingId));
+    excludeWhere = `AND b.id <> $${params.length}`;
+  }
+
   let orgWhere = "";
+  let assignedOrgWhere = "";
   if (orgId) {
     params.push(orgId);
     orgWhere = `AND r.organization_id = $${params.length}`;
+    assignedOrgWhere = `AND r_user.organization_id = $${params.length}`;
   }
+
   const { rows } = await client.query(
     `
-    SELECT b.id, b.date, b.start_time, b.end_time
+    SELECT DISTINCT b.id, b.user_id, b.date, b.start_time, b.end_time
     FROM bookings b
     LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
     LEFT JOIN booking_resources br ON br.booking_id = b.id
     LEFT JOIN resources r ON r.id = br.resource_id
-    WHERE b.user_id::text = $1
-    AND b.date = $2
+    WHERE b.date = $2
     AND bc.booking_id IS NULL
+    ${excludeWhere}
     ${orgWhere}
     AND (
       ($3 >= b.start_time AND $3 < b.end_time) OR
       ($4 > b.start_time AND $4 <= b.end_time) OR
       ($3 <= b.start_time AND $4 >= b.end_time)
     )
+    AND (
+      b.user_id::text = ANY($1)
+      OR EXISTS (
+        SELECT 1
+        FROM booking_resources br_user
+        JOIN resources r_user ON r_user.id = br_user.resource_id
+        WHERE br_user.booking_id = b.id
+        ${assignedOrgWhere}
+        AND (
+          CASE
+            WHEN jsonb_typeof(r_user.metadata->'user_ids') = 'array' THEN r_user.metadata->'user_ids'
+            ELSE '[]'::jsonb
+          END ?| $1
+          OR CASE
+            WHEN jsonb_typeof(r_user.metadata->'userIds') = 'array' THEN r_user.metadata->'userIds'
+            ELSE '[]'::jsonb
+          END ?| $1
+          OR CASE
+            WHEN jsonb_typeof(r_user.metadata->'users') = 'array' THEN r_user.metadata->'users'
+            ELSE '[]'::jsonb
+          END ?| $1
+          OR COALESCE(r_user.metadata->>'responsible_user_id', '') = ANY($1)
+          OR COALESCE(r_user.metadata->>'responsibleUserId', '') = ANY($1)
+          OR COALESCE(r_user.metadata->>'responsible_id', '') = ANY($1)
+          OR COALESCE(r_user.metadata->>'responsibleId', '') = ANY($1)
+        )
+      )
+    )
+    ORDER BY b.date, b.start_time, b.id
     LIMIT 1
     `,
     params
@@ -1316,14 +1434,24 @@ router.post("/preview", async (req, res) => {
     end_time,
     user_id,
     preview_candidate_offsets,
+    allow_saturday,
+    blocked_dates,
   } = req.body || {};
   const orgId = getOrgId(req);
   const explicitResourceIds = uniqueNumericIds(resources);
   const candidateTypeIds = uniqueNumericIds(resource_type_ids);
   const bookingDate = String(date || "").trim();
+  const blockedDates = normalizeBlockedDates(blocked_dates);
+  const allowSaturday = allow_saturday !== false;
 
   if (!bookingDate || !start_time || !end_time) {
     return res.status(400).json({ error: "Date, start_time, and end_time are required" });
+  }
+  if (!allowSaturday && isSaturdayDate(bookingDate)) {
+    return res.status(400).json({ error: "Saturday bookings are disabled for this request" });
+  }
+  if (blockedDates.includes(bookingDate)) {
+    return res.status(400).json({ error: "This date is blocked for scheduling" });
   }
   if (explicitResourceIds.length === 0 && candidateTypeIds.length === 0) {
     return res.status(400).json({ error: "No resources or resource types provided" });
@@ -1875,8 +2003,12 @@ router.post("/", async (req, res) => {
     resolution_strategy,
     conflict_booking_id,
     resolution_suggestion,
+    allow_saturday,
+    blocked_dates,
   } = req.body;
   const orgId = getOrgId(req);
+  const allowSaturday = allow_saturday !== false;
+  const blockedDates = normalizeBlockedDates(blocked_dates);
 
   const explicitResourceIds = uniqueNumericIds(resources);
   const candidateTypeIds = uniqueNumericIds(resource_type_ids);
@@ -1929,8 +2061,15 @@ router.post("/", async (req, res) => {
 
       const uniqueDays = Array.from(new Set(daysOfWeek));
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateKey = formatDate(d);
+        if (!allowSaturday && d.getDay() === 6) {
+          continue;
+        }
+        if (blockedDates.includes(dateKey)) {
+          continue;
+        }
         if (uniqueDays.includes(d.getDay())) {
-          bookingDates.push(formatDate(d));
+          bookingDates.push(dateKey);
         }
         if (bookingDates.length > 200) {
           return res.status(400).json({
@@ -1948,6 +2087,12 @@ router.post("/", async (req, res) => {
       const dateValue = String(date || "").trim();
       if (!dateValue) {
         return res.status(400).json({ error: "Date is required" });
+      }
+      if (!allowSaturday && isSaturdayDate(dateValue)) {
+        return res.status(400).json({ error: "Saturday bookings are disabled for this request" });
+      }
+      if (blockedDates.includes(dateValue)) {
+        return res.status(400).json({ error: "This date is blocked for scheduling" });
       }
       bookingDates = [dateValue];
     }
@@ -2277,6 +2422,26 @@ router.post("/", async (req, res) => {
         }
       }
 
+      const assignedUserIds = collectAssignedUserIdsFromResourceRows(resolvedResourceRows).filter(
+        (assignedId) => assignedId !== String(user_id || "").trim()
+      );
+      const assignedUserConflict = await findAnyUserConflict(
+        client,
+        assignedUserIds,
+        bookingDate,
+        start_time,
+        end_time,
+        orgId
+      );
+      if (assignedUserConflict) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "One of the assigned users is already booked at this time",
+          date: bookingDate,
+          occupied_by: assignedUserConflict,
+        });
+      }
+
       const ruleEval = evaluateRules({
         rules: ruleRows,
         booking: {
@@ -2391,12 +2556,20 @@ router.post("/", async (req, res) => {
 // UPDATE booking
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
-  const { resources, roles, date, start_time, end_time, user_id } = req.body;
+  const { resources, roles, date, start_time, end_time, user_id, allow_saturday, blocked_dates } = req.body;
   const orgId = getOrgId(req);
+  const allowSaturday = allow_saturday !== false;
+  const blockedDates = normalizeBlockedDates(blocked_dates);
 
   if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid booking id" });
   if (!resources || resources.length === 0) {
     return res.status(400).json({ error: "No resources provided" });
+  }
+  if (!allowSaturday && isSaturdayDate(date)) {
+    return res.status(400).json({ error: "Saturday bookings are disabled for this request" });
+  }
+  if (blockedDates.includes(String(date || "").trim())) {
+    return res.status(400).json({ error: "This date is blocked for scheduling" });
   }
 
   const client = await pool.connect();
@@ -2502,6 +2675,26 @@ router.put("/:id", async (req, res) => {
     if (resourceRows.length !== resources.length) {
       await client.query("ROLLBACK");
       return res.status(400).json({ error: "One or more resources not found" });
+    }
+
+    const assignedUserIds = collectAssignedUserIdsFromResourceRows(resourceRows).filter(
+      (assignedId) => assignedId !== String(user_id || "").trim()
+    );
+    const assignedUserConflict = await findAnyUserConflict(
+      client,
+      assignedUserIds,
+      date,
+      start_time,
+      end_time,
+      orgId,
+      id
+    );
+    if (assignedUserConflict) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "One of the assigned users is already booked at this time",
+        occupied_by: assignedUserConflict,
+      });
     }
 
     const ruleParams = [];

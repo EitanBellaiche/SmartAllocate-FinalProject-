@@ -573,6 +573,8 @@ export default function AutoScheduler({ embedded = false }) {
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
   );
   const [allowSaturday, setAllowSaturday] = useState(true);
+  const [blockedDateDraft, setBlockedDateDraft] = useState("");
+  const [blockedDates, setBlockedDates] = useState([]);
   const [runMode, setRunMode] = useState("manual"); // manual | deadline
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
@@ -914,6 +916,19 @@ export default function AutoScheduler({ embedded = false }) {
     );
   }
 
+  function addBlockedDate() {
+    const nextDate = String(blockedDateDraft || "").trim();
+    if (!nextDate) return;
+    setBlockedDates((prev) =>
+      prev.includes(nextDate) ? prev : [...prev, nextDate].sort((left, right) => left.localeCompare(right))
+    );
+    setBlockedDateDraft("");
+  }
+
+  function removeBlockedDate(dateValue) {
+    setBlockedDates((prev) => prev.filter((value) => value !== dateValue));
+  }
+
   function ensureSuggestedWindowId(suggestion) {
     const startTime = String(suggestion?.start_time || "").slice(0, 5);
     const endTime = String(suggestion?.end_time || "").slice(0, 5);
@@ -1012,6 +1027,7 @@ export default function AutoScheduler({ embedded = false }) {
         end_date: rangeEnd,
         groups: payloadGroups,
         allow_saturday: allowSaturday,
+        blocked_dates: blockedDates,
       });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
@@ -1099,6 +1115,7 @@ export default function AutoScheduler({ embedded = false }) {
         end_date: rangeEnd,
         groups: payloadGroups,
         allow_saturday: allowSaturday,
+        blocked_dates: blockedDates,
       });
       setMessageTone("success");
       setMessage(
@@ -1270,17 +1287,51 @@ export default function AutoScheduler({ embedded = false }) {
           <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
             <input
               type="checkbox"
-              checked={allowSaturday}
-              onChange={(event) => setAllowSaturday(event.target.checked)}
+              checked={!allowSaturday}
+              onChange={(event) => setAllowSaturday(!event.target.checked)}
               className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
             />
-            Allow Saturday scheduling
+            Do not schedule on Saturdays
           </label>
-          <div className="text-sm text-slate-500">
-            {allowSaturday
-              ? "Saturday is included when availability allows it."
-              : "The auto scheduler will skip every Saturday slot."}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Block specific date
+              </label>
+              <IsraelDateInput
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                value={blockedDateDraft}
+                onChange={setBlockedDateDraft}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={addBlockedDate}
+              disabled={!blockedDateDraft}
+              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              Add blocked date
+            </button>
           </div>
+
+          {blockedDates.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {blockedDates.map((blockedDate) => (
+                <button
+                  key={blockedDate}
+                  type="button"
+                  onClick={() => removeBlockedDate(blockedDate)}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
+                >
+                  <span>{formatIsraelDate(blockedDate)}</span>
+                  <span className="text-slate-400">Remove</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
