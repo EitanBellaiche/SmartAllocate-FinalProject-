@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { clearAdminSession } from "../api/api";
 import BrandLockup from "../components/BrandLockup";
@@ -106,6 +106,10 @@ export default function MainLayout() {
   const currentTitle =
     config.navigation?.[currentItem.key] || currentItem.fallback;
   const pageSubtitle = `Manage ${String(currentTitle).toLowerCase()} with a calmer, clearer administrative workspace.`;
+
+  useEffect(() => {
+    document.title = `${currentTitle} | SmartAllocate Admin`;
+  }, [currentTitle]);
 
   return (
     <div className="admin-shell">
