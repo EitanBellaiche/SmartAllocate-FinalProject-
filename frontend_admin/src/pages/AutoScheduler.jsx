@@ -67,6 +67,96 @@ function buildDecisionStatsLine(stats) {
   return parts.join(" | ");
 }
 
+function pluralize(count, singular, plural) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function buildDecisionExplanationLines(decision, occurrences, dates) {
+  const stats = decision?.search_stats || {};
+  const selectedResources = Array.isArray(decision?.selected_resources) ? decision.selected_resources : [];
+  const selectedRules = Array.isArray(decision?.score_breakdown) ? decision.score_breakdown : [];
+  const lines = [];
+
+  if (occurrences > 0) {
+    const datePreview = Array.isArray(dates) ? dates.slice(0, 3).map((date) => formatIsraelDate(date)).join(", ") : "";
+    lines.push(
+      `The scheduler created ${pluralize(occurrences, "occurrence", "occurrences")} for this allocation${
+        datePreview ? `, starting with ${datePreview}` : ""
+      }.`
+    );
+  }
+
+  if (stats.used_preferred_window) {
+    lines.push("It kept the result inside the preferred time window you requested.");
+  }
+
+  if (stats.used_locked_slot) {
+    lines.push("It reused a recurring weekly pattern because that pattern was already valid for this allocation.");
+  }
+
+  if (Number(stats.attempted_slots) > 0) {
+    lines.push(
+      `It checked ${pluralize(
+        Number(stats.attempted_slots),
+        "candidate slot",
+        "candidate slots"
+      )} before confirming this result.`
+    );
+  }
+
+  const rejectionReasons = [];
+  if (Number(stats.responsible_conflicts) > 0) {
+    rejectionReasons.push(
+      `${pluralize(Number(stats.responsible_conflicts), "slot was", "slots were")} rejected because the responsible user was already booked`
+    );
+  }
+  if (Number(stats.user_conflicts) > 0) {
+    rejectionReasons.push(
+      `${pluralize(Number(stats.user_conflicts), "slot was", "slots were")} rejected because assigned students or users were already booked`
+    );
+  }
+  if (Number(stats.resource_conflicts) > 0) {
+    rejectionReasons.push(
+      `${pluralize(Number(stats.resource_conflicts), "slot was", "slots were")} rejected because a required room or resource was occupied`
+    );
+  }
+  if (Number(stats.rule_conflicts) > 0) {
+    rejectionReasons.push(
+      `${pluralize(Number(stats.rule_conflicts), "slot was", "slots were")} rejected because active scheduling rules blocked the combination`
+    );
+  }
+  if (rejectionReasons.length > 0) {
+    lines.push(`Before the final choice, ${rejectionReasons.join(". ")}.`);
+  }
+
+  if (selectedResources.length > 0) {
+    lines.push(`The final resource combination was: ${selectedResources.map((resource) => resource.name).join(", ")}.`);
+  }
+
+  if (Number.isFinite(Number(decision?.score))) {
+    if (selectedRules.length > 0) {
+      const positiveRuleNames = selectedRules
+        .filter((rule) => Number(rule?.delta) > 0)
+        .slice(0, 4)
+        .map((rule) => rule.name)
+        .filter(Boolean);
+      if (positiveRuleNames.length > 0) {
+        lines.push(
+          `The final score was ${Number(decision.score)} because the selection matched these rules: ${positiveRuleNames.join(
+            ", "
+          )}.`
+        );
+      } else {
+        lines.push(`The final score for this choice was ${Number(decision.score)}.`);
+      }
+    } else {
+      lines.push(`The final score for this choice was ${Number(decision.score)}.`);
+    }
+  }
+
+  return lines;
+}
+
 function buildScheduledDecisionSignature(item) {
   const decision = item?.decision_summary || {};
   const selectedResourceIds = (Array.isArray(decision.selected_resources) ? decision.selected_resources : [])
@@ -126,6 +216,7 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
           : [];
         const statsLine = buildDecisionStatsLine(decision.search_stats);
         const sampleDates = dates.slice(0, 3).map((date) => formatIsraelDate(date)).join(", ");
+        const explanationLines = buildDecisionExplanationLines(decision, occurrences, dates);
         return (
           <div
             key={`scheduled-group-${key}-${idx}`}
@@ -163,6 +254,24 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
               </div>
             )}
 
+            {explanationLines.length > 0 && (
+              <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
+                  Full explanation
+                </div>
+                <div className="mt-3 space-y-2">
+                  {explanationLines.map((line, lineIndex) => (
+                    <div
+                      key={`decision-explanation-${item.booking_id || idx}-${lineIndex}`}
+                      className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700"
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {selectedResources.length > 0 && (
               <div className="mt-3 text-xs text-slate-600">
                 Resources: {selectedResources.map((resource) => resource.name).join(", ")}
@@ -170,8 +279,8 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
             )}
 
             {Array.isArray(decision.blockers) && decision.blockers.length > 0 && (
-              <div className="mt-2 text-xs text-amber-700">
-                Before success: {decision.blockers.join(" | ")}
+              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <span className="font-semibold">Before success:</span> {decision.blockers.join(" | ")}
               </div>
             )}
 

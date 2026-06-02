@@ -542,20 +542,73 @@ select {
   pointer-events: none;
 }
 
-.login-brand-badge {
+.brand-lockup {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: fit-content;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
+  gap: 16px;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.brand-lockup--compact {
+  gap: 10px;
+}
+
+.brand-lockup__logo {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 16px 30px rgba(24, 190, 205, 0.22));
+}
+
+.brand-lockup--compact .brand-lockup__logo {
+  width: 42px;
+  height: 42px;
+}
+
+.brand-lockup__copy {
+  min-width: 0;
+}
+
+.brand-lockup__eyebrow {
+  margin: 0 0 6px;
+  color: #9fb6d9;
   font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+  font-weight: 800;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
+}
+
+.brand-lockup__title {
+  margin: 0;
+  color: #f8fafc;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.brand-lockup--compact .brand-lockup__title {
+  font-size: 1.1rem;
+}
+
+.brand-lockup__subtitle {
+  margin: 6px 0 0;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.login-brand-lockup .brand-lockup__logo {
+  width: 74px;
+  height: 74px;
+}
+
+.login-brand-lockup .brand-lockup__title {
+  font-size: clamp(2rem, 4vw, 2.8rem);
 }
 
 .login-greeting {
@@ -1264,7 +1317,7 @@ select {
     box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
   }
 
-  .mobile-topbar__brand {
+  .mobile-topbar__lockup {
     min-width: 0;
   }
 
@@ -1338,8 +1391,13 @@ select {
     text-align: center;
   }
 
-  .login-brand-badge {
+  .login-brand-lockup {
     justify-self: center;
+    text-align: left;
+  }
+
+  .login-brand-lockup .brand-lockup__title {
+    font-size: clamp(1.7rem, 7vw, 2.2rem);
   }
 
   .login-greeting-sub,
@@ -1542,44 +1600,17 @@ select {
   padding: 8px 6px 22px;
 }
 
-.user-sidebar__brand-top {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.user-sidebar__mark {
+.user-sidebar__brand-lockup .brand-lockup__logo {
   width: 54px;
   height: 54px;
-  display: grid;
-  place-items: center;
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(14, 165, 233, 0.95) 0%, rgba(59, 130, 246, 0.92) 48%, rgba(16, 185, 129, 0.88) 100%);
-  color: #fff;
-  font-family: "Sora", "IBM Plex Sans", sans-serif;
-  font-size: 1.12rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  box-shadow: 0 18px 34px rgba(14, 165, 233, 0.25);
 }
 
-.user-sidebar__eyebrow {
-  margin: 0;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+.user-sidebar__brand-lockup .brand-lockup__eyebrow {
   color: #7dd3fc;
 }
 
-.user-sidebar__title {
-  margin: 6px 0 0;
-  font-family: "Sora", "IBM Plex Sans", sans-serif;
+.user-sidebar__brand-lockup .brand-lockup__title {
   font-size: 1.55rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: #f8fafc;
 }
 
 .user-sidebar__subtitle {
@@ -1785,6 +1816,22 @@ select {
   color: #0f172a;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(16px);
+}
+
+.mobile-topbar__lockup {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobile-topbar__lockup .brand-lockup__eyebrow {
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 0.62rem;
+}
+
+.mobile-topbar__lockup .brand-lockup__title {
+  color: #0f172a;
+  font-size: 0.96rem;
 }
 
 .search-section__header {

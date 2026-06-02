@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useState } from "react";
 import AvailabilitySection from "./components/AvailabilitySection";
 import AppSidebar from "./components/AppSidebar";
+import BrandLockup from "./components/BrandLockup";
 import BookingDetailsModal from "./components/BookingDetailsModal";
 import CancelDialog from "./components/CancelDialog";
 import LoginView from "./components/LoginView";
@@ -652,9 +653,7 @@ export default function App() {
           >
             Menu
           </button>
-          <div style={{ fontWeight: 900, color: "#0f172a" }}>
-            SmartAllocate
-          </div>
+          <BrandLockup eyebrow="User Workspace" compact className="mobile-topbar__lockup" />
           <div className="badge-soft badge-info" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
             {currentUserId}
           </div>

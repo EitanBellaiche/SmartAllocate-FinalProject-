@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { clearAdminSession } from "../api/api";
+import BrandLockup from "../components/BrandLockup";
 import { getOrgConfig } from "../orgConfig";
 import "./MainLayout.css";
 
@@ -117,15 +118,11 @@ export default function MainLayout() {
 
       <aside className={`admin-sidebar ${menuOpen ? "admin-sidebar--open" : ""}`}>
         <div className="admin-sidebar__brand">
-          <div className="admin-sidebar__brand-top">
-            <div className="admin-sidebar__mark" aria-hidden="true">
-              SA
-            </div>
-            <div>
-              <p className="admin-sidebar__eyebrow">Admin Console</p>
-              <h1 className="admin-sidebar__title">SmartAllocate</h1>
-            </div>
-          </div>
+          <BrandLockup
+            eyebrow="Admin Console"
+            titleAs="h1"
+            className="admin-sidebar__brand-lockup"
+          />
 
           <p className="admin-sidebar__subtitle">
             Resource allocation, approvals, and scheduling operations in one structured workspace.
@@ -180,10 +177,11 @@ export default function MainLayout() {
 
       <div className="admin-workspace">
         <div className="admin-mobilebar">
-          <div>
-            <div className="admin-mobilebar__brand">SmartAllocate</div>
-            <div className="admin-mobilebar__sub">Admin workspace</div>
-          </div>
+          <BrandLockup
+            eyebrow="Admin Console"
+            compact
+            className="admin-mobilebar__lockup"
+          />
           <button
             type="button"
             className="admin-mobilebar__toggle"

@@ -1,4 +1,5 @@
 import React from "react";
+import BrandLockup from "./BrandLockup";
 
 export default function AppSidebar({
   isCinema,
@@ -69,15 +70,11 @@ export default function AppSidebar({
       )}
 
       <div className="user-sidebar__brand">
-        <div className="user-sidebar__brand-top">
-          <div className="user-sidebar__mark" aria-hidden="true">
-            SA
-          </div>
-          <div>
-            <p className="user-sidebar__eyebrow">User Workspace</p>
-            <h1 className="user-sidebar__title">SmartAllocate</h1>
-          </div>
-        </div>
+        <BrandLockup
+          eyebrow="User Workspace"
+          titleAs="h1"
+          className="user-sidebar__brand-lockup"
+        />
         <p className="user-sidebar__subtitle">
           Your schedule, assigned resources, and operational updates in one clean workspace.
         </p>

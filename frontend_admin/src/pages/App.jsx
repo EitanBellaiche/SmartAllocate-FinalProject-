@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import BrandLockup from "../components/BrandLockup";
 import MainLayout from "../layout/MainLayout";
 import { getAdminSession, setAdminSession } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
@@ -75,12 +76,11 @@ export default function App() {
         <div className="admin-login-orb admin-login-orb-right" aria-hidden="true" />
 
         <section className="admin-login-card" aria-live="polite">
-          <div className="admin-login-brand">
-            <span className="admin-login-kicker">Admin workspace</span>
-            <div className="admin-login-mark" aria-hidden="true">
-              SA
-            </div>
-          </div>
+          <BrandLockup
+            eyebrow="Admin Console"
+            titleAs="div"
+            className="admin-login-brand"
+          />
 
           <div className="admin-login-copy">
             <p className="admin-login-eyebrow">{orgConfig.businessName}</p>

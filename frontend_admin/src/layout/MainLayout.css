@@ -2,7 +2,7 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 344px minmax(0, 1fr);
   background:
     radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 24%),
     radial-gradient(circle at 85% 10%, rgba(15, 23, 42, 0.08), transparent 26%),
@@ -23,10 +23,14 @@
   min-height: 100dvh;
   max-height: 100dvh;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
   padding: 24px 20px 18px;
   background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(17, 24, 39, 0.98) 42%, rgba(30, 41, 59, 0.98) 100%);
+    radial-gradient(circle at 18% 12%, rgba(34, 211, 238, 0.08), transparent 22%),
+    radial-gradient(circle at 78% 14%, rgba(132, 204, 22, 0.06), transparent 18%),
+    linear-gradient(180deg, #17192a 0%, #161827 46%, #1a2030 100%);
   color: #e2e8f0;
   border-right: 1px solid rgba(148, 163, 184, 0.14);
   box-shadow: 18px 0 48px rgba(15, 23, 42, 0.08);
@@ -39,44 +43,68 @@
   padding: 8px 6px 22px;
 }
 
-.admin-sidebar__brand-top {
-  display: flex;
+.brand-lockup {
+  display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
 }
 
-.admin-sidebar__mark {
-  width: 54px;
-  height: 54px;
-  display: grid;
-  place-items: center;
-  border-radius: 18px;
-  background:
-    linear-gradient(135deg, rgba(14, 165, 233, 0.95) 0%, rgba(59, 130, 246, 0.92) 48%, rgba(16, 185, 129, 0.88) 100%);
-  color: white;
-  font-family: "Sora", "IBM Plex Sans", sans-serif;
-  font-size: 1.12rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  box-shadow: 0 18px 34px rgba(14, 165, 233, 0.25);
+.brand-lockup--compact {
+  gap: 10px;
 }
 
-.admin-sidebar__eyebrow {
-  margin: 0;
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+.brand-lockup__logo {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 12px 22px rgba(24, 190, 205, 0.14));
+}
+
+.brand-lockup--compact .brand-lockup__logo {
+  width: 42px;
+  height: 42px;
+}
+
+.brand-lockup__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.brand-lockup__eyebrow {
+  margin: 0 0 6px;
   color: #7dd3fc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
-.admin-sidebar__title {
-  margin: 6px 0 0;
+.brand-lockup__title {
+  margin: 0;
   font-family: "Sora", "IBM Plex Sans", sans-serif;
-  font-size: 1.55rem;
+  font-size: 1rem;
   font-weight: 700;
+  line-height: 1.02;
   letter-spacing: -0.04em;
   color: #f8fafc;
+}
+
+.admin-sidebar__brand-lockup .brand-lockup__logo {
+  width: 48px;
+  height: 48px;
+}
+
+.admin-sidebar__brand-lockup {
+  gap: 10px;
+  width: calc(100% - 24px);
+  transform: translateX(-8px);
+}
+
+.admin-sidebar__brand-lockup .brand-lockup__copy {
+  padding-right: 4px;
 }
 
 .admin-sidebar__subtitle {
@@ -386,17 +414,19 @@
     backdrop-filter: blur(16px);
   }
 
-  .admin-mobilebar__brand {
-    font-family: "Sora", "IBM Plex Sans", sans-serif;
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
+  .admin-mobilebar__lockup {
+    min-width: 0;
   }
 
-  .admin-mobilebar__sub {
-    margin-top: 4px;
-    font-size: 0.82rem;
+  .admin-mobilebar__lockup .brand-lockup__eyebrow {
     color: #64748b;
+    font-size: 0.62rem;
+    margin-bottom: 4px;
+  }
+
+  .admin-mobilebar__lockup .brand-lockup__title {
+    color: #0f172a;
+    font-size: 0.96rem;
   }
 
   .admin-mobilebar__toggle {

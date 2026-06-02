@@ -1,4 +1,5 @@
 import React from "react";
+import BrandLockup from "./BrandLockup";
 
 const PROMO_VIDEO_SRC = "/SmartAllocateVideo.mp4";
 
@@ -17,7 +18,11 @@ export default function LoginView({
     <div className="login-shell">
       <div className="login-card">
         <section className="login-showcase">
-          <div className="login-brand-badge">SmartAllocate</div>
+          <BrandLockup
+            eyebrow="Personal Workspace"
+            titleAs="h1"
+            className="login-brand-lockup"
+          />
 
           <div className="login-greeting">
             <div className="login-greeting-title">Welcome back</div>
