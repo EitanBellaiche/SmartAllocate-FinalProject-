@@ -44,8 +44,9 @@ export default function LoginView({
                 autoPlay
                 muted
                 loop
-                controls
                 playsInline
+                disablePictureInPicture
+                controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
                 preload="metadata"
               >
                 Your browser does not support HTML5 video.
