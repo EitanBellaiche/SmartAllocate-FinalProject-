@@ -779,8 +779,8 @@ useEffect(() => {
       )}
 
       {editModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className={`relative z-50 max-h-[90vh] w-[680px] overflow-y-auto rounded-lg border p-6 shadow-2xl ${theme.modalCard}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
+          <div className={`relative z-50 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[24px] border p-4 shadow-2xl sm:p-6 ${theme.modalCard}`}>
             <h3 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Edit Screening" : "Edit Booking"}</h3>
 
             {modalMessage && (
@@ -789,7 +789,7 @@ useEffect(() => {
               </div>
             )}
 
-            <div className="mb-4 grid grid-cols-3 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Date</label>
                 <input
@@ -877,7 +877,7 @@ useEffect(() => {
                   const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
                   const checked = editModal.selectedResources.includes(r.id);
                   return (
-                <div key={r.id} className="mb-2 flex items-center justify-between">
+                <div key={r.id} className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -913,7 +913,7 @@ useEffect(() => {
               </div>
             )}
 
-            <div className="flex justify-between gap-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 onClick={deleteBooking}
                 className={`rounded px-4 py-2 ${theme.buttonDanger}`}
@@ -921,7 +921,7 @@ useEffect(() => {
                 Delete
               </button>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <button
                   onClick={() =>
                     setEditModal({
@@ -953,8 +953,8 @@ useEffect(() => {
       )}
 
       {createModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className={`relative z-50 max-h-[90vh] w-[680px] overflow-y-auto rounded-lg border p-6 shadow-2xl ${theme.modalCard}`}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
+          <div className={`relative z-50 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[24px] border p-4 shadow-2xl sm:p-6 ${theme.modalCard}`}>
             <h3 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Create Screening" : "Create Booking"}</h3>
 
             {modalMessage && (
@@ -963,7 +963,7 @@ useEffect(() => {
               </div>
             )}
 
-            <div className="mb-4 grid grid-cols-3 gap-3">
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className={`mb-1 block text-sm font-medium ${theme.textStrong}`}>Date</label>
                 <input
@@ -1027,7 +1027,7 @@ useEffect(() => {
                   const typeRoles = Array.isArray(type?.roles) ? type.roles : [];
                   const checked = createModal.selectedResources.includes(r.id);
                   return (
-                    <div key={r.id} className="mb-2 flex items-center justify-between">
+                    <div key={r.id} className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <label className="flex items-center gap-2">
                         <input
                           type="checkbox"
@@ -1057,7 +1057,7 @@ useEffect(() => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button onClick={closeCreateModal} className={`rounded border px-4 py-2 ${theme.buttonGhost}`}>
                 Cancel
               </button>

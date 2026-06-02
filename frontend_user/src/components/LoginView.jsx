@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import BrandLockup from "./BrandLockup";
 
 const PROMO_VIDEO_SRC = "/SmartAllocateVideo.mp4";
@@ -14,6 +14,30 @@ export default function LoginView({
   loading,
   error,
 }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    video.muted = true;
+    video.defaultMuted = true;
+
+    const resumePlayback = () => {
+      const playAttempt = video.play();
+      if (typeof playAttempt?.catch === "function") {
+        playAttempt.catch(() => {});
+      }
+    };
+
+    resumePlayback();
+    video.addEventListener("pause", resumePlayback);
+
+    return () => {
+      video.removeEventListener("pause", resumePlayback);
+    };
+  }, []);
+
   return (
     <div className="login-shell">
       <div className="login-card">
@@ -39,15 +63,20 @@ export default function LoginView({
             </div>
             <div className="login-showcase-video-frame">
               <video
+                ref={videoRef}
                 className="login-showcase-video"
                 src={PROMO_VIDEO_SRC}
                 autoPlay
                 muted
                 loop
+                controls={false}
                 playsInline
                 disablePictureInPicture
+                disableRemotePlayback
                 controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-                preload="metadata"
+                preload="auto"
+                tabIndex={-1}
+                aria-hidden="true"
               >
                 Your browser does not support HTML5 video.
               </video>

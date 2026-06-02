@@ -40,11 +40,34 @@ export default function IsraelDateInput({
   ...props
 }) {
   const [text, setText] = useState(formatDisplayValue(value));
+  const [preferNativePicker, setPreferNativePicker] = useState(false);
   const pickerRef = useRef(null);
 
   useEffect(() => {
     setText(formatDisplayValue(value));
   }, [value]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const mediaQuery = window.matchMedia?.("(pointer: coarse)");
+    const detectTouchDevice = () =>
+      Boolean(
+        mediaQuery?.matches ||
+          window.navigator?.maxTouchPoints > 0 ||
+          "ontouchstart" in window
+      );
+
+    const updatePreference = () => {
+      setPreferNativePicker(detectTouchDevice());
+    };
+
+    updatePreference();
+
+    if (!mediaQuery?.addEventListener) return undefined;
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
 
   function commit(rawValue) {
     const nextValue = String(rawValue || "").trim();
@@ -66,6 +89,21 @@ export default function IsraelDateInput({
 
     setText(formatDisplayValue(parsed));
     onChange?.(parsed);
+  }
+
+  if (preferNativePicker) {
+    return (
+      <input
+        {...props}
+        type="date"
+        dir="ltr"
+        className={className}
+        value={value || ""}
+        min={min}
+        max={max}
+        onChange={(e) => onChange?.(e.target.value)}
+      />
+    );
   }
 
   return (

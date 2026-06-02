@@ -684,6 +684,8 @@ select {
   aspect-ratio: 16 / 9;
   object-fit: cover;
   background: #020617;
+  pointer-events: none;
+  user-select: none;
 }
 
 .login-showcase-video-copy {

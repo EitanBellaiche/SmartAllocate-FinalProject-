@@ -117,6 +117,7 @@
 .admin-sidebar__status {
   display: flex;
   align-items: center;
+  
   gap: 10px;
   width: fit-content;
   padding: 10px 14px;
@@ -458,5 +459,30 @@
   .admin-topbar__pill {
     flex: 1 1 0;
     min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-workspace {
+    padding: 12px;
+  }
+
+  .admin-mobilebar {
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .admin-mobilebar__toggle {
+    width: 100%;
+  }
+
+  .admin-topbar {
+    padding: 16px;
+    margin-bottom: 16px;
+    border-radius: 22px;
+  }
+
+  .admin-topbar__title {
+    font-size: 1.6rem;
   }
 }
