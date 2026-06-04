@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
+import SchedulingConstraintsPanel from "../components/SchedulingConstraintsPanel";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 
 const DEFAULT_SEMESTER_MONTHS = 3;
@@ -583,6 +584,8 @@ export default function AutoScheduler({ embedded = false }) {
   const [rangeEnd, setRangeEnd] = useState(() =>
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
   );
+  const [allowSaturday, setAllowSaturday] = useState(true);
+  const [blockedDates, setBlockedDates] = useState([]);
   const [runMode, setRunMode] = useState("manual"); // manual | deadline
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
@@ -1018,6 +1021,8 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
+        allow_saturday: allowSaturday,
+        blocked_dates: blockedDates,
       });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
@@ -1104,6 +1109,8 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
+        allow_saturday: allowSaturday,
+        blocked_dates: blockedDates,
       });
       setMessageTone("success");
       setMessage(
@@ -1233,6 +1240,14 @@ export default function AutoScheduler({ embedded = false }) {
 
     setRangeStart(String(payload?.start_date || "").trim());
     setRangeEnd(String(payload?.end_date || "").trim());
+    setAllowSaturday(payload?.allow_saturday !== false);
+    setBlockedDates(
+      Array.isArray(payload?.blocked_dates)
+        ? payload.blocked_dates
+            .map((value) => String(value || "").trim())
+            .filter(Boolean)
+        : []
+    );
     setTimeWindows(nextWindows.length > 0 ? nextWindows : DEFAULT_TIME_WINDOWS);
     setGroups(normalizedGroups);
     setSelection({
@@ -1499,6 +1514,16 @@ export default function AutoScheduler({ embedded = false }) {
         </div>
       </div>
 
+      <SchedulingConstraintsPanel
+        allowSaturday={allowSaturday}
+        onAllowSaturdayChange={setAllowSaturday}
+        blockedDates={blockedDates}
+        onBlockedDatesChange={setBlockedDates}
+        title="Scheduling constraints"
+        description="Apply the same blocked-day rules to immediate runs and deadline-based auto scheduling."
+        className="mb-6 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]"
+      />
+
       <div className="auto-windows-panel mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-xl font-semibold text-slate-900">Time window priorities</h2>
@@ -1691,6 +1716,9 @@ export default function AutoScheduler({ embedded = false }) {
                   </div>
                   <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                     Run at: {runAtLabel} | Allocations: {allocationCount}
+                  </div>
+                  <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
+                    Saturday: {job?.payload?.allow_saturday === false ? "blocked" : "allowed"} | Blocked dates: {Array.isArray(job?.payload?.blocked_dates) ? job.payload.blocked_dates.length : 0}
                   </div>
                   {(scheduled.length > 0 || skipped.length > 0) && (
                     <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">

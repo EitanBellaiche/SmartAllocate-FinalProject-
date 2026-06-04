@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
+import SchedulingConstraintsPanel from "../components/SchedulingConstraintsPanel";
 import { getOrgConfig, getOrgLabels } from "../orgConfig";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 import AutoScheduler from "./AutoScheduler";
@@ -63,6 +64,8 @@ export default function Booking() {
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [weekdays, setWeekdays] = useState([]);
+  const [allowSaturday, setAllowSaturday] = useState(true);
+  const [blockedDates, setBlockedDates] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [updatingBooking, setUpdatingBooking] = useState(false);
@@ -138,6 +141,8 @@ export default function Booking() {
     () => bookings.filter((booking) => booking?.cancelled_at),
     [bookings]
   );
+  const selectedResourcesKey = selectedResources.join(",");
+  const selectedTypeIdsKey = selectedTypeIds.join(",");
 
   useEffect(() => {
     loadResources();
@@ -169,6 +174,8 @@ export default function Booking() {
           date: previewDate,
           user_id: assignUsers ? String(responsibleUser?.national_id || "").trim() || undefined : undefined,
           preview_candidate_offsets: previewCandidateOffsets,
+          allow_saturday: allowSaturday,
+          blocked_dates: blockedDates,
         });
         setResourceEvaluation(preview?.resource_evaluation || null);
       } catch {
@@ -191,6 +198,8 @@ export default function Booking() {
     assignUsers,
     responsibleUser,
     previewCandidateOffsets,
+    allowSaturday,
+    blockedDates,
   ]);
 
   useEffect(() => {
@@ -204,8 +213,8 @@ export default function Booking() {
     rangeStart,
     assignUsers,
     responsibleUser?.national_id,
-    selectedResources.join(","),
-    selectedTypeIds.join(","),
+    selectedResourcesKey,
+    selectedTypeIdsKey,
   ]);
 
   useEffect(() => {
@@ -266,6 +275,12 @@ export default function Booking() {
     };
   }, [assignUsers, responsibleUser]);
 
+  useEffect(() => {
+    if (allowSaturday || !weekdays.includes(6)) return;
+    setWeekdays((prev) => prev.filter((day) => day !== 6));
+    setMessage("Saturday is disabled in scheduling constraints. Choose another weekday or enable Saturday.");
+  }, [allowSaturday, weekdays]);
+
   async function loadResources() {
     try {
       const [resourceData, typeData, bookingData] = await Promise.all([
@@ -298,6 +313,10 @@ export default function Booking() {
   }
 
   function toggleWeekday(dayValue) {
+    if (Number(dayValue) === 6 && !allowSaturday) {
+      setMessage("Saturday is disabled in scheduling constraints. Choose another weekday or enable Saturday.");
+      return;
+    }
     setWeekdays((prev) => {
       if (prev.includes(dayValue)) {
         return prev.filter((day) => day !== dayValue);
@@ -346,6 +365,22 @@ export default function Booking() {
       resourceEvaluation: errLike?.data?.resource_evaluation || null,
       conflictResolution: errLike?.data?.conflict_resolution || null,
     };
+  }
+
+  function extractFailureMessage(errLike) {
+    const message = String(errLike?.message || errLike?.data?.error || "").trim();
+    return message || "Unknown failure";
+  }
+
+  function buildPartialFailureMessage(results, failures) {
+    const createdCount = results.length - failures.length;
+    const failureMessages = Array.from(
+      new Set(failures.map((failure) => extractFailureMessage(failure?.reason)).filter(Boolean))
+    );
+    const summary = `Created ${createdCount} bookings; ${failures.length} failed.`;
+    if (failureMessages.length === 0) return summary;
+    if (failureMessages.length === 1) return `${summary} Reason: ${failureMessages[0]}`;
+    return `${summary} Reasons: ${failureMessages.slice(0, 3).join(" | ")}`;
   }
 
   function applySuggestion(suggestion) {
@@ -464,6 +499,10 @@ export default function Booking() {
         setMessage("Please select a date range and at least 1 weekday.");
         return;
       }
+      if (!allowSaturday && weekdays.includes(6)) {
+        setMessage("Saturday is disabled in scheduling constraints. Remove Saturday from weekdays or enable Saturday.");
+        return;
+      }
     } else if (!date) {
       setMessage("Please select a date.");
       return;
@@ -484,6 +523,8 @@ export default function Booking() {
       resource_type_ids: selectedTypeIds,
       start_time: startTime,
       end_time: endTime,
+      allow_saturday: allowSaturday,
+      blocked_dates: blockedDates,
     };
 
     if (recurring) {
@@ -552,9 +593,7 @@ export default function Booking() {
             setAlertDetails(nextAlertDetails);
             setConflictResolution(nextConflictResolution);
           } else {
-            setMessage(
-              `Created ${results.length - failures.length} bookings; ${failures.length} failed.`
-            );
+            setMessage(buildPartialFailureMessage(results, failures));
             setSuggestions(nextSuggestions);
             setViolationDetails(nextViolationDetails);
             setAlertDetails(nextAlertDetails);
@@ -1033,6 +1072,8 @@ export default function Booking() {
                                 resource_type_ids: selectedTypeIds,
                                 start_time: startTime,
                                 end_time: endTime,
+                                allow_saturday: allowSaturday,
+                                blocked_dates: blockedDates,
                                 ...(recurring
                                   ? {
                                       recurrence: {
@@ -1219,7 +1260,10 @@ export default function Booking() {
                           {weekdayOptions.map((day) => (
                             <label
                               key={day.value}
-                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition ${
+                                day.value === 6 && !allowSaturday
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                  :
                                 weekdays.includes(day.value)
                                   ? "border-blue-600 bg-blue-600 text-white"
                                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
@@ -1229,6 +1273,7 @@ export default function Booking() {
                                 type="checkbox"
                                 checked={weekdays.includes(day.value)}
                                 onChange={() => toggleWeekday(day.value)}
+                                disabled={day.value === 6 && !allowSaturday}
                                 className="sr-only"
                               />
                               <span>{day.label}</span>
@@ -1276,6 +1321,16 @@ export default function Booking() {
                     </div>
                   </div>
                 </section>
+
+                <SchedulingConstraintsPanel
+                  allowSaturday={allowSaturday}
+                  onAllowSaturdayChange={setAllowSaturday}
+                  blockedDates={blockedDates}
+                  onBlockedDatesChange={setBlockedDates}
+                  title="Scheduling constraints"
+                  description="Prevent this booking request from using Saturday or specific blocked dates."
+                  className={theme.card}
+                />
 
                 <section className={`booking-form-section rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">

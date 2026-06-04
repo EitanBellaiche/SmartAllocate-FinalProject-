@@ -2106,6 +2106,11 @@ router.post("/", async (req, res) => {
       }
 
       const uniqueDays = Array.from(new Set(daysOfWeek));
+      if (!allowSaturday && uniqueDays.includes(6)) {
+        return res.status(400).json({
+          error: "Saturday is disabled for this recurring request. Choose another weekday or enable Saturday scheduling.",
+        });
+      }
       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
         const dateKey = formatDate(d);
         if (!allowSaturday && d.getDay() === 6) {
