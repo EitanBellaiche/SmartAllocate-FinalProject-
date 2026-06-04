@@ -7,6 +7,11 @@ const DEFAULT_SEMESTER_MONTHS = 3;
 const DEFAULT_HOURS_PER_DAY = 3;
 const DEFAULT_DAYS_PER_WEEK = 1;
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DEFAULT_TIME_WINDOWS = [
+  { id: "morning", label: "Morning", start_time: "08:00", end_time: "12:00" },
+  { id: "noon", label: "Noon", start_time: "12:00", end_time: "16:00" },
+  { id: "evening", label: "Evening", start_time: "16:00", end_time: "22:00" },
+];
 
 function addMonths(date, months) {
   const d = new Date(date);
@@ -19,6 +24,12 @@ function toDateValue(dateObj) {
   const m = String(dateObj.getMonth() + 1).padStart(2, "0");
   const d = String(dateObj.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function toTimeValue(dateObj) {
+  const hh = String(dateObj.getHours()).padStart(2, "0");
+  const mm = String(dateObj.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 function parseIds(raw) {
@@ -576,11 +587,7 @@ export default function AutoScheduler({ embedded = false }) {
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const [timeWindows, setTimeWindows] = useState(() => [
-    { id: "morning", label: "Morning", start_time: "08:00", end_time: "12:00" },
-    { id: "noon", label: "Noon", start_time: "12:00", end_time: "16:00" },
-    { id: "evening", label: "Evening", start_time: "16:00", end_time: "22:00" },
-  ]);
+  const [timeWindows, setTimeWindows] = useState(() => DEFAULT_TIME_WINDOWS);
   const [selection, setSelection] = useState({
     typeIds: [],
     resourceIds: [],
@@ -1111,13 +1118,17 @@ export default function AutoScheduler({ embedded = false }) {
     }
   }
 
-  async function cancelJob(jobId) {
+  async function cancelJob(job) {
+    const jobId = Number(job?.id);
     if (!jobId) return;
     setJobActionState({ id: jobId, action: "cancel" });
     try {
       await apiPost(`/auto-schedule/jobs/${jobId}/cancel`, {});
+      if (job) {
+        loadJobIntoEditor(job);
+      }
       setMessageTone("success");
-      setMessage("Job cancelled.");
+      setMessage("Job cancelled. The setup is back in the editor.");
       await loadJobs();
     } catch (err) {
       setMessageTone("error");
@@ -1166,6 +1177,89 @@ export default function AutoScheduler({ embedded = false }) {
     } finally {
       setJobActionState({ id: null, action: "" });
     }
+  }
+
+  function loadJobIntoEditor(job) {
+    const payload = job?.payload || {};
+    const payloadGroups = Array.isArray(payload.groups) ? payload.groups : [];
+    const windowsByKey = new Map();
+    const nextWindows = [];
+
+    for (const group of payloadGroups) {
+      const preferredList = Array.isArray(group?.preferred_time_windows)
+        ? group.preferred_time_windows
+        : [];
+      const firstWindow = preferredList[0];
+      const startTime = String(firstWindow?.start_time || "").slice(0, 5);
+      const endTime = String(firstWindow?.end_time || "").slice(0, 5);
+      if (!startTime || !endTime) continue;
+      const key = `${startTime}-${endTime}`;
+      if (windowsByKey.has(key)) continue;
+      const id = `loaded_${nextWindows.length + 1}_${Date.now()}`;
+      windowsByKey.set(key, id);
+      nextWindows.push({
+        id,
+        label: `Loaded ${startTime}-${endTime}`,
+        start_time: startTime,
+        end_time: endTime,
+      });
+    }
+
+    const normalizedGroups = payloadGroups.map((group) => {
+      const preferredList = Array.isArray(group?.preferred_time_windows)
+        ? group.preferred_time_windows
+        : [];
+      const firstWindow = preferredList[0];
+      const startTime = String(firstWindow?.start_time || "").slice(0, 5);
+      const endTime = String(firstWindow?.end_time || "").slice(0, 5);
+      const preferredWindowId =
+        startTime && endTime ? windowsByKey.get(`${startTime}-${endTime}`) || "" : "";
+
+      return {
+        group_id: group?.group_id || buildGroupId(),
+        type_ids: Array.isArray(group?.type_ids)
+          ? group.type_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+          : [],
+        resource_ids: Array.isArray(group?.resource_ids)
+          ? group.resource_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id))
+          : [],
+        responsible_user_id: String(group?.responsible_user_id || "").trim(),
+        user_ids: Array.isArray(group?.user_ids) ? group.user_ids.map(String) : [],
+        hours_per_day: Number(group?.hours_per_day) || DEFAULT_HOURS_PER_DAY,
+        days_per_week: Math.min(7, Math.max(1, Number(group?.days_per_week) || DEFAULT_DAYS_PER_WEEK)),
+        preferred_window_id: preferredWindowId,
+      };
+    });
+
+    setRangeStart(String(payload?.start_date || "").trim());
+    setRangeEnd(String(payload?.end_date || "").trim());
+    setTimeWindows(nextWindows.length > 0 ? nextWindows : DEFAULT_TIME_WINDOWS);
+    setGroups(normalizedGroups);
+    setSelection({
+      typeIds: [],
+      resourceIds: [],
+      responsibleId: "",
+      userIds: "",
+      hoursPerDay: String(DEFAULT_HOURS_PER_DAY),
+      daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
+      preferredWindowId: "",
+    });
+    setResponsibleQuery("");
+    setResponsibleOptions([]);
+    setResponsibleUser(null);
+
+    const runAt = job?.run_at ? new Date(job.run_at) : null;
+    if (runAt && !Number.isNaN(runAt.getTime()) && String(job?.status || "") === "scheduled") {
+      setRunMode("deadline");
+      setDeadlineDate(toDateValue(runAt));
+      setDeadlineTime(toTimeValue(runAt));
+    } else {
+      setRunMode("manual");
+    }
+
+    setMessageTone("success");
+    setMessage(`Job #${job?.id || "?"} loaded into the editor. Update the allocations and run it again.`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function revertJob(jobId) {
@@ -1506,7 +1600,8 @@ export default function AutoScheduler({ embedded = false }) {
               const runAtLabel = runAt && !Number.isNaN(runAt.getTime())
                 ? runAt.toLocaleString("he-IL")
                 : String(job?.run_at || "");
-              const status = String(job?.status || "").toUpperCase() || "UNKNOWN";
+              const statusKey = String(job?.status || "").trim().toLowerCase();
+              const status = statusKey.toUpperCase() || "UNKNOWN";
               const allocationCount = Array.isArray(job?.payload?.groups)
                 ? job.payload.groups.length
                 : 0;
@@ -1543,17 +1638,26 @@ export default function AutoScheduler({ embedded = false }) {
                           {isExpanded ? "Hide results" : "View results"}
                         </button>
                       )}
-                      {job.status === "scheduled" && (
+                      {statusKey !== "running" && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50"
+                          onClick={() => loadJobIntoEditor(job)}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {statusKey === "scheduled" && (
                         <button
                           type="button"
                           className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-                          onClick={() => cancelJob(job.id)}
+                          onClick={() => cancelJob(job)}
                           disabled={actionBusy === "cancel"}
                         >
                           {actionBusy === "cancel" ? "Cancelling..." : "Cancel job"}
                         </button>
                       )}
-                      {job.status === "completed" && scheduled.length > 0 && !isReverted && (
+                      {statusKey === "completed" && scheduled.length > 0 && !isReverted && (
                         <button
                           type="button"
                           className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50"
@@ -1563,7 +1667,7 @@ export default function AutoScheduler({ embedded = false }) {
                           {actionBusy === "revert" ? "Cancelling..." : "Cancel results"}
                         </button>
                       )}
-                      {job.status !== "running" && (
+                      {statusKey !== "running" && (
                         <button
                           type="button"
                           className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
@@ -1573,7 +1677,7 @@ export default function AutoScheduler({ embedded = false }) {
                           {actionBusy === "rerun" ? "Creating..." : "Run again"}
                         </button>
                       )}
-                      {job.status !== "running" && (
+                      {statusKey !== "running" && (
                         <button
                           type="button"
                           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
