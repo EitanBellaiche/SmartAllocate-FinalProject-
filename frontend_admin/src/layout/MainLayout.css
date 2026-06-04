@@ -26,6 +26,8 @@
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-gutter: stable;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   padding: 24px 20px 18px;
   background:
     radial-gradient(circle at 18% 12%, rgba(34, 211, 238, 0.08), transparent 22%),
@@ -35,6 +37,11 @@
   border-right: 1px solid rgba(148, 163, 184, 0.14);
   box-shadow: 18px 0 48px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(18px);
+}
+
+.admin-sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .admin-sidebar__brand {
@@ -99,12 +106,19 @@
 
 .admin-sidebar__brand-lockup {
   gap: 10px;
-  width: calc(100% - 24px);
-  transform: translateX(-8px);
+  width: 100%;
 }
 
 .admin-sidebar__brand-lockup .brand-lockup__copy {
   padding-right: 4px;
+}
+
+.admin-sidebar__brand-lockup .brand-lockup__title {
+  font-size: clamp(1.55rem, 2.2vw, 2rem);
+  line-height: 1.06;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .admin-sidebar__subtitle {
