@@ -62,7 +62,7 @@ function buildSchema() {
   };
 }
 
-function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
+export function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
   if (!Array.isArray(clauses) || !clauses.length) {
     throw new Error("No clauses returned by LLM");
   }
@@ -88,72 +88,128 @@ function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
     const compare = clause.compare;
     const value = clause.value ?? "";
     let refField = normalizeField(clause.refField ?? "");
+    const fieldIsA = allowedFieldsA.has(field);
+    const fieldIsB = allowedFieldsB.has(field);
+    const refIsA = allowedFieldsA.has(refField);
+    const refIsB = allowedFieldsB.has(refField);
 
     if (!ALLOWED_SIDE.includes(side)) throw new Error(`Clause ${idx + 1}: invalid side`);
     if (!ALLOWED_OPS.includes(op)) throw new Error(`Clause ${idx + 1}: invalid operator`);
     if (!ALLOWED_COMPARE.includes(compare)) throw new Error(`Clause ${idx + 1}: invalid compare type`);
 
-    if (side === "A") {
-      if (!allowedFieldsA.has(field)) throw new Error(`Clause ${idx + 1}: field not allowed for A`);
-    } else {
-      if (target !== "pair") throw new Error(`Clause ${idx + 1}: side B not allowed for single target`);
-      if (!allowedFieldsB.has(field)) throw new Error(`Clause ${idx + 1}: field not allowed for B`);
+    if (!fieldIsA && !fieldIsB) {
+      throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A or B`);
     }
 
-    if (compare === "field") {
-      if (target !== "pair") {
-        if (side !== "A") throw new Error(`Clause ${idx + 1}: side B not allowed for single target`);
-        if (!allowedFieldsA.has(refField)) {
-          throw new Error(`Clause ${idx + 1}: refField not allowed for Resource A`);
-        }
-        return {
-          side,
-          field,
-          op,
-          compare,
-          value,
-          refField,
-        };
+    if (target !== "pair") {
+      if (!fieldIsA) throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A`);
+      if (compare === "field" && !refIsA) {
+        throw new Error(`Clause ${idx + 1}: refField "${refField}" is not available for Resource A`);
       }
-
-      const refIsA = allowedFieldsA.has(refField);
-      const refIsB = allowedFieldsB.has(refField);
-
-      if (!refIsA && !refIsB) {
-        throw new Error(`Clause ${idx + 1}: refField not allowed for A or B`);
-      }
-
-      if (side === "A" && !refIsB && refIsA) {
-        if (allowedFieldsB.has(field)) {
-          // flip to make it cross-side
-          side = "B";
-          const prevField = field;
-          field = refField;
-          refField = prevField;
-        } else {
-          throw new Error(`Clause ${idx + 1}: refField must be from Resource B fields`);
-        }
-      }
-      if (side === "B" && !refIsA && refIsB) {
-        if (allowedFieldsA.has(field)) {
-          side = "A";
-          const prevField = field;
-          field = refField;
-          refField = prevField;
-        } else {
-          throw new Error(`Clause ${idx + 1}: refField must be from Resource A fields`);
-        }
-      }
+      return {
+        side: "A",
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
     }
 
-    return {
-      side,
-      field,
-      op,
-      compare,
-      value,
-      refField,
-    };
+    if (compare === "value") {
+      if (fieldIsA && !fieldIsB) side = "A";
+      else if (fieldIsB && !fieldIsA) side = "B";
+      else if (!ALLOWED_SIDE.includes(side)) side = "A";
+      if (side === "A" && !fieldIsA) {
+        throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A`);
+      }
+      if (side === "B" && !fieldIsB) {
+        throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource B`);
+      }
+      return {
+        side,
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
+    }
+
+    if (!refField) {
+      throw new Error(`Clause ${idx + 1}: missing refField for field comparison`);
+    }
+    if (!refIsA && !refIsB) {
+      throw new Error(`Clause ${idx + 1}: refField "${refField}" is not available for Resource A or B`);
+    }
+
+    const canBeA = fieldIsA && refIsB;
+    const canBeB = fieldIsB && refIsA;
+
+    if (side === "A" && canBeA) {
+      return {
+        side: "A",
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
+    }
+    if (side === "B" && canBeB) {
+      return {
+        side: "B",
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
+    }
+    if (canBeA && !canBeB) {
+      return {
+        side: "A",
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
+    }
+    if (canBeB && !canBeA) {
+      return {
+        side: "B",
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
+    }
+    if (canBeA && canBeB) {
+      return {
+        side,
+        field,
+        op,
+        compare,
+        value,
+        refField,
+      };
+    }
+
+    if (fieldIsA && refIsA && !fieldIsB && !refIsB) {
+      throw new Error(`Clause ${idx + 1}: both fields belong to Resource A. For pair rules, the comparison must use one field from A and one from B`);
+    }
+    if (fieldIsB && refIsB && !fieldIsA && !refIsA) {
+      throw new Error(`Clause ${idx + 1}: both fields belong to Resource B. For pair rules, the comparison must use one field from A and one from B`);
+    }
+    if (fieldIsA && !refIsB) {
+      throw new Error(`Clause ${idx + 1}: refField "${refField}" must come from Resource B`);
+    }
+    if (fieldIsB && !refIsA) {
+      throw new Error(`Clause ${idx + 1}: refField "${refField}" must come from Resource A`);
+    }
+    throw new Error(`Clause ${idx + 1}: invalid cross-resource comparison`);
   });
 }
 
@@ -166,6 +222,7 @@ function buildPrompt({ sentence, target, typeAName, typeBName, fieldsA, fieldsB 
     "For single-target rules, side must be 'A' and refField must also be from the A list.",
     "For pair-target rules, if side='A' then field must be from A list and refField must be from B list.",
     "For pair-target rules, if side='B' then field must be from B list and refField must be from A list.",
+    "Example: if Classroom capacity is smaller than Course students_number, use compare=field with one side on metadata.capacity and the other on metadata.students_number.",
     "If the sentence implies a boolean like 'no computers', set value=false.",
     "Split multiple conditions connected by 'and' into separate clauses.",
     "If the sentence is unclear or missing info, respond with status='clarify' and add 1-3 short questions.",

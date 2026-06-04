@@ -45,13 +45,6 @@ function containsWizardPhrase(text, phrase) {
   return ` ${text} `.includes(` ${phrase} `);
 }
 
-function extractWizardNumber(value) {
-  const match = String(value || "").match(/-?\d+(?:\.\d+)?/);
-  if (!match) return null;
-  const num = Number(match[0]);
-  return Number.isFinite(num) ? num : null;
-}
-
 function extractWizardDigits(value) {
   return new Set((String(value || "").match(/\d+/g) || []).map(String));
 }
@@ -107,19 +100,10 @@ function matchWizardCatalog(answer, entries = [], threshold = 70) {
     .sort((a, b) => b.matchScore - a.matchScore || String(a.label).localeCompare(String(b.label)));
 }
 
-function formatWizardSuggestions(entries = [], limit = 5) {
-  return entries
-    .slice(0, limit)
-    .map((entry) => entry.label)
-    .join(" | ");
-}
-
-function toNumberIfPossible(v) {
-  if (typeof v !== "string") return v;
-  const trimmed = v.trim();
-  if (!trimmed) return v;
-  const n = Number(trimmed);
-  return Number.isFinite(n) ? n : v;
+function getWizardSearchResults(query, entries = [], limit = 8) {
+  const normalized = normalizeWizardSearch(query);
+  if (!normalized) return entries.slice(0, limit);
+  return matchWizardCatalog(normalized, entries, 1).slice(0, limit);
 }
 
 function getResourceFieldOptions(resource) {
@@ -387,6 +371,21 @@ function detectContradictions(clauses) {
   return "";
 }
 
+function formatWizardParserError(message, { isPair, typeAName, typeBName }) {
+  const text = String(message || "").trim();
+  if (!text) return "AI parsing failed. Try a simpler sentence.";
+  if (text.includes("both fields belong to Resource A")) {
+    return `The AI used two ${typeAName || "Resource A"} fields in the same comparison. For this rule, write one field from ${typeAName || "A"} and one from ${typeBName || "B"}.`;
+  }
+  if (text.includes("both fields belong to Resource B")) {
+    return `The AI used two ${typeBName || "Resource B"} fields in the same comparison. For this rule, write one field from ${typeAName || "A"} and one from ${typeBName || "B"}.`;
+  }
+  if (isPair && (text.includes("Resource A") || text.includes("Resource B"))) {
+    return `${text}. Try wording it like: "${typeAName || "Resource A"} capacity is smaller than ${typeBName || "Resource B"} students number".`;
+  }
+  return text;
+}
+
 export default function Rules() {
   const [rules, setRules] = useState([]);
   const [resources, setResources] = useState([]);
@@ -563,9 +562,10 @@ export default function Rules() {
   }
 
   useEffect(() => {
-    if (![1, 2, 3, 4, 6].includes(wizardStep)) return;
-    setWizardChatInput(wizardChatReplies[wizardStep] || "");
-  }, [wizardStep, wizardChatReplies]);
+    if (wizardStep === 3 || wizardStep === 4) {
+      setWizardChatInput("");
+    }
+  }, [wizardStep]);
 
   function updateWizard(patch) {
     setWizard((prev) => {
@@ -629,26 +629,22 @@ export default function Rules() {
 
   function getWizardPrompt(step) {
     if (step === 1) {
-      return "What should this rule do? For example: 'block this situation' or 'score +15 for this match'.";
+      return "What should this rule do?";
     }
     if (step === 2) {
-      return "Should this rule target a single resource or a pair of resources? You can answer with 'single' or 'pair'.";
+      return "Does this rule check one resource, or compare Resource A to another Resource B?";
     }
     if (step === 3) {
-      const typeExamples = schemaTypes.slice(0, 3).map((type) => type.name).filter(Boolean).join(", ");
-      const resourceExamples = resourceOptions.slice(0, 3).map((resource) => resource.name).filter(Boolean).join(", ");
-      return `Describe Resource A in one message. Examples: 'all ${typeExamples || "classrooms"}' or '${resourceExamples || "Room 101"}'.`;
+      return "Choose Resource A, the main resource this rule is about.";
     }
     if (step === 4) {
-      const typeExamples = schemaTypes.slice(0, 3).map((type) => type.name).filter(Boolean).join(", ");
-      const resourceExamples = resourceOptions.slice(0, 3).map((resource) => resource.name).filter(Boolean).join(", ");
-      return `Describe Resource B in one message. Examples: 'any ${typeExamples || "labs"}' or '${resourceExamples || "Computer Lab 1"}'.`;
+      return "Choose Resource B, the second resource used for the comparison.";
     }
     if (step === 5) {
-      return "Describe the condition in plain English, and I'll turn it into rule JSON.";
+      return "Describe the condition in plain English, and I will turn it into rule logic.";
     }
     if (step === 6) {
-      return "Give the rule settings in one message. Example: 'name: Block exams without computers, description: prevent exam booking in non-computer rooms, sort order 10, active'.";
+      return "Set the rule details.";
     }
     if (step === 7) {
       return "Review the summary and create the rule.";
@@ -660,216 +656,117 @@ export default function Rules() {
     setWizardChatReplies((prev) => ({ ...prev, [step]: text }));
   }
 
-  function parseWizardActionAnswer(answer) {
-    const normalized = normalizeWizardSearch(answer);
-    const scoreValue = extractWizardNumber(answer);
-    if (
-      normalized.includes("score") ||
-      normalized.includes("soft") ||
-      normalized.includes("prefer")
-    ) {
-      return {
-        patch: {
-          actionEffect: "score",
-          scoreValue: Number.isFinite(scoreValue) ? scoreValue : wizard.scoreValue,
-        },
-        reply: Number.isFinite(scoreValue)
-          ? `Understood. This will be a soft scoring rule with score ${scoreValue}.`
-          : "Understood. This will be a soft scoring rule.",
-      };
-    }
-    if (
-      normalized.includes("block") ||
-      normalized.includes("forbid") ||
-      normalized.includes("prevent") ||
-      normalized.includes("hard")
-    ) {
-      return {
-        patch: { actionEffect: "forbid", weight: 0 },
-        reply: "Understood. This will be a blocking rule.",
-      };
-    }
-    return {
-      error: "Please answer with what the rule should do, for example 'block this' or 'score +10'.",
-    };
+  function buildWizardActionReply(effect = wizard.actionEffect, scoreValue = wizard.scoreValue) {
+    return effect === "score"
+      ? `Soft rule: add score ${Number(scoreValue) || 0}.`
+      : "Hard rule: block this situation.";
   }
 
-  function parseWizardTargetAnswer(answer) {
-    const normalized = normalizeWizardSearch(answer);
-    if (
-      normalized.includes("pair") ||
-      normalized.includes("both") ||
-      normalized.includes("a b") ||
-      normalized.includes("two resources") ||
-      normalized.includes("compare")
-    ) {
-      return {
-        patch: { target: "pair" },
-        reply: "Understood. This rule will compare a pair of resources.",
-      };
-    }
-    if (
-      normalized.includes("single") ||
-      normalized.includes("one resource") ||
-      normalized.includes("single resource")
-    ) {
-      return {
-        patch: { target: "single" },
-        reply: "Understood. This rule will target a single resource.",
-      };
-    }
-    return {
-      error: "Please answer with 'single' or 'pair'.",
-    };
+  function buildWizardTargetReply(target = wizard.target) {
+    return target === "pair"
+      ? "Compare two resources: A is the main resource, B is the other one."
+      : "Check one resource only.";
   }
 
-  function parseWizardScopeAnswer(answer, side) {
-    const normalized = normalizeWizardSearch(answer);
-    const preferType =
-      normalized.includes("all ") ||
-      normalized.includes("any ") ||
-      normalized.includes("every ") ||
-      normalized.includes("type");
-    const typeMatches = matchWizardCatalog(answer, wizardTypeCatalog);
-    const resourceMatches = matchWizardCatalog(answer, wizardResourceCatalog);
-    const topType = typeMatches[0] || null;
-    const topResource = resourceMatches[0] || null;
-
-    if (!topType && !topResource) {
-      return {
-        error: `I couldn't match ${side} to a resource type or resource. Try a more exact name. Options: ${formatWizardSuggestions(
-          [...wizardTypeCatalog, ...wizardResourceCatalog],
-          6
-        )}.`,
-      };
-    }
-
-    if (
-      topType &&
-      typeMatches[1] &&
-      topType.matchScore < typeMatches[1].matchScore + 10 &&
-      (!topResource || preferType)
-    ) {
-      return {
-        error: `I found several possible resource types for ${side}. Please be more specific: ${formatWizardSuggestions(typeMatches)}.`,
-      };
-    }
-
-    if (
-      topResource &&
-      resourceMatches[1] &&
-      topResource.matchScore < resourceMatches[1].matchScore + 10 &&
-      !preferType
-    ) {
-      return {
-        error: `I found several possible resources for ${side}. Please be more specific: ${formatWizardSuggestions(resourceMatches)}.`,
-      };
-    }
-
-    const chooseType =
-      preferType ||
-      (topType && (!topResource || topType.matchScore >= topResource.matchScore));
-
-    if (chooseType && topType) {
-      return {
-        patch:
-          side === "A"
-            ? { scopeAMode: "type", typeAId: topType.id, resourceAId: "" }
-            : { scopeBMode: "type", typeBId: topType.id, resourceBId: "" },
-        reply: `Understood. ${side} will use all resources of type ${topType.label}.`,
-      };
-    }
-
-    if (topResource) {
-      return {
-        patch:
-          side === "A"
-            ? { scopeAMode: "resource", resourceAId: topResource.id }
-            : { scopeBMode: "resource", resourceBId: topResource.id },
-        reply: `Understood. ${side} will use the specific resource ${topResource.label}.`,
-      };
-    }
-
-    return {
-      error: `I couldn't resolve ${side}. Try a more exact type or resource name.`,
-    };
+  function buildWizardScopeReply(side, mode, entry) {
+    if (!entry) return "";
+    return mode === "resource"
+      ? `${side}: use the specific resource ${entry.label}.`
+      : `${side}: use any resource of type ${entry.label}.`;
   }
 
-  function parseWizardSettingsAnswer(answer) {
-    const raw = String(answer || "").trim();
-    if (!raw) {
-      return { error: "Please provide at least a rule name." };
-    }
-
-    const lines = raw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const nameMatch = raw.match(/name\s*:\s*([^\n]+)/i);
-    const descriptionMatch = raw.match(/description\s*:\s*([^\n]+)/i);
-    const sortOrderMatch = raw.match(/sort(?:\s+order)?\s*[:=]?\s*(-?\d+)/i);
-    const weightMatch = raw.match(/weight\s*[:=]?\s*(-?\d+)/i);
-    const scoreMatch = raw.match(/score(?:\s+value)?\s*[:=]?\s*(-?\d+)/i);
-    const isInactive = /\b(inactive|disabled|off)\b/i.test(raw);
-    const isActive = /\bactive\b/i.test(raw);
-    const inferredName = nameMatch?.[1]?.trim() || lines[0] || "";
-
-    if (!inferredName) {
-      return { error: "I still need a rule name." };
-    }
-
-    return {
-      patch: {
-        name: inferredName,
-        description: descriptionMatch?.[1]?.trim() || wizard.description,
-        sort_order: sortOrderMatch ? Number(sortOrderMatch[1]) : wizard.sort_order,
-        weight:
-          wizard.actionEffect === "forbid"
-            ? 0
-            : weightMatch
-            ? Number(weightMatch[1])
-            : wizard.weight,
-        scoreValue:
-          wizard.actionEffect === "score" && scoreMatch
-            ? Number(scoreMatch[1])
-            : wizard.scoreValue,
-        is_active: isInactive ? false : isActive ? true : wizard.is_active,
-      },
-      reply: `Saved rule settings for "${inferredName}".`,
-    };
+  function buildWizardSettingsReply() {
+    return `${wizard.name.trim() || "Unnamed rule"} · ${wizard.is_active ? "active" : "inactive"} · sort ${Number(wizard.sort_order) || 0}`;
   }
 
-  function applyWizardStepFromChat(step) {
-    const answer = wizardChatInput.trim();
-    if (!answer) {
-      setWizardError("Please write an answer before continuing.");
-      return false;
-    }
+  function getDefaultWizardName() {
+    const resourceLabel =
+      wizard.scopeAMode === "resource"
+        ? resourceNameById.get(String(wizard.resourceAId)) || "resource"
+        : schemaTypeById.get(String(wizard.typeAId))?.name || "resource";
+    return wizard.actionEffect === "score"
+      ? `Prefer matching ${resourceLabel}`
+      : `Block invalid ${resourceLabel}`;
+  }
 
-    let result = null;
-    if (step === 1) result = parseWizardActionAnswer(answer);
-    if (step === 2) result = parseWizardTargetAnswer(answer);
-    if (step === 3) result = parseWizardScopeAnswer(answer, "A");
-    if (step === 4) result = parseWizardScopeAnswer(answer, "B");
-    if (step === 6) result = parseWizardSettingsAnswer(answer);
+  function chooseWizardScope(side, entry) {
+    if (!entry) return;
+    const step = side === "A" ? 3 : 4;
+    const mode = entry.kind === "resource" ? "resource" : "type";
+    const patch =
+      side === "A"
+        ? mode === "resource"
+          ? { scopeAMode: "resource", resourceAId: entry.id }
+          : { scopeAMode: "type", typeAId: entry.id, resourceAId: "" }
+        : mode === "resource"
+        ? { scopeBMode: "resource", resourceBId: entry.id }
+        : { scopeBMode: "type", typeBId: entry.id, resourceBId: "" };
 
-    if (!result) return false;
-    if (result.error) {
-      setWizardError(result.error);
-      return false;
-    }
-
-    updateWizard(result.patch || {});
-    setWizardReply(step, answer);
-    setWizardChatInput("");
+    updateWizard(patch);
+    setWizardReply(step, buildWizardScopeReply(side, mode, entry));
     setWizardError("");
-    setWizardStep((current) => nextWizardStep(current));
-    return true;
+    setWizardChatInput("");
+    setWizardStep((current) => (current === step ? nextWizardStep(current) : current));
+  }
+
+  function completeStructuredWizardStep(step) {
+    if (step === 1) {
+      setWizardReply(1, buildWizardActionReply());
+      setWizardError("");
+      setWizardStep((current) => nextWizardStep(current));
+      return true;
+    }
+    if (step === 2) {
+      setWizardReply(2, buildWizardTargetReply());
+      setWizardError("");
+      setWizardStep((current) => nextWizardStep(current));
+      return true;
+    }
+    if (step === 3) {
+      const isType = wizard.scopeAMode === "type";
+      const selectedEntry = isType
+        ? wizardTypeCatalog.find((entry) => String(entry.id) === String(wizard.typeAId))
+        : wizardResourceCatalog.find((entry) => String(entry.id) === String(wizard.resourceAId));
+      if (!selectedEntry) {
+        setWizardError(`Choose Resource A as ${isType ? "a type" : "a specific resource"} before continuing.`);
+        return false;
+      }
+      setWizardReply(3, buildWizardScopeReply("A", isType ? "type" : "resource", selectedEntry));
+      setWizardError("");
+      setWizardStep((current) => nextWizardStep(current));
+      return true;
+    }
+    if (step === 4) {
+      const isType = wizard.scopeBMode === "type";
+      const selectedEntry = isType
+        ? wizardTypeCatalog.find((entry) => String(entry.id) === String(wizard.typeBId))
+        : wizardResourceCatalog.find((entry) => String(entry.id) === String(wizard.resourceBId));
+      if (!selectedEntry) {
+        setWizardError(`Choose Resource B as ${isType ? "a type" : "a specific resource"} before continuing.`);
+        return false;
+      }
+      setWizardReply(4, buildWizardScopeReply("B", isType ? "type" : "resource", selectedEntry));
+      setWizardError("");
+      setWizardStep((current) => nextWizardStep(current));
+      return true;
+    }
+    if (step === 6) {
+      const err = validateWizardStep(6);
+      if (err) {
+        setWizardError(err);
+        return false;
+      }
+      setWizardReply(6, buildWizardSettingsReply());
+      setWizardError("");
+      setWizardStep((current) => nextWizardStep(current));
+      return true;
+    }
+    return false;
   }
 
   async function handleWizardContinue() {
     if ([1, 2, 3, 4, 6].includes(wizardStep)) {
-      applyWizardStepFromChat(wizardStep);
+      completeStructuredWizardStep(wizardStep);
       return;
     }
 
@@ -878,6 +775,9 @@ export default function Rules() {
       if (err) {
         setWizardError(err);
         return;
+      }
+      if (!String(wizard.name || "").trim()) {
+        updateWizard({ name: getDefaultWizardName() });
       }
       setWizardError("");
       setWizardStep((current) => nextWizardStep(current));
@@ -978,7 +878,13 @@ export default function Rules() {
     } catch (err) {
       console.error("LLM parse failed:", err);
       setWizard((prev) => ({ ...prev, lastAppliedSentence: "" }));
-      setWizardError(err?.data?.error || err.message || "LLM parse failed");
+      setWizardError(
+        formatWizardParserError(err?.data?.error || err.message || "LLM parse failed", {
+          isPair: wizard.target === "pair",
+          typeAName: schemaTypeById.get(String(wizard.typeAId))?.name || "Resource A",
+          typeBName: schemaTypeById.get(String(wizard.typeBId))?.name || "Resource B",
+        })
+      );
     } finally {
       setWizardBusy(false);
     }
@@ -1200,6 +1106,22 @@ export default function Rules() {
   const wizardSummary = buildWizardSummary();
   const wizardPayload = buildWizardPayload();
   const wizardTranscript = buildWizardTranscript();
+  const wizardScopeASearchResults = getWizardSearchResults(
+    wizardChatInput,
+    wizard.scopeAMode === "type" ? wizardTypeCatalog : wizardResourceCatalog
+  );
+  const wizardScopeBSearchResults = getWizardSearchResults(
+    wizardChatInput,
+    wizard.scopeBMode === "type" ? wizardTypeCatalog : wizardResourceCatalog
+  );
+  const wizardSelectedAEntry =
+    wizard.scopeAMode === "type"
+      ? wizardTypeCatalog.find((entry) => String(entry.id) === String(wizard.typeAId))
+      : wizardResourceCatalog.find((entry) => String(entry.id) === String(wizard.resourceAId));
+  const wizardSelectedBEntry =
+    wizard.scopeBMode === "type"
+      ? wizardTypeCatalog.find((entry) => String(entry.id) === String(wizard.typeBId))
+      : wizardResourceCatalog.find((entry) => String(entry.id) === String(wizard.resourceBId));
 
   function ensureDefaultFieldA(next) {
     const updated = { ...next };
@@ -1991,15 +1913,39 @@ export default function Rules() {
               <div className="flex justify-end">
                 <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
-                    Examples: "block rooms without computers" or "score +15 when nearby rooms match".
+                    Start with the rule effect. Most admin rules should use <strong>Block</strong>.
                   </div>
-                  <textarea
-                    className={`w-full p-3 border rounded text-sm ${theme.input}`}
-                    rows={3}
-                    placeholder="Write what the rule should do..."
-                    value={wizardChatInput}
-                    onChange={(e) => setWizardChatInput(e.target.value)}
-                  />
+                  <div className="rules-wizard-choice-grid">
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.actionEffect === "forbid" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => updateWizard({ actionEffect: "forbid", weight: 0 })}
+                    >
+                      <span className="rules-wizard-choice__title">Block</span>
+                      <span className="rules-wizard-choice__meta">Stop invalid bookings completely.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.actionEffect === "score" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => updateWizard({ actionEffect: "score" })}
+                    >
+                      <span className="rules-wizard-choice__title">Score</span>
+                      <span className="rules-wizard-choice__meta">Soft preference, adds points instead of blocking.</span>
+                    </button>
+                  </div>
+                  {wizard.actionEffect === "score" && (
+                    <div className="rules-wizard-inline-fields">
+                      <label className="rules-wizard-field">
+                        <span className={`text-xs ${theme.textSoft}`}>Score value</span>
+                        <input
+                          type="number"
+                          className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                          value={wizard.scoreValue}
+                          onChange={(e) => updateWizard({ scoreValue: e.target.value })}
+                        />
+                      </label>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2008,61 +1954,176 @@ export default function Rules() {
               <div className="flex justify-end">
                 <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
-                    Examples: "single" or "pair".
+                    Choose <strong>Single resource</strong> when the rule checks one room/course by its own fields, like capacity or equipment.
                   </div>
-                  <textarea
-                    className={`w-full p-3 border rounded text-sm ${theme.input}`}
-                    rows={2}
-                    placeholder="Write single or pair..."
-                    value={wizardChatInput}
-                    onChange={(e) => setWizardChatInput(e.target.value)}
-                  />
+                  <div className="rules-wizard-choice-grid">
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.target === "single" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ target: "single" });
+                        setWizardReply(2, buildWizardTargetReply("single"));
+                        setWizardError("");
+                        setWizardStep((current) => (current === 2 ? nextWizardStep(current) : current));
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">Single resource</span>
+                      <span className="rules-wizard-choice__meta">Example: block a classroom when its capacity is too small.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.target === "pair" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ target: "pair" });
+                        setWizardReply(2, buildWizardTargetReply("pair"));
+                        setWizardError("");
+                        setWizardStep((current) => (current === 2 ? nextWizardStep(current) : current));
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">Compare two resources</span>
+                      <span className="rules-wizard-choice__meta">Use this only when A must be compared to another resource B.</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
             {wizardStep === 3 && (
               <div className="flex justify-end">
-                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
-                    Resource A is the main resource the rule is about (the one being evaluated).
+                    Resource A is the main resource the rule is about.
                   </div>
-                  <div className={`text-xs ${theme.textSoft}`}>
-                    Types: {formatWizardSuggestions(wizardTypeCatalog, 4) || "No resource types found."}
+                  <div className="rules-wizard-choice-grid">
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.scopeAMode === "type" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ scopeAMode: "type", typeAId: "", resourceAId: "" });
+                        setWizardChatInput("");
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">Any resource of a type</span>
+                      <span className="rules-wizard-choice__meta">Best for rules like "all classrooms" or "all courses".</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.scopeAMode === "resource" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ scopeAMode: "resource", resourceAId: "" });
+                        setWizardChatInput("");
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">One specific resource</span>
+                      <span className="rules-wizard-choice__meta">Pick an exact room or course from the list.</span>
+                    </button>
                   </div>
-                  <div className={`text-xs ${theme.textSoft}`}>
-                    Resources: {formatWizardSuggestions(wizardResourceCatalog, 4) || "No resources found."}
+                  <div className="rules-wizard-picker">
+                    <div className={`text-xs ${theme.textSoft}`}>
+                      Search {wizard.scopeAMode === "type" ? "resource types" : "resources"} and click one result.
+                    </div>
+                    <input
+                      className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                      placeholder={wizard.scopeAMode === "type" ? "Search type: classroom, courses..." : "Search resource: Classroom 201, Intro to AI..."}
+                      value={wizardChatInput}
+                      onChange={(e) => setWizardChatInput(e.target.value)}
+                    />
+                    <div className="rules-wizard-picker__list">
+                      {wizardScopeASearchResults.map((entry) => (
+                        <button
+                          key={`wizard-a-${entry.kind}-${entry.id}`}
+                          type="button"
+                          className={`rules-wizard-picker__option ${
+                            wizardSelectedAEntry?.kind === entry.kind && String(wizardSelectedAEntry?.id) === String(entry.id)
+                              ? "rules-wizard-picker__option--active"
+                              : ""
+                          }`}
+                          onClick={() => chooseWizardScope("A", entry)}
+                        >
+                          <span>{entry.label}</span>
+                          <span className="rules-wizard-picker__badge">{entry.kind === "type" ? "Type" : "Resource"}</span>
+                        </button>
+                      ))}
+                      {wizardScopeASearchResults.length === 0 && (
+                        <div className={`text-xs ${theme.textSoft}`}>No matches. Try a shorter search.</div>
+                      )}
+                    </div>
                   </div>
-                  <textarea
-                    className={`w-full p-3 border rounded text-sm ${theme.input}`}
-                    rows={3}
-                    placeholder="Examples: all classrooms, any lab, Room 101"
-                    value={wizardChatInput}
-                    onChange={(e) => setWizardChatInput(e.target.value)}
-                  />
+                  {wizardSelectedAEntry && (
+                    <div className={`text-xs ${theme.textSoft}`}>
+                      Selected: <strong>{wizardSelectedAEntry.label}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {wizardStep === 4 && wizard.target === "pair" && (
               <div className="flex justify-end">
-                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
                     Resource B is the second resource checked together with Resource A.
                   </div>
-                  <div className={`text-xs ${theme.textSoft}`}>
-                    Types: {formatWizardSuggestions(wizardTypeCatalog, 4) || "No resource types found."}
+                  <div className="rules-wizard-choice-grid">
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.scopeBMode === "type" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ scopeBMode: "type", typeBId: "", resourceBId: "" });
+                        setWizardChatInput("");
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">Any resource of a type</span>
+                      <span className="rules-wizard-choice__meta">Use when B can be any resource from a type.</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.scopeBMode === "resource" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ scopeBMode: "resource", resourceBId: "" });
+                        setWizardChatInput("");
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">One specific resource</span>
+                      <span className="rules-wizard-choice__meta">Use when the rule compares against one exact room/course.</span>
+                    </button>
                   </div>
-                  <div className={`text-xs ${theme.textSoft}`}>
-                    Resources: {formatWizardSuggestions(wizardResourceCatalog, 4) || "No resources found."}
+                  <div className="rules-wizard-picker">
+                    <div className={`text-xs ${theme.textSoft}`}>
+                      Search {wizard.scopeBMode === "type" ? "resource types" : "resources"} and click one result.
+                    </div>
+                    <input
+                      className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                      placeholder={wizard.scopeBMode === "type" ? "Search type: lab, auditorium..." : "Search resource: Lab 1, Auditorium..."}
+                      value={wizardChatInput}
+                      onChange={(e) => setWizardChatInput(e.target.value)}
+                    />
+                    <div className="rules-wizard-picker__list">
+                      {wizardScopeBSearchResults.map((entry) => (
+                        <button
+                          key={`wizard-b-${entry.kind}-${entry.id}`}
+                          type="button"
+                          className={`rules-wizard-picker__option ${
+                            wizardSelectedBEntry?.kind === entry.kind && String(wizardSelectedBEntry?.id) === String(entry.id)
+                              ? "rules-wizard-picker__option--active"
+                              : ""
+                          }`}
+                          onClick={() => chooseWizardScope("B", entry)}
+                        >
+                          <span>{entry.label}</span>
+                          <span className="rules-wizard-picker__badge">{entry.kind === "type" ? "Type" : "Resource"}</span>
+                        </button>
+                      ))}
+                      {wizardScopeBSearchResults.length === 0 && (
+                        <div className={`text-xs ${theme.textSoft}`}>No matches. Try a shorter search.</div>
+                      )}
+                    </div>
                   </div>
-                  <textarea
-                    className={`w-full p-3 border rounded text-sm ${theme.input}`}
-                    rows={3}
-                    placeholder="Examples: all labs, Computer Room 2, any projector room"
-                    value={wizardChatInput}
-                    onChange={(e) => setWizardChatInput(e.target.value)}
-                  />
+                  {wizardSelectedBEntry && (
+                    <div className={`text-xs ${theme.textSoft}`}>
+                      Selected: <strong>{wizardSelectedBEntry.label}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -2076,6 +2137,11 @@ export default function Rules() {
                       Example: “Block if exam needs computers and the room has no computers”
                       or “Block when capacity is smaller than students number”.
                     </div>
+                    {wizard.target === "pair" && (
+                      <div className={`text-xs ${theme.textSoft}`}>
+                        For pair rules, describe both sides explicitly. Example: “Block when classroom capacity is smaller than course students number”.
+                      </div>
+                    )}
                     <textarea
                       className={`w-full p-3 border rounded text-sm ${theme.input}`}
                       rows={4}
@@ -2295,15 +2361,61 @@ export default function Rules() {
               <div className="flex justify-end">
                 <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[85%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
-                    You can keep it simple with just a name, or add more details like description, sort order, weight, and active/inactive.
+                    Keep this part simple. Only the rule name is required.
                   </div>
-                  <textarea
-                    className={`w-full p-3 border rounded text-sm ${theme.input}`}
-                    rows={5}
-                    placeholder="Example: name: Block exams without computers&#10;description: prevent computerized exams in rooms without computers&#10;sort order 10&#10;active"
-                    value={wizardChatInput}
-                    onChange={(e) => setWizardChatInput(e.target.value)}
-                  />
+                  <div className="rules-wizard-inline-fields rules-wizard-inline-fields--two">
+                    <label className="rules-wizard-field">
+                      <span className={`text-xs ${theme.textSoft}`}>Rule name</span>
+                      <input
+                        type="text"
+                        className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                        value={wizard.name}
+                        onChange={(e) => updateWizard({ name: e.target.value })}
+                        placeholder="Block classrooms over capacity"
+                      />
+                    </label>
+                    <label className="rules-wizard-field">
+                      <span className={`text-xs ${theme.textSoft}`}>Description</span>
+                      <input
+                        type="text"
+                        className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                        value={wizard.description}
+                        onChange={(e) => updateWizard({ description: e.target.value })}
+                        placeholder="Optional"
+                      />
+                    </label>
+                    <label className="rules-wizard-field">
+                      <span className={`text-xs ${theme.textSoft}`}>Sort order</span>
+                      <input
+                        type="number"
+                        className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                        value={wizard.sort_order}
+                        onChange={(e) => updateWizard({ sort_order: e.target.value })}
+                      />
+                    </label>
+                    <label className="rules-wizard-field">
+                      <span className={`text-xs ${theme.textSoft}`}>Status</span>
+                      <select
+                        className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                        value={wizard.is_active ? "active" : "inactive"}
+                        onChange={(e) => updateWizard({ is_active: e.target.value === "active" })}
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </label>
+                    {wizard.actionEffect === "score" && (
+                      <label className="rules-wizard-field">
+                        <span className={`text-xs ${theme.textSoft}`}>Score value</span>
+                        <input
+                          type="number"
+                          className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                          value={wizard.scoreValue}
+                          onChange={(e) => updateWizard({ scoreValue: e.target.value })}
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2343,7 +2455,7 @@ export default function Rules() {
                     onClick={handleWizardContinue}
                     className={`rules-wizard-modal__primary px-4 py-2 rounded ${theme.buttonPrimary}`}
                   >
-                    {[1, 2, 3, 4, 6].includes(wizardStep) ? "Send" : "Next"}
+                    {wizardStep === 5 ? "Next" : "Continue"}
                   </button>
                 )}
 
