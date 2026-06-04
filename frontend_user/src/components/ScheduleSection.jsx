@@ -4,6 +4,8 @@ import { formatTime, getBookingShortLocation, isPastBooking } from "../utils/app
 
 export default function ScheduleSection({
   isCinema,
+  isShenkar,
+  isClinic,
   labels,
   labelsLower,
   filter,
@@ -26,6 +28,10 @@ export default function ScheduleSection({
   const [mobileMonthKey, setMobileMonthKey] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const selectedDayKey = selectedDay?.key || "";
+  const calendarClassName =
+    isShenkar && role === "manager" && !isCinema && !isClinic
+      ? "mobile-calendar--admin"
+      : "";
   const selectedDayLabel = useMemo(() => {
     if (!selectedDay?.date) return "";
     try {
@@ -118,6 +124,7 @@ export default function ScheduleSection({
         <div className="schedule-content">
           {viewMode === "month" ? (
             <MobileMonthAgenda
+              className={calendarClassName}
               monthLabel={monthLabel}
               days={monthDays}
               selectedDayKey={selectedDayKey}

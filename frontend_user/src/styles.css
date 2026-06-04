@@ -3071,6 +3071,101 @@ select {
   color: #0f766e;
 }
 
+.mobile-calendar--admin {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(45, 212, 191, 0.1), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.08);
+}
+
+.mobile-calendar--admin .mobile-calendar__top {
+  background:
+    linear-gradient(135deg, #f8fbff 0%, #eef6ff 52%, #ecfeff 100%);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+  color: #0f172a;
+}
+
+.mobile-calendar--admin .mobile-calendar__month {
+  color: #0f172a;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  letter-spacing: -0.02em;
+}
+
+.mobile-calendar--admin .mobile-calendar__weekdays {
+  color: #475569;
+  font-weight: 900;
+}
+
+.mobile-calendar--admin .mobile-calendar__nav button {
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.mobile-calendar--admin .mobile-calendar__nav button:hover {
+  background: #f8fafc;
+  border-color: rgba(14, 165, 233, 0.36);
+  color: #0369a1;
+}
+
+.mobile-calendar--admin .mobile-calendar__body {
+  padding: 14px;
+  background: transparent;
+}
+
+.mobile-calendar--admin .mobile-day {
+  min-height: 62px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.mobile-calendar--admin .mobile-day:hover {
+  transform: translateY(-1px);
+  border-color: rgba(14, 165, 233, 0.34);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%);
+}
+
+.mobile-calendar--admin .mobile-day.selected {
+  border-color: rgba(14, 165, 233, 0.42);
+  background: linear-gradient(180deg, #f0f9ff 0%, #ecfeff 100%);
+  box-shadow: 0 14px 28px rgba(2, 132, 199, 0.12);
+}
+
+.mobile-calendar--admin .mobile-day.selected .mobile-day__num {
+  background: rgba(14, 165, 233, 0.16);
+  border: 1px solid rgba(14, 165, 233, 0.32);
+  color: #0c4a6e;
+}
+
+.mobile-calendar--admin .mobile-dot {
+  background: linear-gradient(135deg, #0ea5e9, #14b8a6);
+}
+
+.mobile-calendar--admin .mobile-agenda__header,
+.mobile-calendar--admin .mobile-agenda__item {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(186, 230, 253, 0.18), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.92) 100%);
+}
+
+.mobile-calendar--admin .mobile-agenda__header {
+  color: #0f172a;
+}
+
+.mobile-calendar--admin .mobile-agenda__title {
+  color: #0f172a;
+}
+
+.mobile-calendar--admin .mobile-agenda__time {
+  color: #0369a1;
+}
+
 .schedule-day-modal {
   position: fixed;
   inset: 0;

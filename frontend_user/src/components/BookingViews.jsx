@@ -20,6 +20,7 @@ function MobileMonthAgenda({
   emptyAgendaText = "No items for this day.",
   weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   locale = "en-US",
+  className = "",
 }) {
   const selectedDay =
     (Array.isArray(days) ? days : []).find((d) => d?.key === selectedDayKey) || null;
@@ -34,7 +35,7 @@ function MobileMonthAgenda({
   })();
 
   return (
-    <div className="mobile-calendar glass">
+    <div className={`mobile-calendar glass ${className}`.trim()}>
       <div className="mobile-calendar__top">
         <div className="mobile-calendar__top-row">
           <div className="mobile-calendar__nav">

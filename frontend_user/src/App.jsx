@@ -237,6 +237,11 @@ export default function App() {
 
   const isCinema = activeConfig.domain === "cinema";
   const isClinic = activeConfig.domain === "clinic";
+  const compactOrgId = String(sessionOrgId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  const isShenkar = compactOrgId === "shenkar";
 
   const cinemaPrimaryButton = {
     border: "none",
@@ -785,6 +790,8 @@ export default function App() {
         {section === "schedule" ? (
           <ScheduleSection
             isCinema={isCinema}
+            isShenkar={isShenkar}
+            isClinic={isClinic}
             labels={labels}
             labelsLower={labelsLower}
             filter={filter}
