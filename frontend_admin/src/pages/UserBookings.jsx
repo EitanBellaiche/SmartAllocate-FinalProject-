@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPut, getAdminSession, setAdminSession } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
+import "./UserBookings.css";
 
 function formatDateValue(dateStr) {
   if (!dateStr) return "";
@@ -289,10 +290,10 @@ export default function UserBookings() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className={`overflow-visible rounded-[28px] border p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6 ${theme.heroDark}`}>
+    <div className="user-bookings-page space-y-6">
+      <section className={`user-bookings-hero overflow-visible rounded-[28px] border p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-6 ${theme.heroDark}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-xl">
+          <div className="user-bookings-hero__copy max-w-xl">
             <div className={`mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${theme.heroEyebrow}`}>
               Admin Review
             </div>
@@ -304,21 +305,21 @@ export default function UserBookings() {
               resources assigned to them from one place.
             </p>
           </div>
-          <div className="grid w-full gap-2 sm:grid-cols-3 lg:max-w-[560px]">
+          <div className="user-bookings-metrics grid w-full gap-2 sm:grid-cols-3 lg:max-w-[560px]">
             <MetricCard label="Active Bookings" value={activeBookings.length} tone="blue" theme={theme} />
             <MetricCard label="Cancelled" value={cancelledCount} tone="slate" theme={theme} />
             <MetricCard label="Assigned Resources" value={assignedResources.length} tone="emerald" theme={theme} />
           </div>
         </div>
 
-        <div className={`mt-5 rounded-[22px] border p-3.5 shadow-sm backdrop-blur sm:p-4 ${theme.panelSoft}`}>
+        <div className={`user-bookings-search mt-5 rounded-[22px] border p-3.5 shadow-sm backdrop-blur sm:p-4 ${theme.panelSoft}`}>
           <label className={`mb-2 block text-sm font-semibold ${isCinema ? "text-slate-100" : theme.textStrong}`}>
             Find User
           </label>
           <div className="relative">
             <input
               type="text"
-              className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
+              className={`user-bookings-search__input w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
               value={userQuery}
               onChange={(e) => {
                 setUserQuery(e.target.value);
@@ -355,7 +356,7 @@ export default function UserBookings() {
             </div>
           )}
           {userOptions.length > 0 && (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="user-bookings-user-results mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="max-h-56 overflow-auto">
                 {userOptions.map((u) => (
                   <button
@@ -380,8 +381,8 @@ export default function UserBookings() {
         </div>
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
-        <section className={`rounded-[24px] border p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${theme.card}`}>
+      <div className="user-bookings-layout grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+        <section className={`user-bookings-panel user-bookings-panel--bookings rounded-[24px] border p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${theme.card}`}>
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h3 className={`text-xl font-bold ${theme.textStrong}`}>Current Bookings</h3>
@@ -405,11 +406,11 @@ export default function UserBookings() {
                 : "No bookings for this user."}
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="user-bookings-current-list space-y-4">
               {activeBookings.map((b) => (
                 <article
                   key={b.id}
-                  className={`rounded-2xl border p-3.5 shadow-sm ${theme.modalSurface}`}
+                  className={`user-bookings-current-card rounded-2xl border p-3.5 shadow-sm ${theme.modalSurface}`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -440,8 +441,8 @@ export default function UserBookings() {
           )}
         </section>
 
-        <section className="space-y-6">
-          <div className={`rounded-[24px] border p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${theme.card}`}>
+        <section className="user-bookings-side space-y-6">
+          <div className={`user-bookings-panel user-bookings-panel--assigned rounded-[24px] border p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${theme.card}`}>
             <div className="mb-5 flex items-center justify-between gap-3">
               <div>
                 <h3 className={`text-xl font-bold ${theme.textStrong}`}>Assigned Resources</h3>
@@ -460,13 +461,13 @@ export default function UserBookings() {
                   No assigned resources.
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="user-bookings-assigned-list space-y-3">
                   {assignedResources.map((r) => {
                     const type = resourceTypes.find((t) => t.id === r.type_id);
                     return (
                       <div
                         key={r.id}
-                        className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 ${theme.modalSurface}`}
+                        className={`user-bookings-assigned-card flex items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 ${theme.modalSurface}`}
                       >
                         <div>
                           <div className={`font-semibold ${theme.textStrong}`}>{r.name}</div>
@@ -494,7 +495,7 @@ export default function UserBookings() {
             )}
           </div>
 
-          <div className={`rounded-[24px] border p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${theme.card}`}>
+          <div className={`user-bookings-panel user-bookings-panel--assign rounded-[24px] border p-5 shadow-[0_10px_28px_rgba(15,23,42,0.05)] ${theme.card}`}>
             <div className="mb-4">
               <h3 className={`text-xl font-bold ${theme.textStrong}`}>Assign Resources</h3>
               <p className={`mt-1 text-sm ${theme.textSoft}`}>
@@ -520,12 +521,12 @@ export default function UserBookings() {
                 value={resourceSearch}
                 onChange={(e) => setResourceSearch(e.target.value)}
                 placeholder="Search resources by name, type, or metadata..."
-                className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
+                className={`user-bookings-resource-search w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
                 disabled={!userId}
               />
             </div>
 
-            <div className={`mb-4 max-h-[360px] overflow-y-auto rounded-2xl border p-2.5 ${theme.modalSurface}`}>
+            <div className={`user-bookings-resource-list mb-4 max-h-[360px] overflow-y-auto rounded-2xl border p-2.5 ${theme.modalSurface}`}>
               <div className="grid gap-3">
                 {filteredAssignableResources.map((r) => {
                   const type = resourceTypes.find((t) => t.id === r.type_id);
@@ -533,7 +534,7 @@ export default function UserBookings() {
                   return (
                     <label
                       key={r.id}
-                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-2.5 transition ${
+                      className={`user-bookings-resource-option flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-2.5 transition ${
                         checked
                           ? `${theme.highlightTag} shadow-sm`
                           : `${theme.card} hover:border-slate-300`
@@ -569,7 +570,7 @@ export default function UserBookings() {
               type="button"
               onClick={saveUserResources}
               disabled={!userId || savingResources}
-              className={`inline-flex items-center rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${theme.buttonPrimary} disabled:bg-slate-300`}
+              className={`user-bookings-save inline-flex items-center rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${theme.buttonPrimary} disabled:bg-slate-300`}
             >
               {savingResources ? "Saving..." : "Save User Resources"}
             </button>
@@ -588,7 +589,7 @@ function MetricCard({ label, value, tone, theme }) {
   };
 
   return (
-    <div className={`rounded-2xl border px-4 py-2.5 ${tones[tone] || tones.slate}`}>
+    <div className={`user-bookings-metric rounded-2xl border px-4 py-2.5 ${tones[tone] || tones.slate}`}>
       <div className="text-[11px] font-semibold uppercase tracking-[0.16em]">{label}</div>
       <div className="mt-1.5 text-2xl font-black">{value}</div>
     </div>

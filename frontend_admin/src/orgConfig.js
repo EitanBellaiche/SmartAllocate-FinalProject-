@@ -2,6 +2,19 @@ import { getAdminSession } from "./api/api";
 
 const STORAGE_PREFIX = "smartallocate.presentation.";
 
+const ORG_DOMAIN_OVERRIDES = {
+  shenkar: "generic",
+  soroka: "clinic",
+  soroka_hospital: "clinic",
+  "soroka-hospital": "clinic",
+  sorokamedicalcenter: "clinic",
+  soroka_medical_center: "clinic",
+  "soroka-medical-center": "clinic",
+  yesplanetramatgan: "cinema",
+  yes_planet_ramat_gan: "cinema",
+  "yes-planet-ramat-gan": "cinema",
+};
+
 const DEFAULT_LABELS = {
   user: "User",
   users: "Users",
@@ -196,35 +209,35 @@ const CINEMA_CONFIG = {
     navIdle: "text-slate-100 hover:bg-white/5 hover:text-white",
     activeNav: "bg-violet-400/15 text-violet-100 border border-violet-300/20",
     idleNav: "text-slate-100 hover:bg-white/5 hover:text-white",
-    hero: "from-[#0f172a] via-[#111827] to-[#1e1b4b]",
-    heroEyebrow: "border-violet-300/20 bg-violet-400/15 text-violet-100",
-    primaryButton: "bg-violet-600 hover:bg-violet-700 text-white shadow-violet-300/20",
+    hero: "from-[#180f2e] via-[#26133f] to-[#4c1d95]",
+    heroEyebrow: "border-fuchsia-300/30 bg-fuchsia-400/14 text-fuchsia-100",
+    primaryButton: "bg-violet-600 hover:bg-fuchsia-700 text-white shadow-violet-300/20",
     panelBorder: "border-slate-200",
     panelBg: "bg-white",
-    tag: "bg-violet-100 text-violet-700 border border-violet-200",
-    card: "border-purple-900/25 bg-[linear-gradient(180deg,#fff_0%,#faf7ff_100%)]",
-    panelSoft: "border-purple-800/35 bg-white/10 backdrop-blur-sm",
-    heroDark: "border-red-900/30 bg-[linear-gradient(135deg,#16121f_0%,#21162c_45%,#2a1b38_100%)]",
-    buttonPrimary: "bg-gray-400 hover:bg-gray-600 text-white",
+    tag: "bg-fuchsia-100 text-fuchsia-800 border border-fuchsia-200",
+    card: "border-violet-200/70 bg-[linear-gradient(180deg,#fff_0%,#faf5ff_100%)]",
+    panelSoft: "border-violet-200/60 bg-white/14 backdrop-blur-sm",
+    heroDark: "border-violet-900/35 bg-[linear-gradient(135deg,#12091f_0%,#24103d_46%,#4c1d95_100%)]",
+    buttonPrimary: "bg-[linear-gradient(135deg,#4c1d95_0%,#7c3aed_55%,#db2777_100%)] hover:brightness-110 text-white",
     buttonSecondary:
-      "border border-purple-300 text-purple-700 bg-white hover:bg-purple-50 shadow-sm",
+      "border border-fuchsia-200 text-fuchsia-800 bg-white hover:bg-fuchsia-50 shadow-sm",
     textStrong: "text-purple-950",
     textSoft: "text-slate-300",
     seatAvailable: "bg-emerald-500",
     seatBlocked: "bg-slate-400",
     seatBroken: "bg-red-600",
     input:
-      "border-purple-800/30 bg-white/80 text-purple-950 focus:border-red-700 focus:bg-white focus:ring-4 focus:ring-red-100",
-    modalCard: "border-purple-900/25 bg-[linear-gradient(180deg,#fff_0%,#faf7ff_100%)]",
-    modalSurface: "border-purple-900/20 bg-white/70",
+      "border-violet-200 bg-white/85 text-purple-950 focus:border-fuchsia-400 focus:bg-white focus:ring-4 focus:ring-fuchsia-100",
+    modalCard: "border-violet-200/80 bg-[linear-gradient(180deg,#fff_0%,#faf5ff_100%)]",
+    modalSurface: "border-violet-200/70 bg-white/75",
     modalMuted: "text-slate-600",
     buttonDanger: "bg-red-700 hover:bg-red-800 text-white",
-    buttonWarning: "bg-purple-700 hover:bg-purple-800 text-white",
-    buttonGhost: "border-purple-900/25 bg-white/80 text-purple-950 hover:bg-white",
-    buttonNeutral: "bg-indigo-600 hover:bg-indigo-700 text-white",
-    tagMuted: "border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
-    highlightTag: "border border-indigo-200 bg-indigo-50 text-indigo-700",
-    aisle: "bg-purple-900/15",
+    buttonWarning: "bg-fuchsia-700 hover:bg-fuchsia-800 text-white",
+    buttonGhost: "border-violet-200 bg-white/85 text-purple-950 hover:bg-fuchsia-50",
+    buttonNeutral: "bg-violet-700 hover:bg-violet-800 text-white",
+    tagMuted: "border border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800",
+    highlightTag: "border border-amber-200 bg-amber-50 text-amber-800",
+    aisle: "bg-violet-900/15",
     seatAvailableClass:
       "border-violet-300 bg-[linear-gradient(180deg,#ede9fe_0%,#ddd6fe_100%)] hover:bg-[linear-gradient(180deg,#ede9fe_0%,#c4b5fd_100%)]",
     seatBlockedClass:
@@ -312,40 +325,40 @@ const CLINIC_CONFIG = {
     sidebar: "bg-white",
     sidebarText: "text-slate-900",
     sidebarMuted: "text-slate-500",
-    sidebarAccent: "text-sky-600",
+    sidebarAccent: "text-emerald-700",
     pageBg: "bg-slate-50",
-    hoverBg: "hover:bg-sky-50",
-    hoverText: "hover:text-sky-700",
-    navActive: "bg-sky-100 text-sky-700 border border-sky-200",
-    navIdle: "text-slate-700 hover:bg-sky-50 hover:text-sky-700",
-    activeNav: "bg-sky-100 text-sky-700 border border-sky-200",
-    idleNav: "text-slate-700 hover:bg-sky-50 hover:text-sky-700",
-    hero: "from-sky-600 via-cyan-600 to-teal-500",
-    heroEyebrow: "border-white/20 bg-white/10 text-white/90",
-    primaryButton: "bg-sky-600 hover:bg-sky-700 text-white shadow-sky-200/40",
+    hoverBg: "hover:bg-emerald-50",
+    hoverText: "hover:text-emerald-700",
+    navActive: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    navIdle: "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700",
+    activeNav: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    idleNav: "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700",
+    hero: "from-emerald-600 via-teal-600 to-cyan-500",
+    heroEyebrow: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    primaryButton: "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-200/40",
     panelBorder: "border-slate-200",
     panelBg: "bg-white",
-    tag: "bg-sky-100 text-sky-700 border border-sky-200",
-    card: "border-slate-200 bg-white",
-    panelSoft: "border-slate-200 bg-white/85 backdrop-blur-sm",
-    heroDark: "border-sky-200/40 bg-[linear-gradient(135deg,#0ea5e9_0%,#06b6d4_45%,#14b8a6_100%)]",
-    buttonPrimary: "bg-sky-600 hover:bg-sky-700 text-white",
-    buttonSecondary: "border border-sky-200 text-sky-700 bg-white hover:bg-sky-50 shadow-sm",
-    textStrong: "text-slate-900",
-    textSoft: "text-slate-500",
+    tag: "bg-emerald-50 text-emerald-800 border border-emerald-200",
+    card: "border-emerald-100 bg-[linear-gradient(180deg,#ffffff_0%,#f0fdf4_100%)]",
+    panelSoft: "border-emerald-100 bg-white/86 backdrop-blur-sm",
+    heroDark: "border-emerald-200/45 bg-[linear-gradient(135deg,#064e3b_0%,#047857_48%,#14b8a6_100%)]",
+    buttonPrimary: "bg-emerald-600 hover:bg-emerald-700 text-white",
+    buttonSecondary: "border border-emerald-200 text-emerald-800 bg-white hover:bg-emerald-50 shadow-sm",
+    textStrong: "text-slate-950",
+    textSoft: "text-slate-600",
     seatAvailable: "bg-emerald-500",
     seatBlocked: "bg-slate-400",
     seatBroken: "bg-red-600",
     input:
-      "border-slate-300 bg-white text-slate-900 focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100",
+      "border-emerald-200 bg-white text-slate-900 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100",
     modalCard: "border-slate-200 bg-white",
     modalSurface: "border-slate-200 bg-slate-50",
     modalMuted: "text-slate-500",
     buttonDanger: "bg-red-600 hover:bg-red-700 text-white",
     buttonWarning: "bg-amber-500 hover:bg-amber-600 text-white",
-    buttonGhost: "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-    buttonNeutral: "bg-slate-700 hover:bg-slate-800 text-white",
-    tagMuted: "border-slate-200 bg-white text-slate-600",
+    buttonGhost: "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50",
+    buttonNeutral: "bg-teal-700 hover:bg-teal-800 text-white",
+    tagMuted: "border-emerald-200 bg-emerald-50 text-emerald-800",
     highlightTag: "border border-emerald-200 bg-emerald-50 text-emerald-700",
     aisle: "bg-slate-200/45",
     seatAvailableClass:
@@ -355,13 +368,13 @@ const CLINIC_CONFIG = {
     seatBrokenClass:
       "border-red-300 bg-[linear-gradient(180deg,#fee2e2_0%,#fecaca_100%)]",
     metricCards: {
-      blue: "border-sky-200 bg-[linear-gradient(180deg,#ffffff_0%,#eff6ff_100%)] text-sky-700 shadow-sky-200/60",
-      sky: "border-cyan-200 bg-[linear-gradient(180deg,#ffffff_0%,#ecfeff_100%)] text-cyan-700 shadow-cyan-200/60",
+      blue: "border-teal-200 bg-[linear-gradient(180deg,#ffffff_0%,#f0fdfa_100%)] text-teal-700 shadow-teal-200/60",
+      sky: "border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#ecfdf5_100%)] text-emerald-700 shadow-emerald-200/60",
       emerald:
         "border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#ecfdf5_100%)] text-emerald-700 shadow-emerald-200/60",
       amber: "border-amber-200 bg-[linear-gradient(180deg,#ffffff_0%,#fffbeb_100%)] text-amber-700 shadow-amber-200/60",
       violet:
-        "border-indigo-200 bg-[linear-gradient(180deg,#ffffff_0%,#eef2ff_100%)] text-indigo-700 shadow-indigo-200/60",
+        "border-lime-200 bg-[linear-gradient(180deg,#ffffff_0%,#f7fee7_100%)] text-lime-700 shadow-lime-200/60",
     },
   },
 };
@@ -370,6 +383,22 @@ function getStorageKey() {
   const session = getAdminSession();
   const orgId = String(session?.organization_id || "default").trim() || "default";
   return `${STORAGE_PREFIX}${orgId}`;
+}
+
+function getForcedDomain() {
+  const session = getAdminSession();
+  const orgId = String(session?.organization_id || "").trim().toLowerCase();
+  const compactOrgId = orgId.replace(/[^a-z0-9]/g, "");
+  if (compactOrgId.includes("soroka")) return "clinic";
+  if (compactOrgId.includes("yesplanetramatgan")) return "cinema";
+  if (compactOrgId === "shenkar") return "generic";
+  return ORG_DOMAIN_OVERRIDES[orgId] || ORG_DOMAIN_OVERRIDES[compactOrgId] || null;
+}
+
+function getConfigByDomain(domain) {
+  if (domain === "cinema") return CINEMA_CONFIG;
+  if (domain === "clinic") return CLINIC_CONFIG;
+  return DEFAULT_CONFIG;
 }
 
 function normalizeKeywords(items = []) {
@@ -472,6 +501,18 @@ export function detectPresentation(resourceTypes = [], resources = []) {
 }
 
 export function rememberPresentation(resourceTypes = [], resources = []) {
+  const forcedDomain = getForcedDomain();
+  if (forcedDomain) {
+    const config = getConfigByDomain(forcedDomain);
+    localStorage.setItem(
+      getStorageKey(),
+      JSON.stringify({
+        domain: config.domain,
+      })
+    );
+    return config;
+  }
+
   const config = detectPresentation(resourceTypes, resources);
   localStorage.setItem(
     getStorageKey(),
@@ -483,6 +524,11 @@ export function rememberPresentation(resourceTypes = [], resources = []) {
 }
 
 export function getOrgConfig() {
+  const forcedDomain = getForcedDomain();
+  if (forcedDomain) {
+    return getConfigByDomain(forcedDomain);
+  }
+
   const raw = localStorage.getItem(getStorageKey());
   if (!raw) return DEFAULT_CONFIG;
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
+import "./ResourceTypes.css";
 
 function sortTypesAlphabetically(items) {
   return [...items].sort(
@@ -19,9 +20,9 @@ function MetricCard({ label, value, tone = "slate", theme }) {
   };
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${tones[tone] || tones.slate}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</div>
-      <div className="mt-2 text-3xl font-black">{value}</div>
+    <div className={`resource-types-metric resource-types-metric--${tone} rounded-2xl border px-4 py-3 ${tones[tone] || tones.slate}`}>
+      <div className="resource-types-metric__label text-xs font-semibold uppercase tracking-[0.16em]">{label}</div>
+      <div className="resource-types-metric__value mt-2 text-3xl font-black">{value}</div>
     </div>
   );
 }
@@ -275,37 +276,35 @@ export default function ResourceTypes() {
   if (loading) return <p className={theme.textSoft}>Loading...</p>;
 
   return (
-    <div className="space-y-6">
-      <section className={`rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${theme.heroDark}`}>
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <div className={`mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${theme.heroEyebrow}`}>
+    <div className="resource-types-page space-y-6">
+      <section className={`resource-types-hero resource-types-toolbar rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${theme.heroDark}`}>
+        <div className="resource-types-toolbar__top">
+          <div>
+            <div className={`resource-types-eyebrow mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${theme.heroEyebrow}`}>
               Schema Manager
             </div>
-            <h1 className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}>Resource Types</h1>
-            <p className={`mt-3 text-base leading-7 ${isCinema ? theme.textSoft : theme.textSoft}`}>
-              Define the resource blueprints used across the platform, including their
-              fields, rules, and role assignments.
+            <p className={`resource-types-toolbar__subtitle mt-3 text-base leading-7 ${isCinema ? theme.textSoft : theme.textSoft}`}>
+              Define blueprints, fields, and role assignments used by allocation rules.
             </p>
           </div>
 
           <button
             onClick={() => setShowAdd(true)}
-            className={`inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${theme.buttonPrimary}`}
+            className={`resource-types-add-button inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${theme.buttonPrimary}`}
           >
             + Add Type
           </button>
         </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
+        <div className="resource-types-toolbar__metrics mt-8 grid gap-3 sm:grid-cols-3">
           <MetricCard label="Total Types" value={types.length} tone="blue" theme={theme} />
           <MetricCard label="Total Fields" value={totalFields} tone="slate" theme={theme} />
           <MetricCard label="Total Roles" value={totalRoles} tone="amber" theme={theme} />
         </div>
       </section>
 
-      <section className={`rounded-[26px] border p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6 ${theme.card}`}>
-        <div className="grid gap-4">
+      <section className={`resource-types-list rounded-[26px] border p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6 ${theme.card}`}>
+        <div className="resource-types-grid grid gap-4">
           {sortTypesAlphabetically(types).map((type) => {
             const fieldPreview = Array.isArray(type.fields) ? type.fields.slice(0, 3) : [];
             const extraFields = Math.max((type.fields?.length || 0) - fieldPreview.length, 0);
@@ -315,7 +314,7 @@ export default function ResourceTypes() {
             return (
               <article
                 key={type.id}
-                className={`rounded-[24px] border p-5 shadow-sm transition hover:shadow-md ${theme.card}`}
+                className={`resource-type-card rounded-[24px] border p-5 shadow-sm transition hover:shadow-md ${theme.card}`}
               >
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 flex-1">
@@ -390,7 +389,7 @@ export default function ResourceTypes() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
+                  <div className="resource-type-card__actions flex flex-wrap items-center gap-2 whitespace-nowrap">
                     <button
                       onClick={() => openEditModal(type)}
                       className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonWarning}`}
@@ -412,8 +411,8 @@ export default function ResourceTypes() {
       </section>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
+        <div className="resource-types-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className={`resource-types-modal max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
             <h2 className={`mb-4 text-2xl font-bold ${theme.textStrong}`}>Add Resource Type</h2>
 
             <div className="mb-6 space-y-3">
@@ -485,8 +484,8 @@ export default function ResourceTypes() {
       )}
 
       {editModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
+        <div className="resource-types-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className={`resource-types-modal max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
             <h2 className={`mb-4 text-2xl font-bold ${theme.textStrong}`}>
               Edit Resource Type - {editModal.type.name}
             </h2>

@@ -826,6 +826,324 @@ select {
   font-weight: 600;
 }
 
+.login-shell {
+  align-items: stretch;
+  padding: clamp(24px, 4vw, 56px);
+  background:
+    linear-gradient(120deg, rgba(224, 242, 254, 0.7) 0%, rgba(255, 255, 255, 0.55) 32%, rgba(240, 253, 250, 0.78) 100%),
+    linear-gradient(180deg, #f8fbff 0%, #f6f8fb 54%, #edf7f5 100%);
+}
+
+.login-card {
+  width: min(1420px, 100%);
+  grid-template-columns: minmax(620px, 0.98fr) minmax(390px, 470px);
+  gap: clamp(34px, 5vw, 72px);
+  align-items: center;
+}
+
+.login-showcase {
+  gap: 26px;
+  min-height: min(940px, calc(100vh - 112px));
+  padding: clamp(38px, 4.2vw, 64px);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 34px;
+  background:
+    linear-gradient(145deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.96) 54%, rgba(35, 71, 87, 0.94) 100%) !important;
+  box-shadow:
+    0 40px 96px rgba(15, 23, 42, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.login-showcase::before {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.12), transparent 44%) !important;
+}
+
+.login-showcase::after {
+  right: 0;
+  bottom: 0;
+  width: 42%;
+  height: 42%;
+  border-radius: 34px 0 34px 0;
+  background:
+    linear-gradient(135deg, transparent 0%, rgba(20, 184, 166, 0.1) 100%) !important;
+}
+
+.login-brand-badge {
+  padding: 9px 16px;
+  border-color: rgba(186, 230, 253, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #bae6fd;
+  letter-spacing: 0.16em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.login-greeting-title {
+  max-width: 9ch;
+  color: #ffffff;
+  font-family: "Sora", "IBM Plex Sans", "Source Sans 3", sans-serif;
+  font-size: clamp(3.3rem, 5vw, 5.7rem);
+  font-weight: 850;
+  letter-spacing: 0;
+  line-height: 0.96;
+}
+
+.login-greeting-sub {
+  max-width: 46rem;
+  color: rgba(226, 232, 240, 0.86);
+  font-size: clamp(1rem, 1.25vw, 1.2rem);
+  line-height: 1.78;
+}
+
+.login-showcase-video-card {
+  gap: 16px;
+}
+
+.login-showcase-video-header {
+  align-items: center;
+}
+
+.login-video-chip {
+  min-height: 34px;
+  padding: 8px 14px;
+  letter-spacing: 0.12em;
+  box-shadow: 0 12px 24px rgba(2, 6, 23, 0.12);
+}
+
+.login-video-chip-problem {
+  border-color: rgba(252, 165, 165, 0.34);
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.9), rgba(153, 27, 27, 0.74));
+}
+
+.login-video-chip-solution {
+  border-color: rgba(52, 211, 153, 0.34);
+  background: linear-gradient(135deg, rgba(6, 95, 70, 0.94), rgba(15, 118, 110, 0.78));
+}
+
+.login-showcase-video-frame {
+  border-radius: 26px;
+  border-color: rgba(226, 232, 240, 0.16);
+  background: #020617;
+  box-shadow:
+    0 28px 62px rgba(2, 6, 23, 0.36),
+    0 0 0 8px rgba(255, 255, 255, 0.035);
+}
+
+.login-showcase-video {
+  object-fit: cover;
+}
+
+.login-showcase-video-copy {
+  padding-top: 2px;
+}
+
+.login-showcase-video-copy strong {
+  color: #7dd3fc;
+  letter-spacing: 0.12em;
+}
+
+.login-showcase-video-copy p {
+  max-width: 46rem;
+  color: rgba(226, 232, 240, 0.76);
+  font-size: 1rem;
+}
+
+.login-showcase-panel {
+  width: min(100%, 620px);
+  max-width: none;
+  margin-top: 4px;
+  padding: 22px 0 0;
+  border-top-color: rgba(186, 230, 253, 0.18);
+}
+
+.login-showcase-label {
+  color: #7dd3fc;
+  letter-spacing: 0.13em;
+}
+
+.login-showcase-text {
+  color: rgba(226, 232, 240, 0.78);
+}
+
+.login-form-wrap {
+  align-self: center;
+}
+
+.login-form {
+  position: relative;
+  gap: 15px;
+  padding: clamp(30px, 3vw, 42px);
+  border-radius: 30px;
+  border-color: rgba(186, 230, 253, 0.64);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%);
+  box-shadow:
+    0 34px 78px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.login-form::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  border-radius: 30px 30px 0 0;
+  background: linear-gradient(90deg, #0ea5e9 0%, #14b8a6 54%, #10b981 100%);
+}
+
+.login-form-title {
+  color: #0f172a;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
+.login-form-subtitle {
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.login-label {
+  margin-top: 2px;
+  color: #475569;
+  letter-spacing: 0;
+}
+
+.login-input {
+  min-height: 58px;
+  border-radius: 18px;
+  border-color: rgba(148, 163, 184, 0.34);
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #0f172a;
+  font-weight: 650;
+}
+
+.login-input:focus {
+  border-color: rgba(14, 165, 233, 0.68);
+  box-shadow:
+    0 0 0 5px rgba(14, 165, 233, 0.12),
+    0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.login-button {
+  min-height: 58px;
+  margin-top: 8px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #0f172a 0%, #075985 50%, #0f766e 100%);
+  font-weight: 850;
+  letter-spacing: 0;
+  box-shadow: 0 20px 38px rgba(15, 23, 42, 0.2);
+}
+
+.login-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 26px 48px rgba(15, 23, 42, 0.24);
+}
+
+.login-error {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: linear-gradient(180deg, #fff1f2 0%, #fee2e2 100%);
+}
+
+.login-shell--clinic {
+  background:
+    radial-gradient(circle at 14% 8%, rgba(16, 185, 129, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(45, 212, 191, 0.13), transparent 30%),
+    linear-gradient(180deg, #f6fffb 0%, #eefdf6 48%, #effcf9 100%);
+}
+
+.login-shell--clinic .login-showcase {
+  border-color: rgba(167, 243, 208, 0.22);
+  background:
+    radial-gradient(circle at 86% 8%, rgba(110, 231, 183, 0.16), transparent 30%),
+    linear-gradient(145deg, rgba(8, 47, 42, 0.98) 0%, rgba(11, 63, 55, 0.97) 54%, rgba(15, 47, 47, 0.96) 100%) !important;
+  box-shadow:
+    0 40px 96px rgba(6, 95, 70, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.login-shell--clinic .login-brand-badge,
+.login-shell--clinic .login-showcase-label,
+.login-shell--clinic .login-showcase-video-copy strong {
+  color: #86efac;
+}
+
+.login-shell--clinic .login-brand-badge {
+  border-color: rgba(167, 243, 208, 0.22);
+  background: rgba(6, 95, 70, 0.24);
+}
+
+.login-shell--clinic .login-showcase::before {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 38%),
+    linear-gradient(90deg, rgba(110, 231, 183, 0.13), transparent 44%) !important;
+}
+
+.login-shell--clinic .login-showcase::after {
+  background:
+    linear-gradient(135deg, transparent 0%, rgba(16, 185, 129, 0.12) 100%) !important;
+}
+
+.login-shell--clinic .login-video-chip-solution {
+  border-color: rgba(110, 231, 183, 0.38);
+  background: linear-gradient(135deg, rgba(6, 95, 70, 0.94), rgba(16, 185, 129, 0.72));
+  color: #dcfce7;
+}
+
+.login-shell--clinic .login-showcase-video-frame {
+  border-color: rgba(167, 243, 208, 0.18);
+  box-shadow:
+    0 28px 62px rgba(6, 78, 59, 0.3),
+    0 0 0 8px rgba(209, 250, 229, 0.035);
+}
+
+.login-shell--clinic .login-showcase-panel {
+  border-top-color: rgba(167, 243, 208, 0.18);
+}
+
+.login-shell--clinic .login-form {
+  border-color: rgba(167, 243, 208, 0.66);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(110, 231, 183, 0.1), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 253, 244, 0.95) 100%);
+  box-shadow:
+    0 34px 78px rgba(6, 95, 70, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.login-shell--clinic .login-form::before {
+  background: linear-gradient(90deg, #047857 0%, #10b981 58%, #14b8a6 100%);
+}
+
+.login-shell--clinic .login-form-title {
+  color: #0f2f2f;
+}
+
+.login-shell--clinic .login-form-subtitle,
+.login-shell--clinic .login-label {
+  color: #4b635d;
+}
+
+.login-shell--clinic .login-input {
+  border-color: rgba(167, 243, 208, 0.72);
+  background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.login-shell--clinic .login-input:focus {
+  border-color: rgba(16, 185, 129, 0.62);
+  box-shadow:
+    0 0 0 5px rgba(16, 185, 129, 0.12),
+    0 12px 24px rgba(6, 95, 70, 0.06);
+}
+
+.login-shell--clinic .login-button {
+  background: linear-gradient(135deg, #064e3b 0%, #047857 50%, #10b981 100%);
+  box-shadow: 0 20px 38px rgba(6, 95, 70, 0.2);
+}
+
 .app-shell {
   width: 100%;
 }
@@ -1581,7 +1899,209 @@ select {
 
 .user-sidebar--cinema {
   background:
-    linear-gradient(180deg, rgba(9, 9, 11, 0.99) 0%, rgba(18, 10, 25, 0.98) 100%);
+    radial-gradient(circle at 18% 4%, rgba(217, 70, 239, 0.26), transparent 28%),
+    linear-gradient(180deg, #0d0717 0%, #150c25 42%, #24103d 100%);
+  border-right-color: rgba(216, 180, 254, 0.16);
+  box-shadow: 18px 0 52px rgba(76, 29, 149, 0.18);
+}
+
+.user-app-shell--cinema {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(168, 85, 247, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(219, 39, 119, 0.13), transparent 30%),
+    linear-gradient(180deg, #fbf7ff 0%, #f3eefe 46%, #eef2ff 100%);
+}
+
+.user-app-shell--cinema .user-sidebar__mark {
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 54%, #f59e0b 100%);
+  box-shadow: 0 18px 38px rgba(168, 85, 247, 0.28);
+}
+
+.user-app-shell--cinema .user-sidebar__eyebrow,
+.user-app-shell--cinema .user-sidebar__identity-label,
+.user-app-shell--cinema .user-sidebar__section-label {
+  color: #e879f9;
+}
+
+.user-app-shell--cinema .user-sidebar__status {
+  background: rgba(126, 34, 206, 0.2);
+  border-color: rgba(232, 121, 249, 0.22);
+  color: #f5d0fe;
+}
+
+.user-app-shell--cinema .user-sidebar__status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.16);
+}
+
+.user-app-shell--cinema .user-sidebar__identity {
+  background: linear-gradient(145deg, rgba(124, 58, 237, 0.18), rgba(219, 39, 119, 0.12));
+  border-color: rgba(232, 121, 249, 0.16);
+}
+
+.user-app-shell--cinema .user-nav-item.active,
+.user-app-shell--cinema .app-nav-button.active {
+  background:
+    linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(219, 39, 119, 0.16) 100%);
+  border-color: rgba(232, 121, 249, 0.28);
+  box-shadow: 0 18px 32px rgba(124, 58, 237, 0.18);
+}
+
+.user-app-shell--cinema .glass,
+.user-app-shell--cinema .panel,
+.user-app-shell--cinema .section-card,
+.user-app-shell--cinema .resource-card,
+.user-app-shell--cinema .booking-card,
+.user-app-shell--cinema .notification-card {
+  border-color: rgba(196, 181, 253, 0.46);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(217, 70, 239, 0.1), transparent 25%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 245, 255, 0.92));
+}
+
+.user-app-shell--cinema .btn-primary,
+.user-app-shell--cinema .btn.btn-primary {
+  border: 0;
+  background: linear-gradient(135deg, #4c1d95 0%, #7c3aed 55%, #db2777 100%);
+  color: #ffffff;
+  box-shadow: 0 16px 30px rgba(124, 58, 237, 0.22);
+}
+
+.user-app-shell--cinema .btn-secondary,
+.user-app-shell--cinema .btn.btn-secondary {
+  border-color: rgba(232, 121, 249, 0.36);
+  background: #ffffff;
+  color: #86198f;
+}
+
+.user-app-shell--clinic {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(16, 185, 129, 0.13), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(45, 212, 191, 0.11), transparent 30%),
+    linear-gradient(180deg, #f6fffb 0%, #eefdf6 48%, #effcf9 100%);
+}
+
+.user-app-shell--clinic .user-sidebar {
+  background:
+    radial-gradient(circle at 18% 4%, rgba(110, 231, 183, 0.18), transparent 28%),
+    linear-gradient(180deg, #082f2a 0%, #0b3f37 42%, #0f2f2f 100%);
+  border-right-color: rgba(167, 243, 208, 0.16);
+  box-shadow: 18px 0 52px rgba(6, 95, 70, 0.14);
+}
+
+.user-app-shell--clinic .user-sidebar__mark {
+  background: linear-gradient(135deg, #10b981 0%, #14b8a6 58%, #a7f3d0 100%);
+  box-shadow: 0 18px 38px rgba(16, 185, 129, 0.24);
+}
+
+.user-app-shell--clinic .user-sidebar__eyebrow,
+.user-app-shell--clinic .user-sidebar__identity-label,
+.user-app-shell--clinic .user-sidebar__section-label {
+  color: #86efac;
+}
+
+.user-app-shell--clinic .user-sidebar__status {
+  background: rgba(6, 95, 70, 0.3);
+  border-color: rgba(110, 231, 183, 0.22);
+  color: #d1fae5;
+}
+
+.user-app-shell--clinic .user-sidebar__status-dot {
+  background: #34d399;
+  box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.16);
+}
+
+.user-app-shell--clinic .user-sidebar__identity {
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.18), rgba(20, 184, 166, 0.12));
+  border-color: rgba(110, 231, 183, 0.16);
+}
+
+.user-app-shell--clinic .user-nav-item.active,
+.user-app-shell--clinic .app-nav-button.active {
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.24) 0%, rgba(20, 184, 166, 0.14) 100%);
+  border-color: rgba(110, 231, 183, 0.28);
+  box-shadow: 0 18px 32px rgba(6, 95, 70, 0.16);
+}
+
+.user-app-shell--clinic .glass,
+.user-app-shell--clinic .panel,
+.user-app-shell--clinic .section-card,
+.user-app-shell--clinic .resource-card,
+.user-app-shell--clinic .booking-card,
+.user-app-shell--clinic .notification-card {
+  border-color: rgba(167, 243, 208, 0.48);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(110, 231, 183, 0.1), transparent 25%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(240, 253, 244, 0.92));
+}
+
+.user-app-shell--clinic .btn-primary,
+.user-app-shell--clinic .btn.btn-primary {
+  border: 0;
+  background: linear-gradient(135deg, #047857 0%, #10b981 62%, #14b8a6 100%);
+  color: #ffffff;
+  box-shadow: 0 16px 30px rgba(16, 185, 129, 0.2);
+}
+
+.user-app-shell--clinic .btn-secondary,
+.user-app-shell--clinic .btn.btn-secondary {
+  border-color: rgba(16, 185, 129, 0.26);
+  background: #ffffff;
+  color: #047857;
+}
+
+@media (max-width: 1180px) {
+  .login-card {
+    grid-template-columns: 1fr;
+    max-width: 860px;
+  }
+
+  .login-showcase {
+    min-height: auto;
+  }
+
+  .login-form-wrap {
+    align-self: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .login-shell {
+    padding: 16px;
+  }
+
+  .login-card {
+    gap: 16px;
+  }
+
+  .login-showcase,
+  .login-form {
+    border-radius: 24px;
+  }
+
+  .login-greeting-title {
+    max-width: none;
+    font-size: 2.25rem;
+    line-height: 1.04;
+  }
+
+  .login-greeting-sub {
+    font-size: 0.98rem;
+    line-height: 1.65;
+  }
+
+  .login-video-chip {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .login-input,
+  .login-button {
+    min-height: 54px;
+  }
 }
 
 .user-sidebar__close {

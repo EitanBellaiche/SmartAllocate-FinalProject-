@@ -461,6 +461,22 @@ useEffect(() => {
     }, {});
   }, [bookings, selectedResource]);
 
+  const calendarMetrics = useMemo(() => {
+    const monthKey = moment(currentDate).format("YYYY-MM");
+    const monthBookings = bookings.filter((booking) => moment(booking.date).format("YYYY-MM") === monthKey);
+    return {
+      totalBookings: bookings.length,
+      monthBookings: monthBookings.length,
+      activeDays: Object.keys(bookingCountsByDate).length,
+      resourceCount: selectedResource ? 1 : resources.length,
+    };
+  }, [bookingCountsByDate, bookings, currentDate, resources.length, selectedResource]);
+
+  const selectedResourceName = useMemo(() => {
+    if (!selectedResource) return isCinema ? "All halls and seats" : "All resources";
+    return resources.find((resource) => String(resource.id) === String(selectedResource))?.name || "Selected resource";
+  }, [isCinema, resources, selectedResource]);
+
   const displayedEvents = useMemo(() => {
     return calendarView === "month" ? [] : events;
   }, [calendarView, events]);
@@ -511,16 +527,22 @@ useEffect(() => {
   };
 
   const calendarEventStyle = {
-    backgroundColor: "#2563eb",
+    background: isCinema
+      ? "linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)"
+      : "linear-gradient(135deg, #2563eb 0%, #0f766e 100%)",
     color: "#ffffff",
     borderRadius: "10px",
     padding: "4px 8px",
-    border: "1px solid rgba(37, 99, 235, 0.2)",
-    boxShadow: "0 8px 20px rgba(37, 99, 235, 0.2)",
+    border: isCinema
+      ? "1px solid rgba(167, 139, 250, 0.42)"
+      : "1px solid rgba(37, 99, 235, 0.2)",
+    boxShadow: isCinema
+      ? "0 8px 20px rgba(124, 58, 237, 0.14)"
+      : "0 8px 20px rgba(37, 99, 235, 0.2)",
     fontWeight: 600,
   };
   return (
-    <div className={`p-6 ${isCinema ? "bg-[linear-gradient(180deg,#09090b_0%,#120a19_100%)] min-h-screen" : ""}`}>
+    <div className={`availability-page ${isCinema ? "availability-page--cinema" : ""}`}>
       {isCinema && (
         <style>{`
           .rbc-calendar {
@@ -542,8 +564,8 @@ useEffect(() => {
             color: #4c1d95;
           }
           .rbc-toolbar button.rbc-active {
-            background: #4f46e5;
-            border-color: #4f46e5;
+            background: #8b5cf6;
+            border-color: #a78bfa;
             color: #fff;
             box-shadow: none;
           }
@@ -627,20 +649,21 @@ useEffect(() => {
           }
         `}</style>
       )}
-      <div className={`mb-4 flex flex-wrap items-center justify-between gap-4 rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] ${theme.heroDark}`}>
-        <div>
-          <h1 className={`text-2xl font-bold ${isCinema ? "text-white" : theme.textStrong}`}>{isCinema ? "Screening Calendar" : "Bookings Calendar"}</h1>
-          <p className={`mt-1 text-sm ${isCinema ? theme.textSoft : theme.textSoft}`}>
+      <section className="availability-calendar-hero">
+        <div className="availability-calendar-hero__copy">
+          <span className="availability-eyebrow">{isCinema ? "Screening planner" : "Capacity planning"}</span>
+          <h1>{isCinema ? "Screening Calendar" : "Bookings Calendar"}</h1>
+          <p>
             {isCinema
-              ? "Choose which movie is shown in each hall, move screenings by editing them, and plan the full schedule from one calendar."
-              : "Review and manage bookings across all resources."}
+              ? "Choose movies, halls, and time slots from one clear scheduling surface."
+              : "Review bookings, compare capacity, and jump into daily assignments without visual noise."}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label className={`text-sm font-medium ${isCinema ? "text-slate-200" : theme.textStrong}`}>{isCinema ? "Hall / Seat" : "Resource"}</label>
+        <div className="availability-filter-card">
+          <label htmlFor="availability-resource-filter">{isCinema ? "Hall / Seat" : "Resource"}</label>
           <select
-            className={`rounded border p-2 ${theme.input}`}
+            id="availability-resource-filter"
             value={selectedResource}
             onChange={(e) => setSelectedResource(e.target.value)}
           >
@@ -651,24 +674,51 @@ useEffect(() => {
               </option>
             ))}
           </select>
-
+          <span>{selectedResourceName}</span>
           {isCinema && (
             <button
               type="button"
               onClick={() => setCreateModal((prev) => ({ ...prev, open: true }))}
-              className={`rounded px-4 py-2 ${theme.buttonPrimary}`}
+              className="availability-primary-action"
             >
               + Add Screening
             </button>
           )}
         </div>
-      </div>
+      </section>
 
-      <div className={`rounded-xl border p-6 shadow-xl ${theme.card}`}>
-        <h2 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Now Showing Planner" : "Calendar View"}</h2>
+      <section className="availability-metrics">
+        <article>
+          <span>Total bookings</span>
+          <strong>{calendarMetrics.totalBookings}</strong>
+        </article>
+        <article>
+          <span>This month</span>
+          <strong>{calendarMetrics.monthBookings}</strong>
+        </article>
+        <article>
+          <span>Active days</span>
+          <strong>{calendarMetrics.activeDays}</strong>
+        </article>
+        <article>
+          <span>Resources in view</span>
+          <strong>{calendarMetrics.resourceCount}</strong>
+        </article>
+      </section>
 
-        <div className="rounded-[24px] border border-slate-100 bg-slate-50/70 p-3 shadow-inner sm:p-4">
-          <div className="availability-rbc [&_.rbc-toolbar]:mb-5 [&_.rbc-toolbar]:flex-wrap [&_.rbc-toolbar]:gap-3 [&_.rbc-toolbar-label]:text-2xl [&_.rbc-toolbar-label]:font-semibold [&_.rbc-toolbar-label]:text-slate-900 [&_.rbc-btn-group]:overflow-hidden [&_.rbc-btn-group]:rounded-2xl [&_.rbc-btn-group]:border [&_.rbc-btn-group]:border-slate-200 [&_.rbc-btn-group]:bg-white [&_.rbc-btn-group_button]:border-0 [&_.rbc-btn-group_button]:px-4 [&_.rbc-btn-group_button]:py-2.5 [&_.rbc-btn-group_button]:text-sm [&_.rbc-btn-group_button]:font-medium [&_.rbc-btn-group_button]:text-slate-600 [&_.rbc-btn-group_button:hover]:bg-slate-50 [&_.rbc-active]:bg-blue-600 [&_.rbc-active]:text-white [&_.rbc-month-view]:overflow-hidden [&_.rbc-month-view]:rounded-[22px] [&_.rbc-month-view]:border [&_.rbc-month-view]:border-slate-200 [&_.rbc-month-view]:bg-white [&_.rbc-header]:border-b [&_.rbc-header]:border-slate-200 [&_.rbc-header]:bg-slate-50 [&_.rbc-header]:py-3 [&_.rbc-header]:font-semibold [&_.rbc-header]:text-slate-800 [&_.rbc-date-cell]:px-2 [&_.rbc-date-cell]:pt-2 [&_.rbc-date-cell]:text-slate-700 [&_.rbc-off-range-bg]:bg-slate-100 [&_.rbc-today]:bg-blue-50 [&_.rbc-day-bg+_.rbc-day-bg]:border-l-slate-200 [&_.rbc-month-row+_.rbc-month-row]:border-t-slate-200 [&_.rbc-time-view]:overflow-hidden [&_.rbc-time-view]:rounded-[22px] [&_.rbc-time-view]:border [&_.rbc-time-view]:border-slate-200 [&_.rbc-time-view]:bg-white [&_.rbc-time-header]:border-b-slate-200 [&_.rbc-timeslot-group]:border-b-slate-100 [&_.rbc-agenda-view]:rounded-[22px] [&_.rbc-agenda-view]:border [&_.rbc-agenda-view]:border-slate-200 [&_.rbc-agenda-view]:bg-white [&_.rbc-agenda-view_table]:w-full [&_.rbc-agenda-view_table]:text-sm [&_.rbc-agenda-date-cell]:font-medium [&_.rbc-current-time-indicator]:bg-red-400">
+      <section className="availability-calendar-panel">
+        <div className="availability-calendar-panel__header">
+          <div>
+            <span className="availability-eyebrow">Calendar view</span>
+            <h2>{isCinema ? "Now Showing Planner" : "Allocation Timeline"}</h2>
+          </div>
+          <div className="availability-calendar-panel__hint">
+            Month cells open daily details. Week and day views open editable bookings.
+          </div>
+        </div>
+
+        <div className="availability-calendar-shell">
+          <div className="availability-rbc">
             <Calendar
               localizer={localizer}
               events={displayedEvents}
@@ -701,7 +751,7 @@ useEffect(() => {
             />
           </div>
         </div>
-      </div>
+      </section>
 
       {dayModal.open && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">

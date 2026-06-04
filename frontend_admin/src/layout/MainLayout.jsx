@@ -106,13 +106,14 @@ export default function MainLayout() {
   const currentTitle =
     config.navigation?.[currentItem.key] || currentItem.fallback;
   const pageSubtitle = `Manage ${String(currentTitle).toLowerCase()} with a calmer, clearer administrative workspace.`;
+  const showTopbar = !location.pathname.startsWith("/availability");
 
   useEffect(() => {
     document.title = `${currentTitle} | SmartAllocate Admin`;
   }, [currentTitle]);
 
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell admin-shell--${config.domain || "generic"}`}>
       <button
         type="button"
         aria-label="Close menu overlay"
@@ -195,24 +196,26 @@ export default function MainLayout() {
           </button>
         </div>
 
-        <header className="admin-topbar">
-          <div>
-            <p className="admin-topbar__label">Control Surface</p>
-            <h2 className="admin-topbar__title">{currentTitle}</h2>
-            <p className="admin-topbar__subtitle">{pageSubtitle}</p>
-          </div>
+        {showTopbar && (
+          <header className="admin-topbar">
+            <div>
+              <p className="admin-topbar__label">Control Surface</p>
+              <h2 className="admin-topbar__title">{currentTitle}</h2>
+              <p className="admin-topbar__subtitle">{pageSubtitle}</p>
+            </div>
 
-          <div className="admin-topbar__right">
-            <div className="admin-topbar__pill">
-              <span className="admin-topbar__pill-label">Workspace</span>
-              <span className="admin-topbar__pill-value">{config.businessName}</span>
+            <div className="admin-topbar__right">
+              <div className="admin-topbar__pill">
+                <span className="admin-topbar__pill-label">Workspace</span>
+                <span className="admin-topbar__pill-value">{config.businessName}</span>
+              </div>
+              <div className="admin-topbar__pill">
+                <span className="admin-topbar__pill-label">Current Area</span>
+                <span className="admin-topbar__pill-value">{currentItem.description}</span>
+              </div>
             </div>
-            <div className="admin-topbar__pill">
-              <span className="admin-topbar__pill-label">Current Area</span>
-              <span className="admin-topbar__pill-value">{currentItem.description}</span>
-            </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         <main className="admin-content">
           <Outlet />

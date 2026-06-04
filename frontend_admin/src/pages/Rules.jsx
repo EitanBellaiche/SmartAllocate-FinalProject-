@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut, apiDelete } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
+import "./Rules.css";
 
 const OP_OPTIONS = [
   { label: "==", value: "==" },
@@ -1435,10 +1436,10 @@ export default function Rules() {
   const inactiveRulesCount = rules.length - activeRulesCount;
 
   return (
-    <div className="space-y-6">
-      <section className={`rounded-[30px] border p-6 shadow-[0_24px_60px_rgba(2,6,23,0.35)] sm:p-8 ${theme.heroDark}`}>
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="max-w-3xl">
+    <div className="rules-page space-y-6">
+      <section className={`rules-hero rounded-[30px] border p-6 shadow-[0_24px_60px_rgba(2,6,23,0.35)] sm:p-8 ${theme.heroDark}`}>
+        <div className="rules-hero__layout flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+          <div className="rules-hero__copy max-w-3xl">
             <div className="mb-3 inline-flex items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
               Policy Center
             </div>
@@ -1450,35 +1451,35 @@ export default function Rules() {
           </div>
           <button
             onClick={openWizard}
-            className={`inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${theme.buttonPrimary}`}
+            className={`rules-wizard-button inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${theme.buttonPrimary}`}
           >
             Rule Wizard Chat
           </button>
         </div>
 
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          <div className={`rounded-2xl border px-4 py-3 ${theme.card}`}>
+        <div className="rules-metrics mt-8 grid gap-3 sm:grid-cols-3">
+          <div className={`rules-metric rules-metric--total rounded-2xl border px-4 py-3 ${theme.card}`}>
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Total Rules</div>
             <div className={`mt-2 text-3xl font-black ${theme.textStrong}`}>{rules.length}</div>
           </div>
-          <div className={`rounded-2xl border px-4 py-3 ${theme.card}`}>
+          <div className={`rules-metric rules-metric--active rounded-2xl border px-4 py-3 ${theme.card}`}>
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Active Rules</div>
             <div className={`mt-2 text-3xl font-black ${theme.textStrong}`}>{activeRulesCount}</div>
           </div>
-          <div className={`rounded-2xl border px-4 py-3 ${theme.card}`}>
+          <div className={`rules-metric rules-metric--inactive rounded-2xl border px-4 py-3 ${theme.card}`}>
             <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Inactive Rules</div>
             <div className={`mt-2 text-3xl font-black ${theme.textStrong}`}>{inactiveRulesCount}</div>
           </div>
         </div>
       </section>
 
-      <section className={`rounded-[26px] border p-4 shadow-sm ${theme.panelSoft}`}>
+      <section className={`rules-guidance rounded-[26px] border p-4 shadow-sm ${theme.panelSoft}`}>
         <div className="text-sm text-slate-700">
           Prefer guided setup? Use <span className={theme.textStrong}>Rule Wizard Chat</span> above.
         </div>
       </section>
 
-      <section className={`rounded-[26px] border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)] ${theme.card}`}>
+      <section className={`rules-builder rounded-[26px] border p-5 shadow-[0_14px_35px_rgba(15,23,42,0.06)] ${theme.card}`}>
         <div className="flex items-center justify-between mb-2">
           <div className={`text-base font-semibold ${theme.textStrong}`}>Simple Rule Builder</div>
           <button
@@ -1872,7 +1873,7 @@ export default function Rules() {
         )}
       </section>
 
-      <section className={`rounded-[26px] border p-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)] sm:p-6 ${theme.card}`}>
+      <section className={`rules-list-panel rounded-[26px] border p-4 shadow-[0_14px_35px_rgba(15,23,42,0.06)] sm:p-6 ${theme.card}`}>
         <div className="mb-4">
           <div className={`text-lg font-bold ${theme.textStrong}`}>Current Rules</div>
           <div className="mt-1 text-sm text-slate-500">
@@ -1880,11 +1881,11 @@ export default function Rules() {
           </div>
         </div>
 
-        <div className="grid gap-4">
+        <div className="rules-list grid gap-4">
           {rules.map((rule) => (
             <article
               key={rule.id}
-              className={`rounded-[22px] border p-5 shadow-sm transition hover:shadow-md ${theme.card}`}
+              className={`rules-card rounded-[22px] border p-5 shadow-sm transition hover:shadow-md ${theme.card}`}
             >
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0 flex-1">
@@ -1914,10 +1915,10 @@ export default function Rules() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
+                <div className="rules-card__actions flex flex-wrap items-center gap-2 whitespace-nowrap">
                   <button
                     onClick={() => openDetails(rule)}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonNeutral}`}
+                    className={`rules-card__view-button rounded-xl px-4 py-2 text-sm font-semibold transition ${theme.buttonNeutral}`}
                   >
                     View
                   </button>
@@ -1947,26 +1948,29 @@ export default function Rules() {
       </section>
 
       {wizardOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-          <div className={`p-6 rounded-2xl w-[900px] shadow-2xl max-h-[90vh] overflow-y-auto ${theme.modalSurface}`}>
-            <div className="flex items-center justify-between mb-4">
+        <div className="rules-wizard-overlay fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
+          <div
+            className={`rules-wizard-modal p-6 rounded-2xl w-[900px] shadow-2xl max-h-[90vh] overflow-y-auto ${theme.modalSurface}`}
+            style={{ "--wizard-progress": `${Math.round((wizardStep / 7) * 100)}%` }}
+          >
+            <div className="rules-wizard-modal__header flex items-center justify-between mb-4">
               <div>
-                <h2 className={`text-xl font-bold ${theme.textStrong}`}>Rule Wizard Chat</h2>
-                <div className={`text-xs ${theme.textSoft}`}>Step {wizardStep} of 7</div>
+                <h2 className={`rules-wizard-modal__title text-xl font-bold ${theme.textStrong}`}>Rule Wizard Chat</h2>
+                <div className={`rules-wizard-modal__step text-xs ${theme.textSoft}`}>Step {wizardStep} of 7</div>
               </div>
-              <button onClick={closeWizard} className={`px-3 py-2 border rounded ${theme.buttonGhost}`}>
+              <button onClick={closeWizard} className={`rules-wizard-modal__close px-3 py-2 border rounded ${theme.buttonGhost}`}>
                 Close
               </button>
             </div>
 
-            <div className="space-y-4 mb-6">
+            <div className="rules-wizard-chat space-y-4 mb-6">
               {wizardTranscript.map((item) => (
                 <div
                   key={item.id}
-                  className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`rules-wizard-chat__row rules-wizard-chat__row--${item.role} flex ${item.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`px-4 py-3 rounded-2xl text-sm max-w-[75%] ${
+                    className={`rules-wizard-chat__bubble rules-wizard-chat__bubble--${item.role} px-4 py-3 rounded-2xl text-sm max-w-[75%] ${
                       item.role === "user" ? theme.buttonPrimary : theme.panelSoft
                     }`}
                   >
@@ -1975,8 +1979,8 @@ export default function Rules() {
                 </div>
               ))}
               {wizardStep > 1 && (
-                <div className="flex justify-end">
-                  <div className={`px-4 py-3 rounded-2xl text-sm max-w-[75%] ${theme.buttonPrimary}`}>
+                <div className="rules-wizard-chat__row rules-wizard-chat__row--user flex justify-end">
+                  <div className={`rules-wizard-chat__bubble rules-wizard-chat__bubble--user px-4 py-3 rounded-2xl text-sm max-w-[75%] ${theme.buttonPrimary}`}>
                     {wizardSummary}
                   </div>
                 </div>
@@ -1985,7 +1989,7 @@ export default function Rules() {
 
             {wizardStep === 1 && (
               <div className="flex justify-end">
-                <div className={`border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
                     Examples: "block rooms without computers" or "score +15 when nearby rooms match".
                   </div>
@@ -2002,7 +2006,7 @@ export default function Rules() {
 
             {wizardStep === 2 && (
               <div className="flex justify-end">
-                <div className={`border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
                     Examples: "single" or "pair".
                   </div>
@@ -2019,7 +2023,7 @@ export default function Rules() {
 
             {wizardStep === 3 && (
               <div className="flex justify-end">
-                <div className={`border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
                     Resource A is the main resource the rule is about (the one being evaluated).
                   </div>
@@ -2042,7 +2046,7 @@ export default function Rules() {
 
             {wizardStep === 4 && wizard.target === "pair" && (
               <div className="flex justify-end">
-                <div className={`border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[75%] space-y-2 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
                     Resource B is the second resource checked together with Resource A.
                   </div>
@@ -2066,7 +2070,7 @@ export default function Rules() {
             {wizardStep === 5 && (
               <div className="space-y-4">
                 <div className="flex justify-end">
-                  <div className={`border rounded-2xl p-4 w-full max-w-[85%] space-y-3 ${theme.card}`}>
+                  <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[85%] space-y-3 ${theme.card}`}>
                     <div className="text-sm font-medium">Describe the situation you want to block (plain English)</div>
                     <div className={`text-xs ${theme.textSoft}`}>
                       Example: “Block if exam needs computers and the room has no computers”
@@ -2143,7 +2147,7 @@ export default function Rules() {
                   </div>
                 )}
 
-                <details className={`border rounded-2xl p-3 ${theme.card}`}>
+                <details className={`rules-wizard-details border rounded-2xl p-3 ${theme.card}`}>
                   <summary className="text-sm font-medium cursor-pointer">Advanced: edit conditions manually</summary>
                   <div className="mt-3 space-y-3">
                     <div className={`text-xs ${theme.textSoft}`}>
@@ -2289,7 +2293,7 @@ export default function Rules() {
 
             {wizardStep === 6 && (
               <div className="flex justify-end">
-                <div className={`border rounded-2xl p-4 w-full max-w-[85%] space-y-3 ${theme.card}`}>
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[85%] space-y-3 ${theme.card}`}>
                   <div className={`text-xs ${theme.textSoft}`}>
                     You can keep it simple with just a name, or add more details like description, sort order, weight, and active/inactive.
                   </div>
@@ -2305,7 +2309,7 @@ export default function Rules() {
             )}
 
             {wizardStep === 7 && (
-              <div className="space-y-4">
+              <div className="rules-wizard-review space-y-4">
                 <div className={`border rounded p-3 text-sm ${theme.panelSoft} ${theme.textSoft}`}>
                   <div className="font-semibold mb-1">Summary understood</div>
                   <div>{wizardSummary}</div>
@@ -2324,10 +2328,10 @@ export default function Rules() {
               <div className="mt-4 text-sm text-red-600">{wizardError}</div>
             )}
 
-            <div className="flex justify-between items-center mt-6">
+            <div className="rules-wizard-modal__footer flex justify-between items-center mt-6">
               <button
                 onClick={() => setWizardStep((s) => prevWizardStep(s))}
-                className={`px-4 py-2 border rounded ${theme.buttonGhost}`}
+                className={`rules-wizard-modal__back px-4 py-2 border rounded ${theme.buttonGhost}`}
                 disabled={wizardStep === 1}
               >
                 Back
@@ -2337,7 +2341,7 @@ export default function Rules() {
                 {wizardStep < 7 && (
                   <button
                     onClick={handleWizardContinue}
-                    className={`px-4 py-2 rounded ${theme.buttonPrimary}`}
+                    className={`rules-wizard-modal__primary px-4 py-2 rounded ${theme.buttonPrimary}`}
                   >
                     {[1, 2, 3, 4, 6].includes(wizardStep) ? "Send" : "Next"}
                   </button>
@@ -2346,7 +2350,7 @@ export default function Rules() {
                 {wizardStep === 7 && (
                   <button
                     onClick={createWizardRule}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    className="rules-wizard-modal__primary px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     disabled={wizardBusy}
                   >
                     {wizardBusy ? "Creating..." : "Create Rule"}

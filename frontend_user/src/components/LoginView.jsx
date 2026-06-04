@@ -13,6 +13,7 @@ export default function LoginView({
   handleLogin,
   loading,
   error,
+  domain = "generic",
 }) {
   const videoRef = useRef(null);
 
@@ -39,7 +40,7 @@ export default function LoginView({
   }, []);
 
   return (
-    <div className="login-shell">
+    <div className={`login-shell login-shell--${domain || "generic"}`}>
       <div className="login-card">
         <section className="login-showcase">
           <BrandLockup

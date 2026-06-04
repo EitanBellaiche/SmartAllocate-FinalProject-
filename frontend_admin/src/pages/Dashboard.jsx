@@ -9,6 +9,7 @@ export default function Dashboard() {
   const [resources, setResources] = useState([]);
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadWarning, setLoadWarning] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const config = getOrgConfig();
   const theme = config.theme;
@@ -35,16 +36,44 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function loadStats() {
+      setLoadWarning("");
       try {
-        const [resourcesData, bookings, typeData] = await Promise.all([
+        const [resourcesResult, bookingsResult, typeResult] = await Promise.allSettled([
           apiGet("/resources"),
           apiGet("/bookings"),
           apiGet("/resource-types"),
         ]);
 
+        const resourcesData =
+          resourcesResult.status === "fulfilled" && Array.isArray(resourcesResult.value)
+            ? resourcesResult.value
+            : [];
+        const bookings =
+          bookingsResult.status === "fulfilled" && Array.isArray(bookingsResult.value)
+            ? bookingsResult.value
+            : [];
+        const typeData =
+          typeResult.status === "fulfilled" && Array.isArray(typeResult.value)
+            ? typeResult.value
+            : [];
+        const failedSections = [
+          resourcesResult.status === "rejected" ? "resources" : "",
+          bookingsResult.status === "rejected" ? "bookings" : "",
+          typeResult.status === "rejected" ? "resource types" : "",
+        ].filter(Boolean);
+
+        if (failedSections.length > 0) {
+          console.error("Dashboard partial load error:", {
+            resources: resourcesResult.status === "rejected" ? resourcesResult.reason : null,
+            bookings: bookingsResult.status === "rejected" ? bookingsResult.reason : null,
+            resourceTypes: typeResult.status === "rejected" ? typeResult.reason : null,
+          });
+          setLoadWarning(`Some dashboard data could not be loaded: ${failedSections.join(", ")}.`);
+        }
+
         const today = getIsraelDateValue();
 
-        const bookingsToday = bookings.filter((b) => b.date.startsWith(today));
+        const bookingsToday = bookings.filter((b) => String(b?.date || "").startsWith(today));
         const pending = bookings.filter((b) => b.status === "pending");
 
         setStats({
@@ -59,6 +88,14 @@ export default function Dashboard() {
         rememberPresentation(typeData, resourcesData);
       } catch (err) {
         console.error("Dashboard load error:", err);
+        setStats({
+          totalResources: 0,
+          bookingsToday: 0,
+          pending: 0,
+          totalBookings: 0,
+          totalResourceTypes: 0,
+        });
+        setLoadWarning("Dashboard data could not be loaded. Check the API connection.");
       } finally {
         setLoading(false);
       }
@@ -201,6 +238,19 @@ export default function Dashboard() {
     );
   }
 
+  function formatMetadataValue(value) {
+    if (Array.isArray(value)) return `${value.length} items`;
+    if (value && typeof value === "object") return "Object";
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (value === null || value === undefined || value === "") return "-";
+    return String(value);
+  }
+
+  function getMetadataEntries(metadata) {
+    if (!metadata || typeof metadata !== "object") return [];
+    return Object.entries(metadata);
+  }
+
   function formatDate(date) {
     if (!date) return "—";
     return formatIsraelDate(date);
@@ -234,91 +284,13 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard-view">
-      <section className="dashboard-hero">
-        <div className="dashboard-hero__copy">
-          <div className="dashboard-hero__eyebrow">{config.dashboard.eyebrow}</div>
-          <h1 className="dashboard-hero__title">{config.dashboard.title}</h1>
-          <p className="dashboard-hero__subtitle">{config.dashboard.subtitle}</p>
-
-          <div className="dashboard-hero__chips">
-            <div className="dashboard-hero__chip">{stats.totalResources} tracked resources</div>
-            <div className="dashboard-hero__chip">{stats.pending} approvals still need attention</div>
-            <div className="dashboard-hero__chip">{stats.bookingsToday} bookings scheduled today</div>
-          </div>
+      {loadWarning && (
+        <div className="dashboard-load-warning">
+          {loadWarning}
         </div>
+      )}
 
-        <div className="dashboard-hero__panel">
-          <p className="dashboard-hero__panel-label">Operational Pulse</p>
-          <h2 className="dashboard-hero__panel-title">Live orchestration</h2>
-          <p className="dashboard-hero__panel-copy">
-            This view is designed to help operators understand load, friction, and resource structure at a glance.
-          </p>
-
-          <div className="dashboard-hero__panel-grid">
-            <div className="dashboard-hero__panel-card">
-              <strong>{stats.totalBookings}</strong>
-              <span>Total booking records in the system</span>
-            </div>
-            <div className="dashboard-hero__panel-card">
-              <strong>{stats.totalResourceTypes}</strong>
-              <span>Structured resource categories available for allocation</span>
-            </div>
-            <div className="dashboard-hero__panel-card">
-              <strong>{pendingRate}%</strong>
-              <span>Current share of bookings still waiting on approval</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="dashboard-metrics">
-          <StatCard
-            title={config.labels.resources}
-            value={stats.totalResources}
-            tone="blue"
-            theme={theme}
-          />
-          <StatCard
-            title={config.navigation.resourceTypes}
-            value={stats.totalResourceTypes}
-            tone="sky"
-            theme={theme}
-          />
-          <StatCard
-            title={
-              config.labels.bookings
-                ? `Today's ${config.labels.bookings}`
-                : "Bookings Today"
-            }
-            value={stats.bookingsToday}
-            tone="emerald"
-            theme={theme}
-          />
-          <StatCard
-            title="Pending Approvals"
-            value={stats.pending}
-            tone="amber"
-            theme={theme}
-          />
-          <StatCard
-            title={config.labels.bookings || "Bookings"}
-            value={stats.totalBookings}
-            tone="violet"
-            theme={theme}
-          />
-      </section>
-
-      <section className="dashboard-insights">
-        {insightCards.map((card) => (
-          <article key={card.label} className="dashboard-insight-card">
-            <p className="dashboard-insight-card__label">{card.label}</p>
-            <p className="dashboard-insight-card__value">{card.value}</p>
-            <p className="dashboard-insight-card__text">{card.text}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="dashboard-search">
+      <section className="dashboard-search dashboard-search--primary">
         <div className="dashboard-search__header">
           <div>
             <p className="dashboard-search__label">Resource Discovery</p>
@@ -396,6 +368,100 @@ export default function Dashboard() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="dashboard-hero">
+        <div className="dashboard-hero__copy">
+          <div className="dashboard-hero__eyebrow">{config.dashboard.eyebrow}</div>
+          <h1 className="dashboard-hero__title">{config.dashboard.title}</h1>
+          <p className="dashboard-hero__subtitle">{config.dashboard.subtitle}</p>
+
+          <div className="dashboard-hero__chips">
+            <div className="dashboard-hero__chip">{stats.totalResources} tracked resources</div>
+            <div className="dashboard-hero__chip">{stats.pending} approvals still need attention</div>
+            <div className="dashboard-hero__chip">{stats.bookingsToday} bookings scheduled today</div>
+          </div>
+        </div>
+
+        <div className="dashboard-hero__panel">
+          <p className="dashboard-hero__panel-label">Operational Pulse</p>
+          <h2 className="dashboard-hero__panel-title">Live orchestration</h2>
+          <p className="dashboard-hero__panel-copy">
+            This view is designed to help operators understand load, friction, and resource structure at a glance.
+          </p>
+
+          <div className="dashboard-hero__panel-grid">
+            <div className="dashboard-hero__panel-card dashboard-hero__panel-card--primary">
+              <strong>{stats.totalBookings}</strong>
+              <span>Total booking records in the system</span>
+            </div>
+            <div className="dashboard-hero__panel-card">
+              <strong>{stats.totalResourceTypes}</strong>
+              <span>Structured resource categories available for allocation</span>
+            </div>
+            <div className="dashboard-hero__panel-card">
+              <strong>{pendingRate}%</strong>
+              <span>Current share of bookings still waiting on approval</span>
+            </div>
+          </div>
+
+          <div className="dashboard-hero__progress" aria-label="Dashboard health indicators">
+            <div className="dashboard-hero__progress-row">
+              <span>Today coverage</span>
+              <strong>{todayCoverage}%</strong>
+            </div>
+            <div className="dashboard-hero__progress-track">
+              <span style={{ width: `${todayCoverage}%` }} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="dashboard-metrics">
+          <StatCard
+            title={config.labels.resources}
+            value={stats.totalResources}
+            tone="blue"
+            theme={theme}
+          />
+          <StatCard
+            title={config.navigation.resourceTypes}
+            value={stats.totalResourceTypes}
+            tone="sky"
+            theme={theme}
+          />
+          <StatCard
+            title={
+              config.labels.bookings
+                ? `Today's ${config.labels.bookings}`
+                : "Bookings Today"
+            }
+            value={stats.bookingsToday}
+            tone="emerald"
+            theme={theme}
+          />
+          <StatCard
+            title="Pending Approvals"
+            value={stats.pending}
+            tone="amber"
+            theme={theme}
+          />
+          <StatCard
+            title={config.labels.bookings || "Bookings"}
+            value={stats.totalBookings}
+            tone="violet"
+            theme={theme}
+          />
+      </section>
+
+      <section className="dashboard-insights">
+        {insightCards.map((card) => (
+          <article key={card.label} className="dashboard-insight-card">
+            <p className="dashboard-insight-card__label">{card.label}</p>
+            <p className="dashboard-insight-card__value">{card.value}</p>
+            <p className="dashboard-insight-card__text">{card.text}</p>
+          </article>
+        ))}
       </section>
 
       {editModal.open && (
@@ -508,83 +574,94 @@ export default function Dashboard() {
               Review the selected resource, its type, metadata, and every linked booking in one place.
             </p>
 
-            <div className="dashboard-modal__section">
-              <div className={`text-sm ${theme.textSoft}`}>
-              <div>
-                <strong>ID:</strong> {viewModal.item?.id}
+            <div className="dashboard-details-summary">
+              <div className="dashboard-details-summary__item">
+                <span>Resource ID</span>
+                <strong>{viewModal.item?.id || "-"}</strong>
               </div>
-              {viewModal.item?.type_name && (
-                <div>
-                  <strong>Type:</strong> {viewModal.item.type_name}
-                </div>
-              )}
-              {viewModal.item?.metadata &&
-                Object.keys(viewModal.item.metadata).length > 0 && (
-                  <div>
-                    <strong>Metadata:</strong>{" "}
-                    {metadataSummary(viewModal.item.metadata)}
-                  </div>
-                )}
+              <div className="dashboard-details-summary__item">
+                <span>Resource Type</span>
+                <strong>{viewModal.item?.type_name || "Unassigned"}</strong>
+              </div>
+              <div className="dashboard-details-summary__item">
+                <span>Linked Bookings</span>
+                <strong>{viewModal.bookings.length}</strong>
               </div>
             </div>
 
-            <div className="dashboard-modal__section">
-              <h3 className={`mb-4 text-lg font-semibold ${theme.textStrong}`}>Bookings</h3>
+            <div className="dashboard-modal__section dashboard-details-section">
+              <div className="dashboard-details-section__header">
+                <h3>Resource Metadata</h3>
+                <span>{getMetadataEntries(viewModal.item?.metadata).length} fields</span>
+              </div>
+
+              {getMetadataEntries(viewModal.item?.metadata).length > 0 ? (
+                <div className="dashboard-details-metadata">
+                  {getMetadataEntries(viewModal.item?.metadata).map(([key, value]) => (
+                    <div key={key} className="dashboard-details-metadata__item">
+                      <span>{key}</span>
+                      <strong>{formatMetadataValue(value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="dashboard-details-empty">No metadata fields for this resource.</div>
+              )}
+            </div>
+
+            <div className="dashboard-modal__section dashboard-details-section">
+              <div className="dashboard-details-section__header">
+                <h3>Bookings</h3>
+                <span>{viewModal.bookings.length} records</span>
+              </div>
 
               {viewModal.loading && <p className={theme.textSoft}>Loading bookings...</p>}
               {viewModal.error && <p className="text-red-600">{viewModal.error}</p>}
 
               {!viewModal.loading && !viewModal.error && (
-                <div className="space-y-4 max-h-[420px] overflow-auto pr-1">
+                <div className="dashboard-details-bookings">
                   {viewModal.bookings.map((b) => (
                     <div key={b.id} className="dashboard-booking-card">
                       <div className="dashboard-booking-card__meta">
-                      <div>
-                        <strong>Booking ID:</strong> {b.id}
-                      </div>
-                      <div>
-                        <strong>Date:</strong> {formatDate(b.date)}
-                      </div>
-                      {b.start_time && b.end_time && (
-                        <div>
-                          <strong>Time:</strong> {b.start_time} - {b.end_time}
+                        <div className="dashboard-booking-card__identity">
+                          <span>Booking #{b.id}</span>
+                          <strong>{formatDate(b.date)}</strong>
                         </div>
-                      )}
-                      {b.user_id && (
-                        <div>
-                          <strong>User:</strong> {b.user_id}
+                        <div className="dashboard-booking-card__facts">
+                          {b.start_time && b.end_time && (
+                            <span>{b.start_time} - {b.end_time}</span>
+                          )}
+                          {b.user_id && <span>User {b.user_id}</span>}
+                          {b.status && <span>{b.status}</span>}
                         </div>
-                      )}
                       </div>
 
                       <div>
-                        <div className={`mb-2 text-xs font-semibold ${theme.textSoft}`}>
-                        Resources
+                        <div className="dashboard-booking-card__label">
+                          Resources
                         </div>
                         <div className="dashboard-booking-card__resources">
                           {(b.resources || []).map((r) => (
                             <div key={r.id} className="dashboard-booking-card__resource">
-                            <div className={`font-medium ${theme.textStrong}`}>
-                              {r.name}
-                              {r.type_name && (
-                                <span className={`text-xs ${theme.textSoft}`}>
-                                  {" "}
-                                  ({r.type_name})
-                                </span>
+                              <div className="dashboard-booking-card__resource-title">
+                                {r.name}
+                                {r.type_name && <span>{r.type_name}</span>}
+                              </div>
+                              {r.role && (
+                                <div className="dashboard-booking-card__resource-role">
+                                  Role: {r.role}
+                                </div>
                               )}
-                            </div>
-                            {r.role && (
-                              <div className={`text-xs ${theme.textSoft}`}>
-                                Role: {r.role}
-                              </div>
-                            )}
-                            {formatMetadataList(r.metadata).length > 0 && (
-                              <div className={`text-xs mt-1 ${theme.textSoft}`}>
-                                {formatMetadataList(r.metadata).map((line, idx) => (
-                                  <div key={`${r.id}-${idx}`}>{line}</div>
-                                ))}
-                              </div>
-                            )}
+                              {formatMetadataList(r.metadata).length > 0 && (
+                                <div className="dashboard-booking-card__resource-meta">
+                                  {formatMetadataList(r.metadata).slice(0, 4).map((line, idx) => (
+                                    <div key={`${r.id}-${idx}`}>{line}</div>
+                                  ))}
+                                  {formatMetadataList(r.metadata).length > 4 && (
+                                    <div>+{formatMetadataList(r.metadata).length - 4} more fields</div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -593,7 +670,7 @@ export default function Dashboard() {
                   ))}
 
                   {viewModal.bookings.length === 0 && (
-                    <div className={`text-center p-4 ${theme.textSoft}`}>
+                    <div className="dashboard-details-empty">
                       No bookings for this resource.
                     </div>
                   )}
@@ -629,11 +706,78 @@ function StatCard({ title, value, tone = "blue", theme }) {
   const toneClass = tones[tone] || theme.card;
 
   return (
-    <div className={`dashboard-stat-card ${toneClass}`}>
-      <span className="dashboard-stat-card__eyebrow">Live Metric</span>
+    <div className={`dashboard-stat-card dashboard-stat-card--${tone} ${toneClass}`}>
+      <div className="dashboard-stat-card__top">
+        <span className="dashboard-stat-card__eyebrow">Live Metric</span>
+        <span className="dashboard-stat-card__icon" aria-hidden="true">
+          <MetricIcon tone={tone} />
+        </span>
+      </div>
       <p className="dashboard-stat-card__title">{title}</p>
       <p className="dashboard-stat-card__value">{value}</p>
+      <span className="dashboard-stat-card__bar" aria-hidden="true" />
     </div>
+  );
+}
+
+function MetricIcon({ tone }) {
+  const common = {
+    width: 19,
+    height: 19,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.9",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  };
+
+  if (tone === "emerald") {
+    return (
+      <svg {...common}>
+        <path d="M7 11.5 10.2 15 17 8" />
+        <path d="M4 5h16v14H4z" />
+      </svg>
+    );
+  }
+
+  if (tone === "amber") {
+    return (
+      <svg {...common}>
+        <path d="M12 8v5" />
+        <path d="M12 17h.01" />
+        <path d="M10.3 4.5h3.4L21 18.5H3L10.3 4.5z" />
+      </svg>
+    );
+  }
+
+  if (tone === "violet") {
+    return (
+      <svg {...common}>
+        <path d="M7 3h10v4H7z" />
+        <path d="M5 7h14v14H5z" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
+      </svg>
+    );
+  }
+
+  if (tone === "sky") {
+    return (
+      <svg {...common}>
+        <path d="m12 4 8 4-8 4-8-4 8-4z" />
+        <path d="m4 12 8 4 8-4" />
+        <path d="m4 16 8 4 8-4" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...common}>
+      <path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5v-9z" />
+      <path d="M12 4v16" />
+      <path d="m4 7.5 8 4 8-4" />
+    </svg>
   );
 }
 

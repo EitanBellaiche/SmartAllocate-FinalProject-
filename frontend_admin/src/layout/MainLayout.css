@@ -361,6 +361,272 @@
   min-width: 0;
 }
 
+.admin-shell--cinema {
+  background:
+    radial-gradient(circle at 16% 8%, rgba(168, 85, 247, 0.18), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(219, 39, 119, 0.16), transparent 30%),
+    linear-gradient(180deg, #fbf7ff 0%, #f3eefe 46%, #eef2ff 100%);
+}
+
+.admin-shell--cinema .admin-sidebar {
+  background:
+    radial-gradient(circle at 18% 4%, rgba(217, 70, 239, 0.26), transparent 28%),
+    linear-gradient(180deg, #0d0717 0%, #150c25 42%, #24103d 100%);
+  border-right-color: rgba(216, 180, 254, 0.16);
+  box-shadow: 18px 0 52px rgba(76, 29, 149, 0.18);
+}
+
+.admin-shell--cinema .admin-sidebar__mark {
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 54%, #f59e0b 100%);
+  box-shadow: 0 18px 38px rgba(168, 85, 247, 0.28);
+}
+
+.admin-shell--cinema .admin-sidebar__eyebrow,
+.admin-shell--cinema .admin-sidebar__spotlight-label,
+.admin-shell--cinema .admin-topbar__label {
+  color: #e879f9;
+}
+
+.admin-shell--cinema .admin-sidebar__status {
+  background: rgba(126, 34, 206, 0.2);
+  border-color: rgba(232, 121, 249, 0.22);
+  color: #f5d0fe;
+}
+
+.admin-shell--cinema .admin-sidebar__status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.16);
+}
+
+.admin-shell--cinema .admin-nav-item--active {
+  background:
+    linear-gradient(135deg, rgba(124, 58, 237, 0.25) 0%, rgba(219, 39, 119, 0.16) 100%);
+  border-color: rgba(232, 121, 249, 0.28);
+  box-shadow: 0 18px 32px rgba(124, 58, 237, 0.18);
+}
+
+.admin-shell--cinema .admin-nav-item:hover {
+  border-color: rgba(232, 121, 249, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.admin-shell--cinema .admin-sidebar__spotlight {
+  background:
+    linear-gradient(145deg, rgba(124, 58, 237, 0.18), rgba(219, 39, 119, 0.12));
+  border-color: rgba(232, 121, 249, 0.16);
+}
+
+.admin-shell--cinema .admin-topbar,
+.admin-shell--cinema .admin-mobilebar {
+  border-color: rgba(196, 181, 253, 0.4);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(232, 121, 249, 0.12), transparent 30%),
+    rgba(255, 255, 255, 0.78);
+  box-shadow: 0 24px 54px rgba(76, 29, 149, 0.11);
+}
+
+.admin-shell--cinema .admin-topbar__pill {
+  border-color: rgba(196, 181, 253, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #faf5ff 100%);
+}
+
+.admin-shell--cinema .admin-topbar__pill-label {
+  color: #7e22ce;
+}
+
+.admin-shell--cinema .admin-topbar__pill-value,
+.admin-shell--cinema .admin-topbar__title {
+  color: #1f1235;
+}
+
+.admin-shell--clinic {
+  background:
+    radial-gradient(circle at 16% 8%, rgba(16, 185, 129, 0.14), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(45, 212, 191, 0.12), transparent 30%),
+    linear-gradient(180deg, #f6fffb 0%, #eefdf6 48%, #effcf9 100%);
+}
+
+.admin-shell--clinic .admin-sidebar {
+  background:
+    radial-gradient(circle at 18% 4%, rgba(110, 231, 183, 0.18), transparent 28%),
+    linear-gradient(180deg, #082f2a 0%, #0b3f37 42%, #0f2f2f 100%);
+  border-right-color: rgba(167, 243, 208, 0.16);
+  box-shadow: 18px 0 52px rgba(6, 95, 70, 0.14);
+}
+
+.admin-shell--clinic .admin-sidebar__mark {
+  background: linear-gradient(135deg, #10b981 0%, #14b8a6 58%, #a7f3d0 100%);
+  box-shadow: 0 18px 38px rgba(16, 185, 129, 0.24);
+}
+
+.admin-shell--clinic .admin-sidebar__eyebrow,
+.admin-shell--clinic .admin-sidebar__spotlight-label,
+.admin-shell--clinic .admin-topbar__label {
+  color: #86efac;
+}
+
+.admin-shell--clinic .admin-sidebar__status {
+  background: rgba(6, 95, 70, 0.3);
+  border-color: rgba(110, 231, 183, 0.22);
+  color: #d1fae5;
+}
+
+.admin-shell--clinic .admin-sidebar__status-dot {
+  background: #34d399;
+  box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.16);
+}
+
+.admin-shell--clinic .admin-nav-item--active {
+  background:
+    linear-gradient(135deg, rgba(16, 185, 129, 0.24) 0%, rgba(20, 184, 166, 0.14) 100%);
+  border-color: rgba(110, 231, 183, 0.28);
+  box-shadow: 0 18px 32px rgba(6, 95, 70, 0.16);
+}
+
+.admin-shell--clinic .admin-nav-item:hover {
+  border-color: rgba(110, 231, 183, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.admin-shell--clinic .admin-sidebar__spotlight {
+  background:
+    linear-gradient(145deg, rgba(16, 185, 129, 0.18), rgba(20, 184, 166, 0.12));
+  border-color: rgba(110, 231, 183, 0.16);
+}
+
+.admin-shell--clinic .admin-topbar,
+.admin-shell--clinic .admin-mobilebar {
+  border-color: rgba(167, 243, 208, 0.42);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(110, 231, 183, 0.12), transparent 30%),
+    rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 54px rgba(6, 95, 70, 0.08);
+}
+
+.admin-shell--clinic .admin-topbar__pill {
+  border-color: rgba(167, 243, 208, 0.52);
+  background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.admin-shell--clinic .admin-topbar__pill-label {
+  color: #047857;
+}
+
+.admin-shell--clinic .admin-topbar__pill-value,
+.admin-shell--clinic .admin-topbar__title {
+  color: #0f2f2f;
+}
+
+.admin-shell--clinic .dashboard-hero,
+.admin-shell--clinic .resources-toolbar,
+.admin-shell--clinic .resources-list,
+.admin-shell--clinic .resources-filter-panel,
+.admin-shell--clinic .resource-types-hero,
+.admin-shell--clinic .resource-types-list,
+.admin-shell--clinic .booking-hero,
+.admin-shell--clinic .booking-form-section,
+.admin-shell--clinic .booking-live-panel,
+.admin-shell--clinic .auto-run-panel,
+.admin-shell--clinic .auto-windows-panel,
+.admin-shell--clinic .auto-jobs-panel,
+.admin-shell--clinic .auto-availability-panel,
+.admin-shell--clinic .user-bookings-hero,
+.admin-shell--clinic .user-bookings-panel,
+.admin-shell--clinic .resource-requests-hero,
+.admin-shell--clinic .resource-requests-panel,
+.admin-shell--clinic .rules-hero,
+.admin-shell--clinic .rules-guidance,
+.admin-shell--clinic .rules-builder,
+.admin-shell--clinic .rules-list-panel,
+.admin-shell--clinic .availability-calendar-hero,
+.admin-shell--clinic .availability-metrics,
+.admin-shell--clinic .availability-calendar-panel {
+  border-color: rgba(167, 243, 208, 0.52) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(110, 231, 183, 0.12), transparent 26%),
+    radial-gradient(circle at 0% 100%, rgba(204, 251, 241, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(240, 253, 244, 0.95) 100%) !important;
+  box-shadow: 0 24px 54px rgba(6, 95, 70, 0.08) !important;
+}
+
+.admin-shell--clinic .dashboard-hero::before,
+.admin-shell--clinic .resources-toolbar::before,
+.admin-shell--clinic .resource-card::before,
+.admin-shell--clinic .resource-types-hero::before,
+.admin-shell--clinic .resource-type-card::before,
+.admin-shell--clinic .booking-hero::before,
+.admin-shell--clinic .booking-form-section::before,
+.admin-shell--clinic .resource-requests-hero::before,
+.admin-shell--clinic .resource-requests-panel::before,
+.admin-shell--clinic .resource-request-group::before,
+.admin-shell--clinic .rules-hero::before,
+.admin-shell--clinic .rules-builder::before,
+.admin-shell--clinic .rules-list-panel::before,
+.admin-shell--clinic .rules-card::before {
+  background: linear-gradient(90deg, #10b981 0%, #14b8a6 54%, #a7f3d0 100%) !important;
+}
+
+.admin-shell--clinic .resources-eyebrow,
+.admin-shell--clinic .resource-types-eyebrow,
+.admin-shell--clinic .dashboard-hero__eyebrow,
+.admin-shell--clinic .availability-eyebrow,
+.admin-shell--clinic .rules-card__view-button,
+.admin-shell--clinic .resource-card span[class*="rounded-full"],
+.admin-shell--clinic .resource-type-card span[class*="rounded-full"] {
+  border-color: rgba(16, 185, 129, 0.24) !important;
+  background: rgba(236, 253, 245, 0.92) !important;
+  color: #047857 !important;
+}
+
+.admin-shell--clinic .resources-add-button,
+.admin-shell--clinic .resource-types-add-button,
+.admin-shell--clinic .availability-primary-action,
+.admin-shell--clinic .resource-requests-refresh,
+.admin-shell--clinic .user-bookings-save,
+.admin-shell--clinic .rules-wizard-button,
+.admin-shell--clinic .rules-wizard-modal__primary,
+.admin-shell--clinic .auto-jobs-panel__refresh,
+.admin-shell--clinic .auto-run-panel > .grid > button {
+  border: 1px solid rgba(16, 185, 129, 0.24) !important;
+  background: linear-gradient(135deg, #047857 0%, #10b981 62%, #14b8a6 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 16px 30px rgba(16, 185, 129, 0.16) !important;
+}
+
+.admin-shell--clinic input,
+.admin-shell--clinic select,
+.admin-shell--clinic textarea {
+  border-color: rgba(167, 243, 208, 0.58);
+}
+
+.admin-shell--clinic input:focus,
+.admin-shell--clinic select:focus,
+.admin-shell--clinic textarea:focus {
+  border-color: rgba(16, 185, 129, 0.55) !important;
+  box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.1) !important;
+}
+
+.admin-shell--clinic .resource-card,
+.admin-shell--clinic .resource-type-card,
+.admin-shell--clinic .rules-card,
+.admin-shell--clinic .booking-live-card,
+.admin-shell--clinic .auto-job-card,
+.admin-shell--clinic .auto-window-card,
+.admin-shell--clinic .auto-availability-card,
+.admin-shell--clinic .resource-request-group,
+.admin-shell--clinic .resource-request-card,
+.admin-shell--clinic .user-bookings-metric,
+.admin-shell--clinic .user-bookings-search,
+.admin-shell--clinic .user-bookings-current-card,
+.admin-shell--clinic .user-bookings-assigned-card,
+.admin-shell--clinic .user-bookings-resource-option,
+.admin-shell--clinic .user-bookings-resource-list {
+  border-color: rgba(167, 243, 208, 0.48) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(110, 231, 183, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 253, 244, 0.9)) !important;
+}
+
 @media (max-width: 1180px) {
   .admin-shell {
     grid-template-columns: 1fr;

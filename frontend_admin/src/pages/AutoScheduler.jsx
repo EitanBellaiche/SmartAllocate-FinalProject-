@@ -67,96 +67,6 @@ function buildDecisionStatsLine(stats) {
   return parts.join(" | ");
 }
 
-function pluralize(count, singular, plural) {
-  return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function buildDecisionExplanationLines(decision, occurrences, dates) {
-  const stats = decision?.search_stats || {};
-  const selectedResources = Array.isArray(decision?.selected_resources) ? decision.selected_resources : [];
-  const selectedRules = Array.isArray(decision?.score_breakdown) ? decision.score_breakdown : [];
-  const lines = [];
-
-  if (occurrences > 0) {
-    const datePreview = Array.isArray(dates) ? dates.slice(0, 3).map((date) => formatIsraelDate(date)).join(", ") : "";
-    lines.push(
-      `The scheduler created ${pluralize(occurrences, "occurrence", "occurrences")} for this allocation${
-        datePreview ? `, starting with ${datePreview}` : ""
-      }.`
-    );
-  }
-
-  if (stats.used_preferred_window) {
-    lines.push("It kept the result inside the preferred time window you requested.");
-  }
-
-  if (stats.used_locked_slot) {
-    lines.push("It reused a recurring weekly pattern because that pattern was already valid for this allocation.");
-  }
-
-  if (Number(stats.attempted_slots) > 0) {
-    lines.push(
-      `It checked ${pluralize(
-        Number(stats.attempted_slots),
-        "candidate slot",
-        "candidate slots"
-      )} before confirming this result.`
-    );
-  }
-
-  const rejectionReasons = [];
-  if (Number(stats.responsible_conflicts) > 0) {
-    rejectionReasons.push(
-      `${pluralize(Number(stats.responsible_conflicts), "slot was", "slots were")} rejected because the responsible user was already booked`
-    );
-  }
-  if (Number(stats.user_conflicts) > 0) {
-    rejectionReasons.push(
-      `${pluralize(Number(stats.user_conflicts), "slot was", "slots were")} rejected because assigned students or users were already booked`
-    );
-  }
-  if (Number(stats.resource_conflicts) > 0) {
-    rejectionReasons.push(
-      `${pluralize(Number(stats.resource_conflicts), "slot was", "slots were")} rejected because a required room or resource was occupied`
-    );
-  }
-  if (Number(stats.rule_conflicts) > 0) {
-    rejectionReasons.push(
-      `${pluralize(Number(stats.rule_conflicts), "slot was", "slots were")} rejected because active scheduling rules blocked the combination`
-    );
-  }
-  if (rejectionReasons.length > 0) {
-    lines.push(`Before the final choice, ${rejectionReasons.join(". ")}.`);
-  }
-
-  if (selectedResources.length > 0) {
-    lines.push(`The final resource combination was: ${selectedResources.map((resource) => resource.name).join(", ")}.`);
-  }
-
-  if (Number.isFinite(Number(decision?.score))) {
-    if (selectedRules.length > 0) {
-      const positiveRuleNames = selectedRules
-        .filter((rule) => Number(rule?.delta) > 0)
-        .slice(0, 4)
-        .map((rule) => rule.name)
-        .filter(Boolean);
-      if (positiveRuleNames.length > 0) {
-        lines.push(
-          `The final score was ${Number(decision.score)} because the selection matched these rules: ${positiveRuleNames.join(
-            ", "
-          )}.`
-        );
-      } else {
-        lines.push(`The final score for this choice was ${Number(decision.score)}.`);
-      }
-    } else {
-      lines.push(`The final score for this choice was ${Number(decision.score)}.`);
-    }
-  }
-
-  return lines;
-}
-
 function buildScheduledDecisionSignature(item) {
   const decision = item?.decision_summary || {};
   const selectedResourceIds = (Array.isArray(decision.selected_resources) ? decision.selected_resources : [])
@@ -216,7 +126,6 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
           : [];
         const statsLine = buildDecisionStatsLine(decision.search_stats);
         const sampleDates = dates.slice(0, 3).map((date) => formatIsraelDate(date)).join(", ");
-        const explanationLines = buildDecisionExplanationLines(decision, occurrences, dates);
         return (
           <div
             key={`scheduled-group-${key}-${idx}`}
@@ -254,24 +163,6 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
               </div>
             )}
 
-            {explanationLines.length > 0 && (
-              <div className="mt-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-700">
-                  Full explanation
-                </div>
-                <div className="mt-3 space-y-2">
-                  {explanationLines.map((line, lineIndex) => (
-                    <div
-                      key={`decision-explanation-${item.booking_id || idx}-${lineIndex}`}
-                      className="rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700"
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {selectedResources.length > 0 && (
               <div className="mt-3 text-xs text-slate-600">
                 Resources: {selectedResources.map((resource) => resource.name).join(", ")}
@@ -279,8 +170,8 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
             )}
 
             {Array.isArray(decision.blockers) && decision.blockers.length > 0 && (
-              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <span className="font-semibold">Before success:</span> {decision.blockers.join(" | ")}
+              <div className="mt-2 text-xs text-amber-700">
+                Before success: {decision.blockers.join(" | ")}
               </div>
             )}
 
@@ -681,9 +572,6 @@ export default function AutoScheduler({ embedded = false }) {
   const [rangeEnd, setRangeEnd] = useState(() =>
     toDateValue(addMonths(new Date(), DEFAULT_SEMESTER_MONTHS))
   );
-  const [allowSaturday, setAllowSaturday] = useState(true);
-  const [blockedDateDraft, setBlockedDateDraft] = useState("");
-  const [blockedDates, setBlockedDates] = useState([]);
   const [runMode, setRunMode] = useState("manual"); // manual | deadline
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
@@ -1025,19 +913,6 @@ export default function AutoScheduler({ embedded = false }) {
     );
   }
 
-  function addBlockedDate() {
-    const nextDate = String(blockedDateDraft || "").trim();
-    if (!nextDate) return;
-    setBlockedDates((prev) =>
-      prev.includes(nextDate) ? prev : [...prev, nextDate].sort((left, right) => left.localeCompare(right))
-    );
-    setBlockedDateDraft("");
-  }
-
-  function removeBlockedDate(dateValue) {
-    setBlockedDates((prev) => prev.filter((value) => value !== dateValue));
-  }
-
   function ensureSuggestedWindowId(suggestion) {
     const startTime = String(suggestion?.start_time || "").slice(0, 5);
     const endTime = String(suggestion?.end_time || "").slice(0, 5);
@@ -1135,8 +1010,6 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
-        allow_saturday: allowSaturday,
-        blocked_dates: blockedDates,
       });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
@@ -1223,8 +1096,6 @@ export default function AutoScheduler({ embedded = false }) {
         start_date: rangeStart,
         end_date: rangeEnd,
         groups: payloadGroups,
-        allow_saturday: allowSaturday,
-        blocked_dates: blockedDates,
       });
       setMessageTone("success");
       setMessage(
@@ -1364,9 +1235,9 @@ export default function AutoScheduler({ embedded = false }) {
         </div>
       )}
 
-      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div>
+      <div className="auto-run-panel mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div className="auto-run-panel__range grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="auto-run-field">
             <label className="mb-2 block text-sm font-semibold text-slate-700">Range start</label>
             <IsraelDateInput
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
@@ -1392,61 +1263,13 @@ export default function AutoScheduler({ embedded = false }) {
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <label className="inline-flex items-center gap-3 text-sm font-medium text-slate-700">
-            <input
-              type="checkbox"
-              checked={!allowSaturday}
-              onChange={(event) => setAllowSaturday(!event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            Do not schedule on Saturdays
-          </label>
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+        <div className="auto-run-deadline mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="auto-run-deadline__header flex flex-wrap items-center justify-between gap-3">
             <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Block specific date
-              </label>
-              <IsraelDateInput
-                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
-                value={blockedDateDraft}
-                onChange={setBlockedDateDraft}
-              />
+              <div className="auto-run-deadline__label text-sm font-semibold text-slate-800">Run mode</div>
+              <div className="auto-run-deadline__hint">Choose whether scheduling starts now or waits for a deadline.</div>
             </div>
-            <button
-              type="button"
-              onClick={addBlockedDate}
-              disabled={!blockedDateDraft}
-              className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              Add blocked date
-            </button>
-          </div>
-
-          {blockedDates.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {blockedDates.map((blockedDate) => (
-                <button
-                  key={blockedDate}
-                  type="button"
-                  onClick={() => removeBlockedDate(blockedDate)}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:border-slate-300 hover:bg-slate-100"
-                >
-                  <span>{formatIsraelDate(blockedDate)}</span>
-                  <span className="text-slate-400">Remove</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-slate-800">Run mode</div>
-            <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1">
+            <div className="auto-run-mode-toggle inline-flex rounded-2xl border border-slate-200 bg-white p-1">
               <button
                 type="button"
                 onClick={() => setRunMode("manual")}
@@ -1469,8 +1292,8 @@ export default function AutoScheduler({ embedded = false }) {
           </div>
 
           {runMode === "deadline" && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-          <div className="md:col-span-2">
+            <div className="auto-run-deadline__grid mt-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div className="auto-run-field md:col-span-2">
             <label className="mb-2 block text-sm font-semibold text-slate-700">
               Deadline date
             </label>
@@ -1480,7 +1303,7 @@ export default function AutoScheduler({ embedded = false }) {
               onChange={setDeadlineDate}
             />
           </div>
-          <div>
+          <div className="auto-run-field">
             <label className="mb-2 block text-sm font-semibold text-slate-700">
               Deadline time
             </label>
@@ -1491,7 +1314,7 @@ export default function AutoScheduler({ embedded = false }) {
               onChange={(e) => setDeadlineTime(e.target.value)}
             />
           </div>
-          <div className="md:col-span-2">
+          <div className="auto-run-deadline__status md:col-span-2">
             {canScheduleAtDeadline ? (
               <button
                 type="button"
@@ -1502,7 +1325,7 @@ export default function AutoScheduler({ embedded = false }) {
                 {running ? "Working..." : "Schedule after deadline"}
               </button>
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              <div className="auto-run-notice rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Can’t schedule yet
                 </div>
@@ -1510,12 +1333,12 @@ export default function AutoScheduler({ embedded = false }) {
               </div>
             )}
           </div>
-              <div className="md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <div className="auto-run-deadline__insights md:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="auto-countdown-card rounded-2xl border border-slate-200 bg-white px-4 py-3">
                   <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     Countdown
                   </div>
-                  <div className="mt-1 text-2xl font-semibold text-slate-900 tabular-nums">
+                  <div className="auto-countdown-card__value mt-1 text-2xl font-semibold text-slate-900 tabular-nums">
                     {countdownText || "—"}
                   </div>
                   <div className="mt-1 text-xs text-slate-600">
@@ -1524,7 +1347,7 @@ export default function AutoScheduler({ embedded = false }) {
                       : "Pick a deadline to start the countdown."}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                <div className="auto-deadline-explain rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
                   After the deadline passes, the backend will automatically run the scheduler once with the current allocations.
                   If you created a job, the countdown follows the nearest scheduled job.
                 </div>
@@ -1534,7 +1357,7 @@ export default function AutoScheduler({ embedded = false }) {
         </div>
       </div>
 
-      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div className="auto-windows-panel mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <h2 className="text-xl font-semibold text-slate-900">Time window priorities</h2>
           <button
@@ -1553,11 +1376,11 @@ export default function AutoScheduler({ embedded = false }) {
             No windows defined.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="auto-windows-grid space-y-3">
             {timeWindows.map((w) => (
-              <div key={w.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                  <div className="md:col-span-2">
+              <div key={w.id} className="auto-window-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="auto-window-card__grid grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                  <div className="auto-window-card__label md:col-span-2">
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                       Label
                     </label>
@@ -1589,7 +1412,7 @@ export default function AutoScheduler({ embedded = false }) {
                       onChange={(e) => updateTimeWindow(w.id, { end_time: e.target.value })}
                     />
                   </div>
-                  <div className="flex items-end">
+                  <div className="auto-window-card__remove flex items-end">
                     <button
                       type="button"
                       className="w-full rounded-2xl border border-red-200 bg-white px-3 py-2.5 text-red-600 transition hover:bg-red-50"
@@ -1605,13 +1428,18 @@ export default function AutoScheduler({ embedded = false }) {
         )}
       </div>
 
-      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-xl font-semibold text-slate-900">Scheduled jobs</h2>
+      <div className="auto-jobs-panel mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div className="auto-jobs-panel__header flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="auto-run-field">
+            <h2 className="text-xl font-semibold text-slate-900">Scheduled jobs</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Recent automation runs are kept in a compact activity panel.
+            </p>
+          </div>
           <button
             type="button"
             onClick={loadJobs}
-            className="rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-50"
+            className="auto-jobs-panel__refresh rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-50"
             disabled={jobsLoading}
           >
             {jobsLoading ? "Loading..." : "Refresh jobs"}
@@ -1620,11 +1448,11 @@ export default function AutoScheduler({ embedded = false }) {
         {jobsLoading ? (
           <div className="text-sm text-slate-500">Loading jobs...</div>
         ) : jobs.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+          <div className="auto-jobs-empty rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
             No scheduled jobs yet.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="auto-jobs-list space-y-3">
             {jobs.map((job) => {
               const runAt = job?.run_at ? new Date(job.run_at) : null;
               const runAtLabel = runAt && !Number.isNaN(runAt.getTime())
@@ -1648,13 +1476,13 @@ export default function AutoScheduler({ embedded = false }) {
               return (
                 <div
                   key={job.id}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                  className={`auto-job-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4 ${isExpanded ? "auto-job-card--expanded" : ""}`}
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="font-semibold text-slate-900">
+                  <div className="auto-job-card__summary flex flex-wrap items-center justify-between gap-3">
+                    <div className="auto-job-card__title font-semibold text-slate-900">
                       Job #{job.id} · {status}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="auto-job-card__actions flex flex-wrap gap-2">
                       {canView && (
                         <button
                           type="button"
@@ -1684,11 +1512,11 @@ export default function AutoScheduler({ embedded = false }) {
                       )}
                     </div>
                   </div>
-                  <div className="mt-1 text-xs leading-6 text-slate-600">
+                  <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                     Run at: {runAtLabel} | Allocations: {allocationCount}
                   </div>
                   {(scheduled.length > 0 || skipped.length > 0) && (
-                    <div className="mt-1 text-xs leading-6 text-slate-600">
+                    <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                       Scheduled: {scheduled.length} | Skipped: {skipped.length}
                     </div>
                   )}
@@ -1698,7 +1526,7 @@ export default function AutoScheduler({ embedded = false }) {
                     </div>
                   )}
                   {isExpanded && (
-                    <div className="mt-4 space-y-4">
+                    <div className="auto-job-card__details mt-4 space-y-4">
                       {scheduled.length > 0 && (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
                           <div className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
@@ -1735,30 +1563,32 @@ export default function AutoScheduler({ embedded = false }) {
         )}
       </div>
 
-      <div className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div className="auto-availability-panel mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
         <h2 className="mb-4 text-xl font-semibold text-slate-900">Responsible availability</h2>
         {availability.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
             No availability found.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="auto-availability-grid space-y-3">
             {Object.entries(availabilityByUser).map(([userId, slots]) => {
               const user = responsibleById[userId];
               return (
-                <div key={userId} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <div className="font-semibold text-slate-900">
-                    {user?.full_name || "Responsible"} - {userId}
+                <div key={userId} className="auto-availability-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="auto-availability-card__header">
+                    <div className="font-semibold text-slate-900">
+                      {user?.full_name || "Responsible"}
+                    </div>
+                    <span>{slots.length} slots</span>
                   </div>
-                  <div className="mt-1 text-xs leading-6 text-slate-600">
-                    {slots
-                      .map(
-                        (slot) =>
-                          `Day ${slot.day_of_week} ${slot.start_time?.slice?.(0, 5) || slot.start_time}-${
-                            slot.end_time?.slice?.(0, 5) || slot.end_time
-                          }`
-                      )
-                      .join(" | ")}
+                  <div className="auto-availability-card__id">{userId}</div>
+                  <div className="auto-availability-slots mt-3 text-xs leading-6 text-slate-600">
+                    {slots.map((slot, index) => (
+                      <span key={`${userId}-${index}`}>
+                        Day {slot.day_of_week} · {slot.start_time?.slice?.(0, 5) || slot.start_time}
+                        -{slot.end_time?.slice?.(0, 5) || slot.end_time}
+                      </span>
+                    ))}
                   </div>
                 </div>
               );
