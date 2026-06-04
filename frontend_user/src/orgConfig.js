@@ -42,8 +42,34 @@ const CINEMA_CONFIG = {
   },
 };
 
+const CLINIC_CONFIG = {
+  domain: "clinic",
+  labels: {
+    user: "Patient",
+    users: "Patients",
+    manager: "Medical Staff",
+    managers: "Medical Staff",
+    resource: "Doctor",
+    resources: "Doctors",
+    userId: "Patient ID",
+    request: "Appointment Request",
+    requests: "Appointment Requests",
+  },
+  ui: {
+    title: "My Care Schedule",
+    subtitle: "Review appointments, medical resources, and care updates",
+    empty: "No appointments available",
+  },
+};
+
 const ORG_DOMAIN_OVERRIDES = {
   shenkar: "generic",
+  soroka: "clinic",
+  soroka_hospital: "clinic",
+  "soroka-hospital": "clinic",
+  sorokamedicalcenter: "clinic",
+  soroka_medical_center: "clinic",
+  "soroka-medical-center": "clinic",
   yesplanetramatgan: "cinema",
 };
 
@@ -65,6 +91,17 @@ function normalizeConfig(parsed, forcedDomain) {
     };
   }
 
+  if (domain === "clinic") {
+    return {
+      ...DEFAULT_CONFIG,
+      ...CLINIC_CONFIG,
+      ...parsed,
+      domain: "clinic",
+      labels: { ...DEFAULT_LABELS, ...CLINIC_CONFIG.labels, ...(parsed?.labels || {}) },
+      ui: { ...DEFAULT_CONFIG.ui, ...CLINIC_CONFIG.ui, ...(parsed?.ui || {}) },
+    };
+  }
+
   const genericOverrides = forcedDomain === "generic" ? {} : parsed;
   return {
     ...DEFAULT_CONFIG,
@@ -77,7 +114,15 @@ function normalizeConfig(parsed, forcedDomain) {
 
 export function getOrgConfig(orgId) {
   const normalizedOrgId = String(orgId || "").trim().toLowerCase();
-  const forcedDomain = ORG_DOMAIN_OVERRIDES[normalizedOrgId];
+  const compactOrgId = normalizedOrgId.replace(/[^a-z0-9]/g, "");
+  const forcedDomain =
+    compactOrgId.includes("soroka")
+      ? "clinic"
+      : compactOrgId.includes("yesplanetramatgan")
+        ? "cinema"
+        : compactOrgId === "shenkar"
+          ? "generic"
+          : ORG_DOMAIN_OVERRIDES[normalizedOrgId] || ORG_DOMAIN_OVERRIDES[compactOrgId];
   const raw = localStorage.getItem(getStorageKey(orgId));
   if (!raw) return normalizeConfig({}, forcedDomain);
 

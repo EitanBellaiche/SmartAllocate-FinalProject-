@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
+import "./Resources.css";
 
 function sortResourcesAlphabetically(items) {
   return [...items].sort(
@@ -24,6 +25,34 @@ function normalizeCustomFieldValue(value, fieldType) {
   if (fieldType === "boolean") return Boolean(value);
   if (fieldType === "number") return value === "" ? "" : Number(value);
   return String(value ?? "");
+}
+
+function buildMetadataSearchText(metadata) {
+  if (!metadata || typeof metadata !== "object") return "";
+
+  return Object.entries(metadata)
+    .flatMap(([key, value]) => {
+      if (value === false || value === null || value === undefined || value === "") {
+        return [];
+      }
+
+      if (value === true) {
+        return [key];
+      }
+
+      if (Array.isArray(value)) {
+        return value.map((item) => String(item));
+      }
+
+      if (typeof value === "object") {
+        return Object.values(value)
+          .filter((item) => item !== false && item !== null && item !== undefined && item !== "")
+          .map((item) => String(item));
+      }
+
+      return [String(value)];
+    })
+    .join(" ");
 }
 function getFieldDisplayName(field) {
   return field?.label || field?.name || "";
@@ -378,6 +407,8 @@ export default function Resources() {
   const [types, setTypes] = useState([]);
   const [typeFilter, setTypeFilter] = useState("");
   const [nameFilter, setNameFilter] = useState("");
+  const [expandedResourceGroups, setExpandedResourceGroups] = useState({});
+  const [activeResourceGroupKey, setActiveResourceGroupKey] = useState("");
   const [loading, setLoading] = useState(true);
 
   const [showAdd, setShowAdd] = useState(false);
@@ -797,13 +828,13 @@ async function saveHallLayout() {
     const matchesType = !typeFilter || String(resource.type_id) === typeFilter;
 
     if (!hasNameFilter) {
-      return hasTypeFilter || isCinema || isRestaurant ? matchesType : false;
+      return hasTypeFilter || isRestaurant ? matchesType : false;
     }
 
     const haystack = [
       resource.name,
       resource.type_name,
-      JSON.stringify(resource.metadata || {}),
+      buildMetadataSearchText(resource.metadata),
     ]
       .filter(Boolean)
       .join(" ")
@@ -814,6 +845,87 @@ async function saveHallLayout() {
 
   const selectedTypeName =
     types.find((type) => String(type.id) === String(typeFilter))?.name || "All";
+
+  const nameMatchedResources = hasNameFilter
+    ? filteredResources.filter((resource) =>
+        String(resource?.name || "").toLowerCase().includes(normalizedNameFilter)
+      )
+    : filteredResources;
+
+  useEffect(() => {
+    setExpandedResourceGroups({});
+    setActiveResourceGroupKey("");
+  }, [normalizedNameFilter, typeFilter]);
+
+  const resourceResultGroups = useMemo(() => {
+    function getGroupIdentity(resource) {
+      const label = resource.type_name || config.resources.defaultTypeLabel || "Resource";
+      const key = `${resource.type_id || "unknown"}-${label}`;
+      return { key, label };
+    }
+
+    const matchedGroupKeys = new Set(
+      nameMatchedResources.map((resource) => getGroupIdentity(resource).key)
+    );
+
+    const exactMatchCounts = nameMatchedResources.reduce((acc, resource) => {
+      const { key } = getGroupIdentity(resource);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const groups = new Map();
+
+    sortResourcesAlphabetically(resources).forEach((resource) => {
+      const { key, label } = getGroupIdentity(resource);
+      const matchesType = !typeFilter || String(resource.type_id) === typeFilter;
+
+      if (!matchesType || !matchedGroupKeys.has(key)) return;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          label,
+          resources: [],
+          exactMatches: exactMatchCounts[key] || 0,
+        });
+      }
+      groups.get(key).resources.push(resource);
+    });
+
+    if (hasNameFilter) {
+      groups.forEach((group) => {
+        group.resources = group.resources.filter((resource) =>
+          String(resource?.name || "").toLowerCase().includes(normalizedNameFilter)
+        );
+      });
+    }
+
+    return Array.from(groups.values()).sort(
+      (a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) ||
+        b.resources.length - a.resources.length
+    );
+  }, [
+    filteredResources,
+    nameMatchedResources,
+    resources,
+    typeFilter,
+    hasNameFilter,
+    normalizedNameFilter,
+    config.resources.defaultTypeLabel,
+  ]);
+
+  function toggleResourceGroup(groupKey) {
+    setExpandedResourceGroups((prev) => ({
+      ...prev,
+      [groupKey]: !prev[groupKey],
+    }));
+  }
+
+  const activeResourceGroup = resourceResultGroups.find(
+    (group) => group.key === activeResourceGroupKey
+  );
 
 
   const groupedSeatRows = useMemo(() => {
@@ -870,17 +982,94 @@ async function saveHallLayout() {
     return <p className="text-gray-500">Loading {String(config.labels.resources || "resources").toLowerCase()}...</p>;
   }
 
+  function renderResourceCard(resource) {
+    return (
+      <article key={resource.id} className="resource-card rounded-[22px] border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-xl font-bold text-slate-900">{resource.name}</h3>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${config.theme.tag}`}>{resource.type_name || config.resources.defaultTypeLabel}</span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>ID #{resource.id}</span>
+              {Object.entries(resource.metadata || {})
+                .slice(0, 3)
+                .map(([key, value]) => (
+                  <span key={`${resource.id}-${key}`} className={`rounded-full border px-3 py-1 text-xs ${theme.tagMuted}`}>{key}: {normalizeCustomFieldValue(value)}</span>
+                ))}
+            </div>
+
+            {isRestaurant && isRestaurantTableResource(resource) && (() => {
+              const table = getRestaurantTableConfig(resource);
+              const box = getRestaurantTablePixelSize(table.size, table.shape);
+              const isRect = table.shape === "rect" || table.shape === "rectangle";
+              const isSquare = table.shape === "square";
+
+              return (
+                <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-center xl:gap-5">
+                  <div className="relative flex h-[140px] w-[180px] items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
+                    <div
+                      className={`relative border-2 border-amber-300 bg-[linear-gradient(180deg,#fef3c7_0%,#fde68a_100%)] shadow-sm ${
+                        isRect ? "rounded-2xl" : isSquare ? "rounded-2xl" : "rounded-full"
+                      }`}
+                      style={{ width: `${box.width}px`, height: `${box.height}px` }}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold uppercase tracking-[0.18em] text-amber-800">
+                        {table.shape}
+                      </div>
+                    </div>
+
+                    {buildSeatDots(table.seats).map((seatNumber, index, arr) => {
+                      const angle = (Math.PI * 2 * index) / arr.length;
+                      const radiusX = isRect ? box.width / 2 + 18 : box.width / 2 + 14;
+                      const radiusY = isRect ? box.height / 2 + 16 : box.height / 2 + 14;
+                      const left = 90 + Math.cos(angle - Math.PI / 2) * radiusX;
+                      const top = 70 + Math.sin(angle - Math.PI / 2) * radiusY;
+
+                      return (
+                        <div
+                          key={`${resource.id}-seat-preview-${seatNumber}`}
+                          className="absolute flex h-6 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-700 shadow-sm"
+                          style={{ left: `${left}px`, top: `${top}px` }}
+                        >
+                          {seatNumber}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-2 text-sm text-slate-600">
+                    <div><span className="font-semibold text-slate-900">Shape:</span> {table.shape}</div>
+                    <div><span className="font-semibold text-slate-900">Size:</span> {table.size}</div>
+                    <div><span className="font-semibold text-slate-900">Seats:</span> {table.seats}</div>
+                    <div><span className="font-semibold text-slate-900">Position:</span> {table.x}, {table.y}</div>
+                    <div><span className="font-semibold text-slate-900">Rotation:</span> {table.rotation}ֲ°</div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
+            <button onClick={() => setDetailsModal({ open: true, item: resource })} className={`rounded-xl px-4 py-2 text-sm font-semibold ${theme.buttonNeutral}`}>View</button>
+            <button onClick={() => openEdit(resource)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${theme.buttonWarning}`}>Edit</button>
+            <button onClick={() => deleteResource(resource.id)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${theme.buttonDanger}`}>Delete</button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="resources-page space-y-6">
       {!selectedHallId && (
-        <section className={`overflow-visible rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${isCinema ? config.theme.heroDark : `${theme.card} bg-gradient-to-br ${theme.hero}`}`}>
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <section className={`resources-toolbar overflow-visible rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${isCinema ? config.theme.heroDark : `${theme.card} bg-gradient-to-br ${theme.hero}`}`}>
+        <div className="resources-toolbar__top flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className={`mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${isCinema ? "border-red-900/40 bg-red-950/50 text-red-200" : config.theme.heroEyebrow}`}>
+            <div className={`resources-eyebrow mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${isCinema ? "border-red-900/40 bg-red-950/50 text-red-200" : config.theme.heroEyebrow}`}>
               {config.resources.eyebrow}
             </div>
-            <h1 className={`text-4xl font-black tracking-tight ${isCinema ? "text-white" : theme.textStrong}`}>{isRestaurant ? "Tables" : config.resources.title}</h1>
-            <p className={`mt-3 text-base leading-7 ${isCinema ? "text-slate-300" : theme.textSoft}`}>
+            <p className={`resources-toolbar__subtitle mt-3 text-base leading-7 ${isCinema ? "text-slate-300" : theme.textSoft}`}>
               {isRestaurant
                 ? "Arrange tables visually, adjust table sizes, and match the number of seats to each table layout."
                 : config.resources.subtitle}
@@ -889,13 +1078,13 @@ async function saveHallLayout() {
 
           <button
             onClick={() => setShowAdd(true)}
-            className={`inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${config.theme.buttonPrimary}`}
+            className={`resources-add-button inline-flex h-fit items-center rounded-2xl px-5 py-3 text-sm font-semibold shadow-lg transition ${config.theme.buttonPrimary}`}
           >
             + {config.resources.addButton}
           </button>
         </div>
 
-        <div className={`mt-8 rounded-[24px] border p-4 shadow-sm backdrop-blur sm:p-5 ${isCinema ? config.theme.panelSoft : "border-slate-200 bg-white/85"}`}>
+        <div className={`resources-filter-panel mt-8 rounded-[24px] border p-4 shadow-sm backdrop-blur sm:p-5 ${isCinema ? config.theme.panelSoft : "border-slate-200 bg-white/85"}`}>
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
               <label className={`mb-2 block text-sm font-semibold ${isCinema ? "text-slate-100" : theme.textStrong}`}>
@@ -932,7 +1121,7 @@ async function saveHallLayout() {
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <SummaryPill
               label={config.resources.matchedResults}
-              value={isCinema ? filteredResources.length : hasActiveFilter ? filteredResources.length : 0}
+              value={isCinema ? (hasActiveFilter ? filteredResources.length : 0) : hasActiveFilter ? nameMatchedResources.length : 0}
               tone="blue"
             />
             <SummaryPill label={config.resources.selectedFilter} value={selectedTypeName} tone="slate" />
@@ -942,9 +1131,14 @@ async function saveHallLayout() {
         </section>
       )}
 
-      <section className={`rounded-[26px] border p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6 ${isCinema ? config.theme.card : "border-slate-200 bg-white"}`}>
+      <section className={`resources-list rounded-[26px] border p-4 shadow-[0_12px_35px_rgba(15,23,42,0.06)] sm:p-6 ${isCinema ? config.theme.card : "border-slate-200 bg-white"}`}>
         {isCinema ? (
-          filteredResources.length === 0 ? (
+          !hasActiveFilter ? (
+            <div className="resources-cinema-empty rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-14 text-center">
+              <div className="text-lg font-semibold text-slate-800">{config.resources.emptyTitle}</div>
+              <div className="mt-2 text-sm text-slate-500">{config.resources.emptySubtitle}</div>
+            </div>
+          ) : filteredResources.length === 0 ? (
             <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-14 text-center">
               <div className="text-lg font-semibold text-slate-800">{config.resources.noResultsTitle}</div>
               <div className="mt-2 text-sm text-slate-500">{config.resources.noResultsSubtitle}</div>
@@ -1133,14 +1327,14 @@ async function saveHallLayout() {
               </div>
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="resources-cinema-grid">
               {filteredResources.map((resource) => {
                 const hallSeats = getSeatObjects(resource);
                 const canGenerateSeats = isCinemaHallResource(resource);
                 return (
-                  <article key={resource.id} className={`rounded-[22px] border p-5 shadow-sm transition hover:shadow-md ${isCinema ? `${config.theme.card} hover:border-red-900/30` : "border-slate-200 bg-gradient-to-r from-white to-slate-50 hover:border-slate-300"}`}>
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="min-w-0">
+                  <article key={resource.id} className={`resource-card resource-card--cinema-grid rounded-[22px] border p-5 shadow-sm transition hover:shadow-md ${isCinema ? `${config.theme.card} hover:border-red-900/30` : "border-slate-200 bg-gradient-to-r from-white to-slate-50 hover:border-slate-300"}`}>
+                    <div className="resource-card--cinema-grid__body flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="resource-card--cinema-grid__content min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                           <h3 className={`text-xl font-bold ${isCinema ? config.theme.textStrong : "text-slate-900"}`}>{resource.name}</h3>
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${config.theme.tag}`}>{resource.type_name || config.resources.defaultTypeLabel}</span>
@@ -1154,7 +1348,7 @@ async function saveHallLayout() {
                           <span className={`rounded-full border px-3 py-1 text-xs font-medium ${theme.tagMuted}`}>ID #{resource.id}</span>
                           {Object.entries(resource.metadata || {})
                             .filter(([key]) => key !== "seatObjects")
-                            .slice(0, 4)
+                            .slice(0, 3)
                             .map(([key, value]) => {
                               const chipClass =
                                 key === "zone"
@@ -1171,7 +1365,7 @@ async function saveHallLayout() {
                             })}
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
+                      <div className="resource-card--cinema-grid__actions flex flex-wrap items-center gap-2 whitespace-nowrap">
                         {canGenerateSeats && (
                           <button
                             onClick={() => openLayoutEditor(resource)}
@@ -1198,15 +1392,72 @@ async function saveHallLayout() {
             <div className="text-lg font-semibold text-slate-800">{config.resources.emptyTitle}</div>
             <div className="mt-2 text-sm text-slate-500">{config.resources.emptySubtitle}</div>
           </div>
-        ) : filteredResources.length === 0 ? (
+        ) : (!isRestaurant && nameMatchedResources.length === 0) || (isRestaurant && filteredResources.length === 0) ? (
           <div className="rounded-[22px] border border-dashed border-slate-200 bg-slate-50 px-4 py-14 text-center">
             <div className="text-lg font-semibold text-slate-800">{config.resources.noResultsTitle}</div>
             <div className="mt-2 text-sm text-slate-500">{config.resources.noResultsSubtitle}</div>
           </div>
+        ) : !isRestaurant ? (
+          activeResourceGroup ? (
+            <div className="resource-group-detail">
+              <div className="resource-group-detail__header">
+                <button
+                  type="button"
+                  onClick={() => setActiveResourceGroupKey("")}
+                  className="resource-group-detail__back"
+                >
+                  Back to groups
+                </button>
+                <div>
+                  <span className="resource-result-group__eyebrow">Resource group</span>
+                  <h2>{activeResourceGroup.label}</h2>
+                  <p>
+                    {activeResourceGroup.resources.length} resources
+                    {hasNameFilter && activeResourceGroup.exactMatches < activeResourceGroup.resources.length
+                      ? `, ${activeResourceGroup.exactMatches} direct matches for "${nameFilter.trim()}"`
+                      : ""}
+                  </p>
+                </div>
+              </div>
+
+              <div className="resource-group-detail__grid">
+                {activeResourceGroup.resources.map((resource) => renderResourceCard(resource))}
+              </div>
+            </div>
+          ) : (
+            <div className="resource-group-list resource-group-list--grid">
+              {resourceResultGroups.map((group) => {
+                const previewNames = group.resources.slice(0, 4).map((resource) => resource.name);
+
+                return (
+                  <button
+                    key={group.key}
+                    type="button"
+                    className="resource-result-tile"
+                    onClick={() => setActiveResourceGroupKey(group.key)}
+                  >
+                    <span className="resource-result-group__eyebrow">Result group</span>
+                    <strong>{group.label}</strong>
+                    <p>
+                      {previewNames.join(", ")}
+                      {group.resources.length > previewNames.length ? "..." : ""}
+                    </p>
+                    <div className="resource-result-tile__footer">
+                      {hasNameFilter && group.exactMatches < group.resources.length && (
+                        <span>{group.exactMatches} matches</span>
+                      )}
+                      <span>{group.resources.length} resources</span>
+                      <b>Open group</b>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )
         ) : (
           <div className="grid gap-4">
             {filteredResources.map((resource) => (
-              <article key={resource.id} className="rounded-[22px] border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md">
+              <article key={resource.id} className="resource-card rounded-[22px] border border-slate-200 bg-gradient-to-r from-white to-slate-50 p-5 shadow-sm transition hover:border-slate-300 hover:shadow-md">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-3">

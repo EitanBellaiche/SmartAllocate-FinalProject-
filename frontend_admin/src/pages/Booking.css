@@ -1,0 +1,878 @@
+.booking-page {
+  display: grid;
+  gap: 28px;
+}
+
+.booking-hero,
+.booking-form-section,
+.booking-live-panel {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(45, 212, 191, 0.18), transparent 25%),
+    radial-gradient(circle at 0% 100%, rgba(14, 165, 233, 0.12), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(241, 248, 252, 0.96) 100%) !important;
+  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.08) !important;
+}
+
+.booking-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.booking-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, #0284c7 0%, #14b8a6 55%, #10b981 100%);
+}
+
+.booking-hero::after {
+  content: "";
+  position: absolute;
+  right: -80px;
+  bottom: -100px;
+  width: 320px;
+  height: 320px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(20, 184, 166, 0.22), transparent 68%);
+  pointer-events: none;
+}
+
+.booking-hero__inner {
+  position: relative;
+  z-index: 1;
+}
+
+.booking-hero__eyebrow {
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.booking-hero__copy h1 {
+  color: #0f172a !important;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: clamp(34px, 4vw, 50px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.booking-hero__copy p {
+  color: #52637a !important;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.booking-mode-toggle {
+  align-self: flex-start;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  background: linear-gradient(135deg, rgba(224, 242, 254, 0.88), rgba(204, 251, 241, 0.72)) !important;
+  border-radius: 18px !important;
+  padding: 6px !important;
+}
+
+.booking-mode-toggle button {
+  min-width: 96px;
+  border-radius: 14px !important;
+  font-weight: 800 !important;
+}
+
+.booking-workspace-grid {
+  align-items: start;
+}
+
+.booking-form-section {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px !important;
+}
+
+.booking-form-section::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #0284c7, #14b8a6, #10b981);
+  opacity: 0.9;
+}
+
+.booking-form-section h2,
+.booking-live-panel h2 {
+  color: #0f172a !important;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.booking-form-section p,
+.booking-live-panel p {
+  color: #64748b !important;
+  line-height: 1.6;
+}
+
+.booking-form-section label {
+  color: #1e293b;
+}
+
+.booking-form-section input,
+.booking-form-section select,
+.booking-form-section textarea {
+  min-height: 52px;
+  border-color: rgba(148, 163, 184, 0.26) !important;
+  border-radius: 16px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+}
+
+.booking-form-section textarea {
+  min-height: 96px;
+}
+
+.booking-form-section input:focus,
+.booking-form-section select:focus,
+.booking-form-section textarea:focus {
+  border-color: rgba(14, 165, 233, 0.56) !important;
+  box-shadow: 0 0 0 5px rgba(14, 165, 233, 0.11) !important;
+}
+
+.booking-live-aside {
+  max-width: 100%;
+}
+
+.booking-live-panel {
+  display: flex;
+  max-height: calc(100vh - 96px);
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 28px !important;
+}
+
+.booking-live-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(14, 165, 233, 0.36) rgba(226, 232, 240, 0.72);
+}
+
+.booking-live-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.booking-live-list::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.42);
+  background-clip: padding-box;
+}
+
+.booking-live-card {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.08), transparent 38%) !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.055);
+}
+
+.booking-live-card:hover {
+  border-color: rgba(14, 165, 233, 0.34) !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f0fdfa 100%),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.12), transparent 42%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+}
+
+.booking-live-card .rounded-full {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-live-card button {
+  min-width: 78px;
+}
+
+.auto-jobs-panel {
+  overflow: hidden;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(45, 212, 191, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 250, 252, 0.96) 100%) !important;
+  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.08) !important;
+}
+
+.auto-jobs-panel__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: -20px -20px 16px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.86);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%);
+  padding: 20px;
+}
+
+.auto-jobs-panel__refresh {
+  border: 0 !important;
+  background: linear-gradient(135deg, #0f172a 0%, #075985 52%, #0f766e 100%) !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.14);
+}
+
+.auto-jobs-list {
+  max-height: min(48vh, 430px);
+  overflow-y: auto;
+  padding-right: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(14, 165, 233, 0.36) rgba(226, 232, 240, 0.72);
+}
+
+.auto-jobs-list::-webkit-scrollbar,
+.auto-job-card__details::-webkit-scrollbar {
+  width: 10px;
+}
+
+.auto-jobs-list::-webkit-scrollbar-thumb,
+.auto-job-card__details::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.42);
+  background-clip: padding-box;
+}
+
+.auto-job-card {
+  border-color: rgba(148, 163, 184, 0.22) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  padding: 14px 16px !important;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.auto-job-card--expanded {
+  border-color: rgba(14, 165, 233, 0.34) !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f0fdfa 100%),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.1), transparent 42%) !important;
+}
+
+.auto-job-card__summary {
+  display: grid !important;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.25fr) auto;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.auto-job-card__title {
+  grid-column: 1 / 3;
+  min-width: 0;
+  overflow: hidden;
+  color: #0f172a !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auto-job-card__line {
+  display: inline-flex;
+  margin-right: 14px;
+  color: #64748b !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+
+.auto-job-card__line + .auto-job-card__line {
+  margin-top: 3px !important;
+}
+
+.auto-job-card__actions {
+  grid-column: 3;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.auto-job-card__actions button {
+  min-height: 40px;
+  min-width: 88px;
+  border-radius: 13px !important;
+  font-weight: 800 !important;
+}
+
+.auto-job-card__details {
+  max-height: 360px;
+  overflow-y: auto;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  padding-top: 14px;
+  padding-right: 4px;
+}
+
+@media (max-width: 1279px) {
+  .booking-live-panel {
+    max-height: 520px;
+  }
+
+  .auto-jobs-list {
+    max-height: 460px;
+  }
+
+  .auto-job-card__summary {
+    grid-template-columns: 1fr;
+    align-items: start !important;
+  }
+
+  .auto-job-card__actions {
+    grid-column: auto;
+    justify-content: flex-start;
+  }
+
+  .auto-job-card__title {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .booking-page {
+    gap: 20px;
+    padding-inline: 16px;
+  }
+
+  .booking-hero,
+  .booking-form-section,
+  .booking-live-panel {
+    border-radius: 22px !important;
+  }
+
+  .booking-mode-toggle {
+    width: 100%;
+  }
+
+  .booking-mode-toggle button {
+    flex: 1;
+  }
+
+  .booking-live-panel {
+    max-height: 70vh;
+  }
+}
+
+.admin-shell--cinema .booking-hero,
+.admin-shell--cinema .booking-form-section,
+.admin-shell--cinema .booking-live-panel,
+.admin-shell--cinema .auto-jobs-panel {
+  border-color: rgba(196, 181, 253, 0.56) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(217, 70, 239, 0.16), transparent 25%),
+    radial-gradient(circle at 0% 100%, rgba(245, 158, 11, 0.1), transparent 22%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(250, 245, 255, 0.96) 100%) !important;
+  box-shadow: 0 24px 54px rgba(76, 29, 149, 0.1) !important;
+}
+
+.admin-shell--cinema .booking-hero::before,
+.admin-shell--cinema .booking-form-section::before {
+  background: linear-gradient(180deg, #f59e0b 0%, #db2777 52%, #7c3aed 100%);
+}
+
+.admin-shell--cinema .booking-hero::after {
+  background: radial-gradient(circle, rgba(217, 70, 239, 0.2), transparent 68%);
+}
+
+.admin-shell--clinic .booking-hero__eyebrow {
+  border-color: rgba(16, 185, 129, 0.32) !important;
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.98), rgba(209, 250, 229, 0.9)) !important;
+  color: #047857 !important;
+  text-shadow: none !important;
+  box-shadow: 0 10px 24px rgba(6, 95, 70, 0.09);
+}
+
+.admin-shell--cinema .booking-hero__copy h1,
+.admin-shell--cinema .booking-form-section h2,
+.admin-shell--cinema .booking-live-panel h2 {
+  color: #201036 !important;
+}
+
+.admin-shell--cinema .booking-hero__copy p,
+.admin-shell--cinema .booking-form-section p,
+.admin-shell--cinema .booking-live-panel p {
+  color: #6b5a78 !important;
+}
+
+.admin-shell--cinema .booking-mode-toggle {
+  border-color: rgba(196, 181, 253, 0.5) !important;
+  background: linear-gradient(135deg, rgba(250, 232, 255, 0.9), rgba(237, 233, 254, 0.75)) !important;
+}
+
+.admin-shell--cinema .booking-form-section input,
+.admin-shell--cinema .booking-form-section select,
+.admin-shell--cinema .booking-form-section textarea {
+  border-color: rgba(196, 181, 253, 0.56) !important;
+}
+
+.admin-shell--cinema .booking-form-section input:focus,
+.admin-shell--cinema .booking-form-section select:focus,
+.admin-shell--cinema .booking-form-section textarea:focus {
+  border-color: rgba(217, 70, 239, 0.58) !important;
+  box-shadow: 0 0 0 5px rgba(217, 70, 239, 0.1) !important;
+}
+
+.admin-shell--cinema .booking-live-list,
+.admin-shell--cinema .auto-jobs-list {
+  scrollbar-color: rgba(168, 85, 247, 0.4) rgba(237, 233, 254, 0.76);
+}
+
+.admin-shell--cinema .booking-live-card,
+.admin-shell--cinema .auto-job-card {
+  border-color: rgba(196, 181, 253, 0.52) !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #faf5ff 100%),
+    linear-gradient(90deg, rgba(217, 70, 239, 0.08), transparent 40%) !important;
+}
+
+.admin-shell--cinema .auto-jobs-panel__refresh {
+  border: 1px solid rgba(196, 181, 253, 0.68) !important;
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%) !important;
+  color: #5b21b6 !important;
+  box-shadow: 0 14px 26px rgba(124, 58, 237, 0.12) !important;
+}
+
+.auto-run-panel,
+.auto-windows-panel,
+.auto-availability-panel {
+  overflow: hidden;
+}
+
+.auto-windows-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.auto-windows-grid > * + *,
+.auto-availability-grid > * + * {
+  margin-top: 0 !important;
+}
+
+.auto-window-card {
+  min-width: 0;
+  padding: 14px !important;
+}
+
+.auto-window-card__grid {
+  display: grid !important;
+  grid-template-columns: 1fr 118px 118px;
+  gap: 10px !important;
+}
+
+.auto-window-card__label {
+  grid-column: 1 / -1 !important;
+}
+
+.auto-window-card__remove {
+  grid-column: 1 / -1;
+}
+
+.auto-window-card input {
+  min-height: 46px;
+}
+
+.admin-shell--generic .auto-run-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(186, 230, 253, 0.72) !important;
+  background:
+    radial-gradient(circle at 94% 8%, rgba(45, 212, 191, 0.18), transparent 30%),
+    radial-gradient(circle at 8% 100%, rgba(14, 165, 233, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.95) 100%) !important;
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.1) !important;
+}
+
+.admin-shell--generic .auto-run-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 5px;
+  background: linear-gradient(90deg, #0ea5e9 0%, #14b8a6 52%, #10b981 100%);
+}
+
+.admin-shell--generic .auto-run-panel__range {
+  position: relative;
+  z-index: 1;
+  align-items: stretch !important;
+}
+
+.admin-shell--generic .auto-run-field {
+  min-width: 0;
+}
+
+.admin-shell--generic .auto-run-field label,
+.admin-shell--generic .auto-run-deadline__label {
+  color: #253247 !important;
+  letter-spacing: 0.01em;
+}
+
+.admin-shell--generic .auto-run-deadline__hint {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.admin-shell--generic .auto-run-panel input {
+  min-height: 54px;
+  border-color: rgba(125, 211, 252, 0.55) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98)) !important;
+  color: #0f172a !important;
+  font-weight: 650;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.admin-shell--generic .auto-run-panel input:focus {
+  border-color: rgba(14, 165, 233, 0.68) !important;
+  box-shadow:
+    0 0 0 5px rgba(14, 165, 233, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.admin-shell--generic .auto-run-panel__range > button {
+  min-height: 54px;
+  border: 0 !important;
+  background: linear-gradient(135deg, #0f172a 0%, #0369a1 50%, #0f766e 100%) !important;
+  color: #ffffff !important;
+  font-weight: 850 !important;
+  letter-spacing: 0.01em;
+  box-shadow: 0 18px 34px rgba(3, 105, 161, 0.2) !important;
+}
+
+.admin-shell--generic .auto-run-panel__range > button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 42px rgba(3, 105, 161, 0.24) !important;
+}
+
+.admin-shell--generic .auto-run-deadline {
+  position: relative;
+  z-index: 1;
+  border-color: rgba(203, 213, 225, 0.78) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(45, 212, 191, 0.1), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(248, 250, 252, 0.78)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.admin-shell--generic .auto-run-deadline__header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.62);
+}
+
+.admin-shell--generic .auto-run-mode-toggle {
+  border-color: rgba(186, 230, 253, 0.72) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.admin-shell--generic .auto-run-mode-toggle button {
+  min-width: 158px;
+  border-radius: 13px !important;
+  font-weight: 850 !important;
+}
+
+.admin-shell--generic .auto-run-mode-toggle button.bg-blue-600,
+.admin-shell--generic .auto-run-mode-toggle button.bg-slate-900 {
+  background: linear-gradient(135deg, #0f172a 0%, #075985 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.14);
+}
+
+.admin-shell--generic .auto-run-deadline__grid {
+  align-items: stretch !important;
+}
+
+.admin-shell--generic .auto-run-deadline__status {
+  display: flex;
+}
+
+.admin-shell--generic .auto-run-deadline__status > * {
+  width: 100%;
+}
+
+.admin-shell--generic .auto-run-notice {
+  display: grid;
+  align-content: center;
+  min-height: 74px;
+  border-color: rgba(203, 213, 225, 0.72) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96)) !important;
+}
+
+.admin-shell--generic .auto-countdown-card,
+.admin-shell--generic .auto-deadline-explain {
+  min-height: 110px;
+  border-color: rgba(186, 230, 253, 0.58) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.08), transparent 36%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.055);
+}
+
+.admin-shell--generic .auto-countdown-card {
+  position: relative;
+}
+
+.admin-shell--generic .auto-countdown-card::after {
+  content: "";
+  position: absolute;
+  inset: 18px 18px auto auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #14b8a6;
+  box-shadow: 0 0 0 7px rgba(20, 184, 166, 0.12);
+}
+
+.admin-shell--generic .auto-countdown-card__value {
+  color: #0f172a !important;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: clamp(26px, 3vw, 36px) !important;
+  font-weight: 850 !important;
+  letter-spacing: 0;
+  line-height: 1.05;
+}
+
+.admin-shell--generic .auto-deadline-explain {
+  display: flex;
+  align-items: center;
+  color: #475569 !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+}
+
+.auto-availability-panel {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.08), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+}
+
+.auto-availability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-height: min(42vh, 390px);
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(14, 165, 233, 0.36) rgba(226, 232, 240, 0.72);
+}
+
+.auto-availability-grid::-webkit-scrollbar {
+  width: 10px;
+}
+
+.auto-availability-grid::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(14, 165, 233, 0.42);
+  background-clip: padding-box;
+}
+
+.auto-availability-card {
+  min-width: 0;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+}
+
+.auto-availability-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auto-availability-card__header span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: #e0f2fe;
+  padding: 5px 10px;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auto-availability-card__id {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.auto-availability-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.auto-availability-slots span {
+  border-radius: 999px;
+  border: 1px solid rgba(14, 165, 233, 0.24);
+  background: #f0f9ff;
+  padding: 5px 9px;
+  color: #075985;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.admin-shell--cinema .auto-run-panel,
+.admin-shell--cinema .auto-windows-panel,
+.admin-shell--cinema .auto-availability-panel {
+  border-color: rgba(196, 181, 253, 0.56) !important;
+  background:
+    radial-gradient(circle at 88% 0%, rgba(216, 180, 254, 0.18), transparent 28%),
+    radial-gradient(circle at 0% 100%, rgba(251, 207, 232, 0.18), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(250, 245, 255, 0.96) 100%) !important;
+  box-shadow: 0 24px 54px rgba(76, 29, 149, 0.1) !important;
+}
+
+.admin-shell--cinema .auto-run-panel label,
+.admin-shell--cinema .auto-windows-panel label,
+.admin-shell--cinema .auto-availability-panel h2 {
+  color: #2e1748 !important;
+}
+
+.admin-shell--cinema .auto-run-panel input,
+.admin-shell--cinema .auto-run-panel select,
+.admin-shell--cinema .auto-windows-panel input {
+  border-color: rgba(196, 181, 253, 0.58) !important;
+  background: rgba(255, 255, 255, 0.84) !important;
+}
+
+.admin-shell--cinema .auto-run-panel input:focus,
+.admin-shell--cinema .auto-run-panel select:focus,
+.admin-shell--cinema .auto-windows-panel input:focus {
+  border-color: rgba(168, 85, 247, 0.58) !important;
+  box-shadow: 0 0 0 5px rgba(168, 85, 247, 0.1) !important;
+}
+
+.admin-shell--cinema .auto-run-panel > .grid > button {
+  border: 1px solid rgba(167, 139, 250, 0.58) !important;
+  background: linear-gradient(135deg, rgba(245, 243, 255, 0.98) 0%, rgba(237, 233, 254, 0.92) 100%) !important;
+  color: #6d28d9 !important;
+  box-shadow: 0 12px 24px rgba(124, 58, 237, 0.1) !important;
+}
+
+.admin-shell--cinema .auto-run-panel > .grid > button:hover {
+  border-color: rgba(168, 85, 247, 0.72) !important;
+  background: linear-gradient(135deg, rgba(237, 233, 254, 1) 0%, rgba(233, 213, 255, 0.98) 100%) !important;
+}
+
+.admin-shell--cinema .auto-run-panel .mt-5 {
+  border-color: rgba(196, 181, 253, 0.48) !important;
+  background: rgba(250, 245, 255, 0.72) !important;
+}
+
+.admin-shell--cinema .auto-run-panel .inline-flex {
+  border-color: rgba(196, 181, 253, 0.55) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.admin-shell--cinema .auto-run-panel .inline-flex button {
+  color: #5b21b6 !important;
+}
+
+.admin-shell--cinema .auto-run-panel .inline-flex button.bg-blue-600,
+.admin-shell--cinema .auto-run-panel .inline-flex button.bg-slate-900 {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%) !important;
+  color: #ffffff !important;
+}
+
+.admin-shell--cinema .auto-windows-panel > .flex > button,
+.admin-shell--cinema .auto-jobs-panel__refresh {
+  border: 1px solid rgba(167, 139, 250, 0.55) !important;
+  background: linear-gradient(135deg, rgba(245, 243, 255, 0.96) 0%, rgba(237, 233, 254, 0.88) 100%) !important;
+  color: #6d28d9 !important;
+  box-shadow: 0 12px 24px rgba(124, 58, 237, 0.1);
+}
+
+.auto-jobs-empty {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+}
+
+.admin-shell--cinema .auto-jobs-empty {
+  border-color: rgba(196, 181, 253, 0.46) !important;
+  background:
+    radial-gradient(circle at 0% 100%, rgba(251, 207, 232, 0.18), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 245, 255, 0.88) 100%) !important;
+  color: #6b5a78 !important;
+}
+
+.admin-shell--cinema .auto-jobs-panel .auto-jobs-panel__refresh {
+  border: 1px solid rgba(196, 181, 253, 0.68) !important;
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%) !important;
+  color: #5b21b6 !important;
+  box-shadow: 0 14px 26px rgba(124, 58, 237, 0.12) !important;
+}
+
+.admin-shell--cinema .auto-jobs-panel .auto-jobs-panel__refresh:hover {
+  border-color: rgba(168, 85, 247, 0.62) !important;
+  background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%) !important;
+}
+
+.admin-shell--cinema .auto-window-card {
+  border-color: rgba(196, 181, 253, 0.5) !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.admin-shell--cinema .auto-window-card__remove button {
+  border: 1px solid rgba(248, 113, 113, 0.28) !important;
+  background: #fff1f2 !important;
+  color: #b91c1c !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--cinema .auto-jobs-list {
+  max-height: min(36vh, 330px);
+}
+
+.admin-shell--cinema .auto-job-card--expanded {
+  border-color: rgba(168, 85, 247, 0.42) !important;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #faf5ff 100%),
+    linear-gradient(90deg, rgba(168, 85, 247, 0.08), transparent 44%) !important;
+}
+
+.admin-shell--cinema .auto-job-card__actions button:first-child {
+  border-color: rgba(167, 139, 250, 0.5) !important;
+  background: #f5f3ff !important;
+  color: #6d28d9 !important;
+}
+
+.admin-shell--cinema .auto-availability-grid {
+  scrollbar-color: rgba(168, 85, 247, 0.38) rgba(237, 233, 254, 0.78);
+}
+
+.admin-shell--cinema .auto-availability-grid::-webkit-scrollbar-thumb {
+  background: rgba(168, 85, 247, 0.42);
+  background-clip: padding-box;
+}
+
+.admin-shell--cinema .auto-availability-card {
+  border-color: rgba(196, 181, 253, 0.48) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 180, 254, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 245, 255, 0.86)) !important;
+}
+
+.admin-shell--cinema .auto-availability-card__header span,
+.admin-shell--cinema .auto-availability-slots span {
+  border-color: rgba(196, 181, 253, 0.58);
+  background: rgba(245, 243, 255, 0.92);
+  color: #6d28d9;
+}
+
+@media (max-width: 1280px) {
+  .auto-windows-grid,
+  .auto-availability-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .auto-window-card__grid {
+    grid-template-columns: 1fr;
+  }
+}

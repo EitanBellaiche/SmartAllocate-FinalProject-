@@ -5,6 +5,7 @@ import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
 import { getOrgConfig, getOrgLabels } from "../orgConfig";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
 import AutoScheduler from "./AutoScheduler";
+import "./Booking.css";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -644,11 +645,11 @@ export default function Booking() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <section className={`rounded-[28px] border p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8 ${theme.heroDark}`}>
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl">
-            <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${theme.heroEyebrow}`}>
+    <div className="booking-page mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <section className={`booking-hero rounded-[28px] border p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:p-8 ${theme.heroDark}`}>
+        <div className="booking-hero__inner flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="booking-hero__copy max-w-2xl">
+            <div className={`booking-hero__eyebrow inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] ${theme.heroEyebrow}`}>
               Booking Workspace
             </div>
             <h1 className={`mt-4 text-3xl font-semibold tracking-tight ${isCinema ? "text-white" : theme.textStrong} sm:text-4xl`}>
@@ -660,7 +661,7 @@ export default function Booking() {
             </p>
           </div>
 
-          <div className={`inline-flex rounded-2xl border p-1 shadow-sm ${theme.panelSoft}`}>
+          <div className={`booking-mode-toggle inline-flex rounded-2xl border p-1 shadow-sm ${theme.panelSoft}`}>
             <button
               type="button"
               className={`rounded-xl px-5 py-2.5 text-sm font-medium transition ${
@@ -1058,9 +1059,9 @@ export default function Booking() {
               </div>
             )}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_360px]">
+            <div className="booking-workspace-grid grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_390px]">
               <div className="space-y-6">
-                <section className={`rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
+                <section className={`booking-form-section rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -1187,7 +1188,7 @@ export default function Booking() {
                   </div>
                 </section>
 
-                <section className={`rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
+                <section className={`booking-form-section rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -1329,7 +1330,7 @@ export default function Booking() {
                   </div>
                 </section>
 
-                <section className={`rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
+                <section className={`booking-form-section rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
                   <div className="flex flex-col gap-5">
                     <div>
                       <h2 className={`text-xl font-semibold ${theme.textStrong}`}>Select resources</h2>
@@ -1450,8 +1451,8 @@ export default function Booking() {
                 </section>
               </div>
 
-              <aside className="xl:sticky xl:top-6 xl:self-start">
-                <section className={`rounded-[26px] border p-6 shadow-sm ${theme.card}`}>
+              <aside className="booking-live-aside xl:sticky xl:top-6 xl:self-start">
+                <section className={`booking-live-panel rounded-[26px] border p-6 shadow-sm ${theme.card}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-semibold text-slate-900">Existing Bookings</h2>
@@ -1467,11 +1468,11 @@ export default function Booking() {
                     </div>
                   </div>
 
-                  <div className="mt-5 space-y-3">
+                  <div className="booking-live-list mt-5 space-y-3">
                     {bookings.map((booking) => (
                       <div
                         key={booking.id}
-                        className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
+                        className="booking-live-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
                       >
                         <div className="flex flex-col gap-2">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

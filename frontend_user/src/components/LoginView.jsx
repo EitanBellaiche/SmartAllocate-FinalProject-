@@ -12,9 +12,10 @@ export default function LoginView({
   handleLogin,
   loading,
   error,
+  domain = "generic",
 }) {
   return (
-    <div className="login-shell">
+    <div className={`login-shell login-shell--${domain || "generic"}`}>
       <div className="login-card">
         <section className="login-showcase">
           <div className="login-brand-badge">SmartAllocate</div>

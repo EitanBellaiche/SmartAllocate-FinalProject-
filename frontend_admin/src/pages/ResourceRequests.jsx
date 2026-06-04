@@ -6,6 +6,7 @@ import {
   formatIsraelDateTime as formatDateTime,
   formatIsraelTime,
 } from "../utils/datetime";
+import "./ResourceRequests.css";
 
 const STATUS_OPTIONS = ["all", "pending", "approved", "rejected", "handled"];
 
@@ -86,6 +87,18 @@ export default function ResourceRequests() {
   }, [searchQuery]);
 
   const selectedGroup = groupedRequests.find((group) => group.key === selectedResourceKey);
+  const requestMetrics = useMemo(() => {
+    const pending = filteredRequests.filter((req) => (req.status || "pending") === "pending").length;
+    const approved = filteredRequests.filter((req) => req.status === "approved").length;
+    const rejected = filteredRequests.filter((req) => req.status === "rejected").length;
+    return {
+      total: filteredRequests.length,
+      pending,
+      approved,
+      rejected,
+      resources: groupedRequests.length,
+    };
+  }, [filteredRequests, groupedRequests.length]);
 
   async function loadRequests() {
     setLoading(true);
@@ -124,10 +137,10 @@ export default function ResourceRequests() {
   }, [statusFilter]);
 
   return (
-    <div className="space-y-6">
-      <section className={`rounded-[28px] border p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-8 ${theme.heroDark}`}>
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl">
+    <div className="resource-requests-page space-y-6">
+      <section className={`resource-requests-hero rounded-[28px] border p-6 shadow-[0_18px_50px_rgba(15,23,42,0.06)] sm:p-8 ${theme.heroDark}`}>
+        <div className="resource-requests-hero__layout flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="resource-requests-hero__copy max-w-2xl">
             <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${theme.heroEyebrow}`}>
               Review Inbox
             </div>
@@ -140,17 +153,23 @@ export default function ResourceRequests() {
             </p>
           </div>
 
-          <div className={`flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-sm ${theme.panelSoft}`}>
+          <div className="resource-requests-metrics">
+            <MetricPill label="Pending" value={requestMetrics.pending} tone="red" />
+            <MetricPill label="Approved" value={requestMetrics.approved} tone="green" />
+            <MetricPill label="Resources" value={requestMetrics.resources} tone="blue" />
+          </div>
+
+          <div className={`resource-requests-filterbar flex flex-wrap items-center gap-3 rounded-2xl border p-3 shadow-sm ${theme.panelSoft}`}>
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={`Search by resource, ${labelsLower.user}, note...`}
-              className={`min-w-[240px] rounded-xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
+              className={`resource-requests-search min-w-[240px] rounded-xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className={`rounded-xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
+              className={`resource-requests-select rounded-xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option} value={option}>
@@ -162,7 +181,7 @@ export default function ResourceRequests() {
             </select>
             <button
               onClick={loadRequests}
-              className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${theme.buttonPrimary} disabled:bg-slate-400`}
+              className={`resource-requests-refresh rounded-xl px-5 py-3 text-sm font-semibold transition ${theme.buttonPrimary} disabled:bg-slate-400`}
               disabled={loading}
             >
               {loading ? "Loading..." : "Refresh"}
@@ -177,7 +196,7 @@ export default function ResourceRequests() {
         </div>
       )}
 
-      <section className={`overflow-hidden rounded-[28px] border shadow-[0_18px_45px_rgba(15,23,42,0.08)] ${theme.card}`}>
+      <section className={`resource-requests-panel overflow-hidden rounded-[28px] border shadow-[0_18px_45px_rgba(15,23,42,0.08)] ${theme.card}`}>
         {loading ? (
           <div className={`px-6 py-8 text-sm ${theme.textSoft}`}>Loading requests...</div>
         ) : groupedRequests.length === 0 ? (
@@ -190,8 +209,8 @@ export default function ResourceRequests() {
             </div>
           </div>
         ) : !selectedGroup ? (
-          <div className="p-5">
-            <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="resource-requests-queue p-5">
+            <div className="resource-requests-panel__header mb-4 flex items-center justify-between gap-4">
               <div>
                 <h2 className={`text-xl font-semibold ${theme.textStrong}`}>Resources Queue</h2>
                 <p className={`mt-1 text-sm ${theme.textSoft}`}>
@@ -203,7 +222,7 @@ export default function ResourceRequests() {
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="resource-requests-group-list space-y-3">
               {groupedRequests.map((group) => {
                 const pendingCount = group.requests.filter(
                   (req) => (req.status || "pending") === "pending"
@@ -214,7 +233,7 @@ export default function ResourceRequests() {
                     key={group.key}
                     type="button"
                     onClick={() => setSelectedResourceKey(group.key)}
-                    className={`flex w-full items-center gap-4 rounded-[22px] border px-5 py-5 text-left transition hover:bg-white ${theme.modalSurface}`}
+                    className={`resource-request-group flex w-full items-center gap-4 rounded-[22px] border px-5 py-5 text-left transition hover:bg-white ${theme.modalSurface}`}
                   >
                     <div className="flex-1">
                       <div className={`text-base font-semibold ${theme.textStrong}`}>
@@ -224,11 +243,11 @@ export default function ResourceRequests() {
                         {group.resource_type || "Resource"}
                       </div>
                     </div>
-                    <div className={`text-xs font-medium uppercase tracking-[0.16em] ${theme.modalMuted}`}>
+                    <div className={`resource-request-group__count text-xs font-medium uppercase tracking-[0.16em] ${theme.modalMuted}`}>
                       {group.requests.length} requests
                     </div>
                     {pendingCount > 0 && (
-                      <span className={`ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${theme.buttonDanger}`}>
+                      <span className={`resource-request-group__pending ml-auto inline-flex h-7 min-w-7 items-center justify-center rounded-full px-2 text-xs font-semibold ${theme.buttonDanger}`}>
                         {pendingCount}
                       </span>
                     )}
@@ -238,16 +257,16 @@ export default function ResourceRequests() {
             </div>
           </div>
         ) : (
-          <div className="p-5">
+          <div className="resource-requests-detail p-5">
             <button
               type="button"
               onClick={() => setSelectedResourceKey(null)}
-              className={`mb-4 inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold ${theme.buttonGhost}`}
+              className={`resource-requests-back mb-4 inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold ${theme.buttonGhost}`}
             >
               Back to resources
             </button>
 
-            <div className={`mb-5 rounded-[24px] border p-5 ${theme.modalSurface}`}>
+            <div className={`resource-requests-detail__summary mb-5 rounded-[24px] border p-5 ${theme.modalSurface}`}>
               <div className={`text-lg font-semibold ${theme.textStrong}`}>
                 {selectedGroup.resource_name || `Resource #${selectedGroup.resource_id}`}
               </div>
@@ -256,11 +275,11 @@ export default function ResourceRequests() {
               </div>
             </div>
 
-            <div className="grid gap-3">
+            <div className="resource-requests-request-list grid gap-3">
               {selectedGroup.requests.map((req) => (
                 <div
                   key={req.id}
-                  className={`flex flex-wrap items-center gap-4 rounded-[22px] border p-5 shadow-sm ${theme.card}`}
+                  className={`resource-request-card flex flex-wrap items-center gap-4 rounded-[22px] border p-5 shadow-sm ${theme.card}`}
                 >
                   <div className="min-w-[220px]">
                     <div className={`text-sm font-semibold ${theme.textStrong}`}>{req.user_id}</div>
@@ -296,6 +315,15 @@ export default function ResourceRequests() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function MetricPill({ label, value, tone }) {
+  return (
+    <div className={`resource-requests-metric resource-requests-metric--${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
     </div>
   );
 }

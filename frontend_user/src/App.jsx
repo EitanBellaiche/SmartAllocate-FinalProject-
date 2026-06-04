@@ -126,7 +126,12 @@ export default function App() {
       setAnnouncements([]);
     },
   });
-  const labels = sessionConfig.labels;
+  const loginPreviewConfig = useMemo(
+    () => getOrgConfig(sessionOrgId || currentUserId),
+    [sessionOrgId, currentUserId]
+  );
+  const activeConfig = hasUser ? sessionConfig : loginPreviewConfig;
+  const labels = activeConfig.labels;
   const labelsLower = useMemo(
     () => ({
       user: String(labels.user || "").toLowerCase(),
@@ -177,7 +182,7 @@ export default function App() {
   } = useResourceExplorerState({
     role,
     currentUserId,
-    isCinema: sessionConfig.domain === "cinema",
+    isCinema: activeConfig.domain === "cinema",
     labels,
     labelsLower,
     bookings,
@@ -229,7 +234,8 @@ export default function App() {
     labels,
   });
 
-  const isCinema = sessionConfig.domain === "cinema";
+  const isCinema = activeConfig.domain === "cinema";
+  const isClinic = activeConfig.domain === "clinic";
 
   const cinemaPrimaryButton = {
     border: "none",
@@ -596,6 +602,7 @@ export default function App() {
       <LoginView
         labels={labels}
         labelsLower={labelsLower}
+        domain={activeConfig.domain}
         currentUserId={currentUserId}
         setCurrentUserId={setCurrentUserId}
         password={password}
@@ -620,10 +627,12 @@ export default function App() {
 
   return (
     <div
+      className={`user-app-shell ${
+        isCinema ? "user-app-shell--cinema" : isClinic ? "user-app-shell--clinic" : "user-app-shell--generic"
+      }`}
       style={{
         minHeight: "100vh",
         display: "flex",
-        background: isCinema ? "#f1f5f9" : "transparent",
       }}
     >
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
