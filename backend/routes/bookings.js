@@ -1514,6 +1514,13 @@ router.post("/:id/cancel", async (req, res) => {
   const senderName = String(req.body?.sender_name || "Manager").trim();
   const targetUserIdRaw = String(req.body?.target_user_id || "").trim();
   const targetUserId = targetUserIdRaw || null;
+  const requestedCancelScope = String(req.body?.cancel_scope || "").trim().toLowerCase();
+  const cancelScope =
+    requestedCancelScope === "single"
+      ? "single"
+      : requestedCancelScope === "following"
+      ? "following"
+      : "similar";
   const orgId = getOrgId(req);
 
   if (!Number.isFinite(id)) {
@@ -1576,20 +1583,26 @@ router.post("/:id/cancel", async (req, res) => {
     const primaryResourceIds = primaryRows
       .map((r) => r.resource_id)
       .filter(Boolean);
-    const metadataUserIds = primaryRows.flatMap((r) =>
-      extractUserIds(normalizeMetadata(r.resource_metadata))
-    )
-      .map((id) => String(id).trim())
-      .filter(Boolean);
+    const bookingDayOfWeek = getDayOfWeekFromDateString(booking.date);
+    const relatedUserIds = Array.from(
+      new Set(
+        [String(booking.user_id || "").trim(), ...collectAssignedUserIdsFromResourceRows(primaryRows)]
+          .filter(Boolean)
+      )
+    );
     let targetBookings = [{ id: booking.id, user_id: booking.user_id }];
-    if (resourceIds.length > 0) {
+    if (cancelScope !== "single" && resourceIds.length > 0) {
+      const scopeDateFilter = cancelScope === "following" ? "AND b.date >= $6" : "";
       const targetParams = [
         resourceIds,
-        booking.date,
+        bookingDayOfWeek,
         booking.start_time,
         booking.end_time,
         resourceIds.length,
       ];
+      if (cancelScope === "following") {
+        targetParams.push(booking.date);
+      }
       let targetOrg = "";
       if (orgId) {
         targetParams.push(orgId);
@@ -1601,10 +1614,13 @@ router.post("/:id/cancel", async (req, res) => {
         FROM bookings b
         JOIN booking_resources br ON br.booking_id = b.id
         JOIN resources r ON r.id = br.resource_id
+        LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
         WHERE br.resource_id = ANY($1)
-        AND b.date = $2
+        AND bc.booking_id IS NULL
+        AND ($2::int IS NULL OR EXTRACT(DOW FROM b.date::date) = $2)
         AND b.start_time = $3
         AND b.end_time = $4
+        ${scopeDateFilter}
         ${targetOrg}
         GROUP BY b.id, b.user_id
         HAVING COUNT(DISTINCT br.resource_id) = $5
@@ -1615,23 +1631,30 @@ router.post("/:id/cancel", async (req, res) => {
       if (targetRows.length > 0) {
         targetBookings = targetRows;
       } else if (orgId) {
+        const retryScopeDateFilter = cancelScope === "following" ? "AND b.date >= $6" : "";
         const retryParams = [
           resourceIds,
-          booking.date,
+          bookingDayOfWeek,
           booking.start_time,
           booking.end_time,
           resourceIds.length,
         ];
+        if (cancelScope === "following") {
+          retryParams.push(booking.date);
+        }
         const { rows: retryRows } = await client.query(
           `
           SELECT b.id, b.user_id
           FROM bookings b
           JOIN booking_resources br ON br.booking_id = b.id
           JOIN resources r ON r.id = br.resource_id
+          LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
           WHERE br.resource_id = ANY($1)
-          AND b.date = $2
+          AND bc.booking_id IS NULL
+          AND ($2::int IS NULL OR EXTRACT(DOW FROM b.date::date) = $2)
           AND b.start_time = $3
           AND b.end_time = $4
+          ${retryScopeDateFilter}
           GROUP BY b.id, b.user_id
           HAVING COUNT(DISTINCT br.resource_id) = $5
              AND COUNT(DISTINCT CASE WHEN br.resource_id = ANY($1) THEN br.resource_id END) = $5
@@ -1644,12 +1667,16 @@ router.post("/:id/cancel", async (req, res) => {
       }
 
       if (targetBookings.length === 1 && primaryResourceIds.length > 0) {
+        const fallbackScopeDateFilter = cancelScope === "following" ? "AND b.date >= $5" : "";
         const fallbackParams = [
           primaryResourceIds,
-          booking.date,
+          bookingDayOfWeek,
           booking.start_time,
           booking.end_time,
         ];
+        if (cancelScope === "following") {
+          fallbackParams.push(booking.date);
+        }
         let fallbackOrg = "";
         if (orgId) {
           fallbackParams.push(orgId);
@@ -1661,10 +1688,13 @@ router.post("/:id/cancel", async (req, res) => {
           FROM bookings b
           JOIN booking_resources br ON br.booking_id = b.id
           JOIN resources r ON r.id = br.resource_id
+          LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
           WHERE br.resource_id = ANY($1)
-          AND b.date = $2
+          AND bc.booking_id IS NULL
+          AND ($2::int IS NULL OR EXTRACT(DOW FROM b.date::date) = $2)
           AND b.start_time = $3
           AND b.end_time = $4
+          ${fallbackScopeDateFilter}
           ${fallbackOrg}
           `,
           fallbackParams
@@ -1672,22 +1702,29 @@ router.post("/:id/cancel", async (req, res) => {
         if (fallbackRows.length > 0) {
           targetBookings = fallbackRows;
         } else if (orgId) {
+          const retryFallbackScopeDateFilter = cancelScope === "following" ? "AND b.date >= $5" : "";
           const retryFallbackParams = [
             primaryResourceIds,
-            booking.date,
+            bookingDayOfWeek,
             booking.start_time,
             booking.end_time,
           ];
+          if (cancelScope === "following") {
+            retryFallbackParams.push(booking.date);
+          }
           const { rows: retryFallbackRows } = await client.query(
             `
             SELECT DISTINCT b.id, b.user_id
             FROM bookings b
             JOIN booking_resources br ON br.booking_id = b.id
             JOIN resources r ON r.id = br.resource_id
+            LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
             WHERE br.resource_id = ANY($1)
-            AND b.date = $2
+            AND bc.booking_id IS NULL
+            AND ($2::int IS NULL OR EXTRACT(DOW FROM b.date::date) = $2)
             AND b.start_time = $3
             AND b.end_time = $4
+            ${retryFallbackScopeDateFilter}
             `,
             retryFallbackParams
           );
@@ -1695,49 +1732,6 @@ router.post("/:id/cancel", async (req, res) => {
             targetBookings = retryFallbackRows;
           }
         }
-      }
-    }
-
-    const extraUserIds = Array.from(
-      new Set(
-        metadataUserIds
-          .filter((id) => id && id !== String(booking.user_id || "").trim())
-      )
-    );
-    if (extraUserIds.length > 0 && primaryResourceIds.length > 0) {
-      const extraParams = [
-        extraUserIds,
-        primaryResourceIds,
-        booking.date,
-        booking.start_time,
-        booking.end_time,
-      ];
-      let extraOrg = "";
-      if (orgId) {
-        extraParams.push(orgId);
-        extraOrg = `AND r.organization_id = $${extraParams.length}`;
-      }
-      const { rows: extraRows } = await client.query(
-        `
-        SELECT DISTINCT b.id, b.user_id
-        FROM bookings b
-        JOIN booking_resources br ON br.booking_id = b.id
-        JOIN resources r ON r.id = br.resource_id
-        WHERE b.user_id = ANY($1)
-        AND br.resource_id = ANY($2)
-        AND b.date = $3
-        AND b.start_time = $4
-        AND b.end_time = $5
-        ${extraOrg}
-        `,
-        extraParams
-      );
-      if (extraRows.length > 0) {
-        const combined = new Map(targetBookings.map((t) => [t.id, t]));
-        extraRows.forEach((row) => {
-          if (!combined.has(row.id)) combined.set(row.id, row);
-        });
-        targetBookings = Array.from(combined.values());
       }
     }
 
@@ -1759,7 +1753,7 @@ router.post("/:id/cancel", async (req, res) => {
         .map((target) => String(target.user_id || ""))
         .filter(Boolean)
     );
-    for (const userId of metadataUserIds) {
+    for (const userId of relatedUserIds) {
       const trimmed = String(userId || "").trim();
       if (trimmed && trimmed !== String(booking.user_id || "").trim()) {
         recipientSet.add(trimmed);
@@ -1779,13 +1773,65 @@ router.post("/:id/cancel", async (req, res) => {
     }
 
     await client.query("COMMIT");
-    res.json({ success: true });
+    res.json({
+      success: true,
+      cancelled_scope: cancelScope,
+      cancelled_count: targetBookings.length,
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Error cancelling booking:", err);
     res.status(500).json({ error: "Failed to cancel booking" });
   } finally {
     client.release();
+  }
+});
+
+router.post("/:id/restore", async (req, res) => {
+  const id = Number(req.params.id);
+  const orgId = getOrgId(req);
+
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: "Invalid booking id" });
+  }
+
+  try {
+    const params = [id];
+    let existsWhere = "WHERE b.id = $1";
+    if (orgId) {
+      params.push(orgId);
+      existsWhere += ` AND r.organization_id = $2`;
+    }
+
+    const { rows: bookingRows } = await pool.query(
+      `
+      SELECT DISTINCT b.id
+      FROM bookings b
+      JOIN booking_resources br ON br.booking_id = b.id
+      JOIN resources r ON r.id = br.resource_id
+      ${existsWhere}
+      LIMIT 1
+      `,
+      params
+    );
+
+    if (bookingRows.length === 0) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const { rowCount } = await pool.query(
+      `DELETE FROM booking_cancellations WHERE booking_id = $1`,
+      [id]
+    );
+
+    if (!rowCount) {
+      return res.status(409).json({ error: "Booking is already active" });
+    }
+
+    res.json({ success: true, restored_booking_id: id });
+  } catch (err) {
+    console.error("Error restoring booking:", err);
+    res.status(500).json({ error: "Failed to restore booking" });
   }
 });
 

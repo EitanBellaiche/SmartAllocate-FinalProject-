@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
+import { apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
 import { getOrgConfig, getOrgLabels } from "../orgConfig";
@@ -8,6 +8,22 @@ import AutoScheduler from "./AutoScheduler";
 import "./Booking.css";
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function getBookingWeekday(dateValue) {
+  const parts = String(dateValue || "").split("-");
+  if (parts.length !== 3) return null;
+  const [year, month, day] = parts.map((part) => Number(part));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return new Date(year, month - 1, day).getDay();
+}
+
+function buildBookingResourceSignature(booking) {
+  return (Array.isArray(booking?.resources) ? booking.resources : [])
+    .map((resource) => Number(resource?.id))
+    .filter((id) => Number.isFinite(id))
+    .sort((a, b) => a - b)
+    .join(",");
+}
 
 export default function Booking() {
   const labels = getOrgLabels();
@@ -23,6 +39,7 @@ export default function Booking() {
   const [resourceTypes, setResourceTypes] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [editingBooking, setEditingBooking] = useState(null);
+  const [cancelBookingDialog, setCancelBookingDialog] = useState(null);
   const [selectedTypeIds, setSelectedTypeIds] = useState([]);
   const [selectedResources, setSelectedResources] = useState([]);
   const [resourceTypeQuery, setResourceTypeQuery] = useState("");
@@ -49,6 +66,7 @@ export default function Booking() {
 
   const [submitting, setSubmitting] = useState(false);
   const [updatingBooking, setUpdatingBooking] = useState(false);
+  const [cancellingBooking, setCancellingBooking] = useState(false);
   const [message, setMessage] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [violationDetails, setViolationDetails] = useState([]);
@@ -111,6 +129,15 @@ export default function Booking() {
       return matchesQuery && matchesType && matchesSelected;
     });
   }, [resources, resourceQuery, resourceFilterTypeId, showSelectedOnly, selectedResources]);
+
+  const activeBookings = useMemo(
+    () => bookings.filter((booking) => !booking?.cancelled_at),
+    [bookings]
+  );
+  const cancelledBookings = useMemo(
+    () => bookings.filter((booking) => booking?.cancelled_at),
+    [bookings]
+  );
 
   useEffect(() => {
     loadResources();
@@ -582,6 +609,39 @@ export default function Booking() {
       end_time: booking.end_time || "",
       user_id: booking.user_id || "",
       resources: (booking.resources || []).map((resource) => resource.id),
+      cancelled_at: booking.cancelled_at || null,
+    });
+  }
+
+  function getCancelDialogStats(targetBooking) {
+    if (!targetBooking) {
+      return { allSimilarCount: 1 };
+    }
+    const targetWeekday = getBookingWeekday(targetBooking.date);
+    const targetSignature = buildBookingResourceSignature(targetBooking);
+    const targetStart = String(targetBooking.start_time || "");
+    const targetEnd = String(targetBooking.end_time || "");
+
+    const matching = bookings.filter((booking) => {
+      if (booking?.cancelled_at) return false;
+      return (
+        getBookingWeekday(booking.date) === targetWeekday &&
+        String(booking.start_time || "") === targetStart &&
+        String(booking.end_time || "") === targetEnd &&
+        buildBookingResourceSignature(booking) === targetSignature
+      );
+    });
+    return {
+      allSimilarCount: matching.length || 1,
+    };
+  }
+
+  function openCancelBookingDialog(booking) {
+    const stats = getCancelDialogStats(booking);
+    setCancelBookingDialog({
+      booking,
+      scope: "similar",
+      ...stats,
     });
   }
 
@@ -622,8 +682,15 @@ export default function Booking() {
         end_time: editingBooking.end_time,
         user_id: editingBooking.user_id || undefined,
       });
+      if (editingBooking.cancelled_at) {
+        await apiPost(`/bookings/${editingBooking.id}/restore`, {});
+      }
       setEditingBooking(null);
-      setMessage("Booking updated successfully!");
+      setMessage(
+        editingBooking.cancelled_at
+          ? "Cancelled booking restored and updated successfully!"
+          : "Booking updated successfully!"
+      );
       await loadResources();
     } catch (err) {
       setMessage(err?.message || "Failed to update booking.");
@@ -632,15 +699,37 @@ export default function Booking() {
     }
   }
 
-  async function deleteBooking(id) {
-    if (!confirm("Are you sure you want to delete this booking?")) return;
-
+  async function restoreBooking(id) {
+    if (!id) return;
     try {
-      await apiDelete(`/bookings/${id}`);
-      setMessage("Booking deleted successfully!");
+      await apiPost(`/bookings/${id}/restore`, {});
+      setMessage("Booking restored successfully!");
       await loadResources();
     } catch (err) {
-      setMessage(err?.message || "Failed to delete booking.");
+      setMessage(err?.message || "Failed to restore booking.");
+    }
+  }
+
+  async function cancelBooking() {
+    if (!cancelBookingDialog?.booking?.id) return;
+
+    setCancellingBooking(true);
+    try {
+      const result = await apiPost(`/bookings/${cancelBookingDialog.booking.id}/cancel`, {
+        cancel_scope: cancelBookingDialog.scope,
+      });
+      const cancelledCount = Number(result?.cancelled_count) || 1;
+      setCancelBookingDialog(null);
+      setMessage(
+        cancelBookingDialog.scope === "single"
+          ? "Cancelled this booking."
+          : `Cancelled ${cancelledCount} bookings from this assignment.`
+      );
+      await loadResources();
+    } catch (err) {
+      setMessage(err?.message || "Failed to cancel booking.");
+    } finally {
+      setCancellingBooking(false);
     }
   }
 
@@ -1469,7 +1558,7 @@ export default function Booking() {
                   </div>
 
                   <div className="booking-live-list mt-5 space-y-3">
-                    {bookings.map((booking) => (
+                    {activeBookings.map((booking) => (
                       <div
                         key={booking.id}
                         className="booking-live-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
@@ -1491,13 +1580,6 @@ export default function Booking() {
 
                           {booking.location && (
                             <div className="text-sm text-slate-500">Location: {booking.location}</div>
-                          )}
-
-                          {booking.cancelled_at && (
-                            <div className="rounded-2xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
-                              Cancelled
-                              {booking.cancelled_reason ? `: ${booking.cancelled_reason}` : ""}
-                            </div>
                           )}
 
                           <div className="pt-1">
@@ -1527,20 +1609,91 @@ export default function Booking() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => deleteBooking(booking.id)}
+                              onClick={() => openCancelBookingDialog(booking)}
                               className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonDanger}`}
                             >
-                              Delete
+                              Cancel
                             </button>
                           </div>
                         </div>
                       </div>
                     ))}
 
-                    {bookings.length === 0 && (
+                    {activeBookings.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                        No bookings have been created yet.
+                        No active bookings.
                       </div>
+                    )}
+
+                    {cancelledBookings.length > 0 && (
+                      <details className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+                          Cancelled bookings ({cancelledBookings.length})
+                        </summary>
+                        <div className="mt-4 space-y-3">
+                          {cancelledBookings.map((booking) => (
+                            <div
+                              key={`cancelled-${booking.id}`}
+                              className="booking-live-card rounded-2xl border border-red-200 bg-red-50/50 p-4"
+                            >
+                              <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="font-semibold text-slate-900">
+                                    {formatIsraelDate(booking.date)} | {formatIsraelTime(booking.start_time)} -{" "}
+                                    {formatIsraelTime(booking.end_time)}
+                                  </div>
+                                  <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                                    Booking #{booking.id}
+                                  </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-red-200 bg-white px-3 py-2 text-sm text-red-700">
+                                  Cancelled
+                                  {booking.cancelled_reason ? `: ${booking.cancelled_reason}` : ""}
+                                </div>
+
+                                <div className="text-sm text-slate-600">
+                                  {booking.user_id ? `User: ${booking.user_id}` : "No user assigned"}
+                                </div>
+
+                                <div className="pt-1">
+                                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                                    Resources
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {(booking.resources || []).map((resource) => (
+                                      <span
+                                        key={`cancelled-${booking.id}-${resource.id}`}
+                                        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-700"
+                                      >
+                                        {resource.name}
+                                        {resource.type_name ? ` · ${resource.type_name}` : ""}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => restoreBooking(booking.id)}
+                                    className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonPrimary}`}
+                                  >
+                                    Restore
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditBooking(booking)}
+                                    className={`rounded-xl px-3 py-2 text-sm font-medium transition ${theme.buttonWarning}`}
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
                     )}
                   </div>
                 </section>
@@ -1642,6 +1795,103 @@ export default function Booking() {
                       className={`rounded-xl px-4 py-2 ${theme.buttonPrimary} disabled:bg-slate-400`}
                     >
                       {updatingBooking ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {cancelBookingDialog && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                <div className={`w-full max-w-[560px] rounded-3xl border p-5 shadow-xl ${theme.modalCard}`}>
+                  <h2 className="mb-2 text-xl font-bold text-slate-900">Cancel Booking</h2>
+                  <p className="text-sm text-slate-600">
+                    Choose whether to cancel only this booking, or the full assignment series.
+                  </p>
+
+                  <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700">
+                    <div className="font-semibold text-slate-900">
+                      {formatIsraelDate(cancelBookingDialog.booking.date)} |{" "}
+                      {formatIsraelTime(cancelBookingDialog.booking.start_time)} -{" "}
+                      {formatIsraelTime(cancelBookingDialog.booking.end_time)}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(cancelBookingDialog.booking.resources || []).map((resource) => (
+                        <span
+                          key={`cancel-dialog-${cancelBookingDialog.booking.id}-${resource.id}`}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700"
+                        >
+                          {resource.name}
+                          {resource.type_name ? ` · ${resource.type_name}` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCancelBookingDialog((prev) => (prev ? { ...prev, scope: "single" } : prev))
+                      }
+                      className={`booking-cancel-scope ${
+                        cancelBookingDialog.scope === "single" ? "booking-cancel-scope--active" : ""
+                      }`}
+                    >
+                      <span className="booking-cancel-scope__title">Only this booking</span>
+                      <span className="booking-cancel-scope__meta">
+                        Cancel just the selected occurrence.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCancelBookingDialog((prev) => (prev ? { ...prev, scope: "similar" } : prev))
+                      }
+                      className={`booking-cancel-scope ${
+                        cancelBookingDialog.scope === "similar" ? "booking-cancel-scope--active" : ""
+                      }`}
+                    >
+                      <span className="booking-cancel-scope__title">Cancel full assignment</span>
+                      <span className="booking-cancel-scope__meta">
+                        Cancel every booking in the matching assignment series. Estimated: {Number(cancelBookingDialog.allSimilarCount) || 1}.
+                      </span>
+                    </button>
+                  </div>
+
+                  <div
+                    className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                      cancelBookingDialog.scope === "single"
+                        ? "border-slate-200 bg-slate-50/80 text-slate-700"
+                        : "border-red-200 bg-red-50/80 text-red-700"
+                    }`}
+                  >
+                    {cancelBookingDialog.scope === "single"
+                      ? "This will cancel only the selected booking."
+                      : `This will cancel the full matching assignment series. Estimated bookings affected: ${Number(cancelBookingDialog.allSimilarCount) || 1}.`}
+                  </div>
+
+                  <div className="mt-6 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCancelBookingDialog(null)}
+                      className={`rounded-xl border px-4 py-2 ${theme.buttonGhost}`}
+                      disabled={cancellingBooking}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelBooking}
+                      disabled={cancellingBooking}
+                      className={`rounded-xl px-4 py-2 ${theme.buttonDanger} disabled:bg-slate-400`}
+                    >
+                      {cancellingBooking
+                        ? "Cancelling..."
+                        : cancelBookingDialog.scope === "single"
+                        ? "Cancel this booking"
+                        : "Cancel assignment"}
                     </button>
                   </div>
                 </div>

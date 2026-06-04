@@ -19,7 +19,9 @@ import {
   getOrgSchedulingDeadlineInfo,
   getResponsibleSchedulingDeadlineInfo,
   listAutoScheduleJobs,
+  rerunAutoScheduleJob,
   recordCompletedAutoScheduleRun,
+  revertAutoScheduleJob,
 } from "../services/autoScheduleJobs.js";
 
 const router = express.Router();
@@ -177,6 +179,34 @@ router.post("/jobs/:id/cancel", async (req, res) => {
     console.error("Failed to cancel auto schedule job:", err);
     const code = Number(err?.statusCode) || 500;
     res.status(code).json({ error: err?.message || "Failed to cancel job" });
+  }
+});
+
+router.post("/jobs/:id/rerun", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const job = await rerunAutoScheduleJob({
+      id: req.params.id,
+      orgId,
+      createdBy: getCreatedBy(req),
+    });
+    res.status(201).json(job);
+  } catch (err) {
+    console.error("Failed to rerun auto schedule job:", err);
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Failed to rerun job" });
+  }
+});
+
+router.post("/jobs/:id/revert", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const job = await revertAutoScheduleJob({ id: req.params.id, orgId });
+    res.json(job);
+  } catch (err) {
+    console.error("Failed to revert auto schedule job:", err);
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Failed to revert job" });
   }
 });
 

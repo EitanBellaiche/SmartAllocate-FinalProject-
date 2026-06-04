@@ -597,6 +597,7 @@ export default function AutoScheduler({ embedded = false }) {
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [expandedJobIds, setExpandedJobIds] = useState([]);
+  const [jobActionState, setJobActionState] = useState({ id: null, action: "" });
   const [availabilityModal, setAvailabilityModal] = useState({
     open: false,
     userId: "",
@@ -1112,6 +1113,7 @@ export default function AutoScheduler({ embedded = false }) {
 
   async function cancelJob(jobId) {
     if (!jobId) return;
+    setJobActionState({ id: jobId, action: "cancel" });
     try {
       await apiPost(`/auto-schedule/jobs/${jobId}/cancel`, {});
       setMessageTone("success");
@@ -1120,6 +1122,8 @@ export default function AutoScheduler({ embedded = false }) {
     } catch (err) {
       setMessageTone("error");
       setMessage(err?.message || "Failed to cancel job.");
+    } finally {
+      setJobActionState({ id: null, action: "" });
     }
   }
 
@@ -1133,6 +1137,7 @@ export default function AutoScheduler({ embedded = false }) {
     if (!jobId) return;
     const confirmed = window.confirm(`Delete auto schedule job #${jobId}?`);
     if (!confirmed) return;
+    setJobActionState({ id: jobId, action: "delete" });
     try {
       await apiDelete(`/auto-schedule/jobs/${jobId}`);
       setExpandedJobIds((prev) => prev.filter((id) => id !== jobId));
@@ -1142,6 +1147,49 @@ export default function AutoScheduler({ embedded = false }) {
     } catch (err) {
       setMessageTone("error");
       setMessage(err?.message || "Failed to delete job.");
+    } finally {
+      setJobActionState({ id: null, action: "" });
+    }
+  }
+
+  async function rerunJob(jobId) {
+    if (!jobId) return;
+    setJobActionState({ id: jobId, action: "rerun" });
+    try {
+      const rerun = await apiPost(`/auto-schedule/jobs/${jobId}/rerun`, {});
+      setMessageTone("success");
+      setMessage(`Job rerun created as job #${rerun?.id || "?"}.`);
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to rerun job.");
+    } finally {
+      setJobActionState({ id: null, action: "" });
+    }
+  }
+
+  async function revertJob(jobId) {
+    if (!jobId) return;
+    const confirmed = window.confirm(
+      `Cancel all bookings created by auto schedule job #${jobId}?`
+    );
+    if (!confirmed) return;
+    setJobActionState({ id: jobId, action: "revert" });
+    try {
+      const result = await apiPost(`/auto-schedule/jobs/${jobId}/revert`, {});
+      const revertedCount = Number(result?.reverted_count) || Number(result?.result?.revert?.cancelled_count) || 0;
+      setMessageTone("success");
+      setMessage(
+        revertedCount > 0
+          ? `Cancelled ${revertedCount} bookings created by job #${jobId}.`
+          : `Job #${jobId} was reverted.`
+      );
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to cancel job results.");
+    } finally {
+      setJobActionState({ id: null, action: "" });
     }
   }
 
@@ -1471,8 +1519,11 @@ export default function AutoScheduler({ embedded = false }) {
               const result = job?.result || {};
               const scheduled = Array.isArray(result?.scheduled) ? result.scheduled : [];
               const skipped = Array.isArray(result?.skipped) ? result.skipped : [];
+              const revertInfo = result?.revert || null;
+              const isReverted = Boolean(revertInfo?.reverted_at);
               const isExpanded = expandedJobIds.includes(job.id);
               const canView = scheduled.length > 0 || skipped.length > 0;
+              const actionBusy = jobActionState.id === job.id ? jobActionState.action : "";
               return (
                 <div
                   key={job.id}
@@ -1497,8 +1548,29 @@ export default function AutoScheduler({ embedded = false }) {
                           type="button"
                           className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                           onClick={() => cancelJob(job.id)}
+                          disabled={actionBusy === "cancel"}
                         >
-                          Cancel
+                          {actionBusy === "cancel" ? "Cancelling..." : "Cancel job"}
+                        </button>
+                      )}
+                      {job.status === "completed" && scheduled.length > 0 && !isReverted && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50"
+                          onClick={() => revertJob(job.id)}
+                          disabled={actionBusy === "revert"}
+                        >
+                          {actionBusy === "revert" ? "Cancelling..." : "Cancel results"}
+                        </button>
+                      )}
+                      {job.status !== "running" && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50"
+                          onClick={() => rerunJob(job.id)}
+                          disabled={actionBusy === "rerun"}
+                        >
+                          {actionBusy === "rerun" ? "Creating..." : "Run again"}
                         </button>
                       )}
                       {job.status !== "running" && (
@@ -1506,8 +1578,9 @@ export default function AutoScheduler({ embedded = false }) {
                           type="button"
                           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
                           onClick={() => deleteJob(job.id)}
+                          disabled={actionBusy === "delete"}
                         >
-                          Delete
+                          {actionBusy === "delete" ? "Deleting..." : "Delete"}
                         </button>
                       )}
                     </div>
@@ -1518,6 +1591,11 @@ export default function AutoScheduler({ embedded = false }) {
                   {(scheduled.length > 0 || skipped.length > 0) && (
                     <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                       Scheduled: {scheduled.length} | Skipped: {skipped.length}
+                    </div>
+                  )}
+                  {isReverted && (
+                    <div className="auto-job-card__line mt-1 text-xs leading-6 text-amber-700">
+                      Results cancelled: {Number(revertInfo?.cancelled_count) || 0} bookings | {new Date(revertInfo.reverted_at).toLocaleString("he-IL")}
                     </div>
                   )}
                   {job.error && (

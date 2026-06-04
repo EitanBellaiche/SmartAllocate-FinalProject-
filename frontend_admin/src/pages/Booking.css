@@ -193,6 +193,43 @@
   min-width: 78px;
 }
 
+.booking-cancel-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.9);
+  color: #0f172a;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.booking-cancel-scope:hover {
+  border-color: rgba(14, 165, 233, 0.46);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+}
+
+.booking-cancel-scope--active {
+  border-color: rgba(14, 165, 233, 0.72);
+  background: linear-gradient(180deg, #eff6ff 0%, #ecfeff 100%);
+  box-shadow: 0 14px 28px rgba(14, 165, 233, 0.12);
+}
+
+.booking-cancel-scope__title {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.booking-cancel-scope__meta {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #64748b;
+}
+
 .auto-jobs-panel {
   overflow: hidden;
   border-color: rgba(148, 163, 184, 0.22) !important;
