@@ -13,7 +13,6 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const config = getOrgConfig();
   const theme = config.theme;
-  const isCinema = config.domain === "cinema";
 
   const [editModal, setEditModal] = useState({
     open: false,
@@ -38,10 +37,11 @@ export default function Dashboard() {
     async function loadStats() {
       setLoadWarning("");
       try {
-        const [resourcesResult, bookingsResult, typeResult] = await Promise.allSettled([
+        const [resourcesResult, bookingsResult, typeResult, pendingRequestsResult] = await Promise.allSettled([
           apiGet("/resources"),
           apiGet("/bookings"),
           apiGet("/resource-types"),
+          apiGet("/resource-requests?status=pending"),
         ]);
 
         const resourcesData =
@@ -56,10 +56,15 @@ export default function Dashboard() {
           typeResult.status === "fulfilled" && Array.isArray(typeResult.value)
             ? typeResult.value
             : [];
+        const pendingRequests =
+          pendingRequestsResult.status === "fulfilled" && Array.isArray(pendingRequestsResult.value)
+            ? pendingRequestsResult.value
+            : [];
         const failedSections = [
           resourcesResult.status === "rejected" ? "resources" : "",
           bookingsResult.status === "rejected" ? "bookings" : "",
           typeResult.status === "rejected" ? "resource types" : "",
+          pendingRequestsResult.status === "rejected" ? "pending approvals" : "",
         ].filter(Boolean);
 
         if (failedSections.length > 0) {
@@ -67,20 +72,24 @@ export default function Dashboard() {
             resources: resourcesResult.status === "rejected" ? resourcesResult.reason : null,
             bookings: bookingsResult.status === "rejected" ? bookingsResult.reason : null,
             resourceTypes: typeResult.status === "rejected" ? typeResult.reason : null,
+            pendingRequests:
+              pendingRequestsResult.status === "rejected" ? pendingRequestsResult.reason : null,
           });
           setLoadWarning(`Some dashboard data could not be loaded: ${failedSections.join(", ")}.`);
         }
 
         const today = getIsraelDateValue();
-
-        const bookingsToday = bookings.filter((b) => String(b?.date || "").startsWith(today));
-        const pending = bookings.filter((b) => b.status === "pending");
+        const activeBookings = bookings.filter((booking) => !booking?.cancelled_at);
+        const bookingsToday = activeBookings.filter((booking) =>
+          String(booking?.date || "").startsWith(today)
+        );
 
         setStats({
           totalResources: resourcesData.length,
           bookingsToday: bookingsToday.length,
-          pending: pending.length,
-          totalBookings: bookings.length,
+          pending: pendingRequests.length,
+          totalBookings: activeBookings.length,
+          totalBookingRecords: bookings.length,
           totalResourceTypes: typeData.length,
         });
         setResources(resourcesData);
@@ -93,6 +102,7 @@ export default function Dashboard() {
           bookingsToday: 0,
           pending: 0,
           totalBookings: 0,
+          totalBookingRecords: 0,
           totalResourceTypes: 0,
         });
         setLoadWarning("Dashboard data could not be loaded. Check the API connection.");
@@ -379,7 +389,7 @@ export default function Dashboard() {
           <div className="dashboard-hero__chips">
             <div className="dashboard-hero__chip">{stats.totalResources} tracked resources</div>
             <div className="dashboard-hero__chip">{stats.pending} approvals still need attention</div>
-            <div className="dashboard-hero__chip">{stats.bookingsToday} bookings scheduled today</div>
+            <div className="dashboard-hero__chip">{stats.bookingsToday} active bookings scheduled today</div>
           </div>
         </div>
 
@@ -392,8 +402,8 @@ export default function Dashboard() {
 
           <div className="dashboard-hero__panel-grid">
             <div className="dashboard-hero__panel-card dashboard-hero__panel-card--primary">
-              <strong>{stats.totalBookings}</strong>
-              <span>Total booking records in the system</span>
+              <strong>{stats.totalBookingRecords}</strong>
+              <span>Total booking records in the system, including cancelled history</span>
             </div>
             <div className="dashboard-hero__panel-card">
               <strong>{stats.totalResourceTypes}</strong>
@@ -447,7 +457,7 @@ export default function Dashboard() {
             theme={theme}
           />
           <StatCard
-            title={config.labels.bookings || "Bookings"}
+            title={`Active ${config.labels.bookings || "Bookings"}`}
             value={stats.totalBookings}
             tone="violet"
             theme={theme}
