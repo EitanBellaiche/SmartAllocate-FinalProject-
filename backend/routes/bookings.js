@@ -63,6 +63,47 @@ function normalizeMetadata(raw) {
   }
 }
 
+function buildAssignedUserIdsArraySql(resourceAlias) {
+  return `ARRAY(
+    SELECT assigned_user_id
+    FROM (
+      SELECT jsonb_array_elements_text(
+        CASE
+          WHEN jsonb_typeof(${resourceAlias}.metadata->'user_ids') = 'array' THEN ${resourceAlias}.metadata->'user_ids'
+          ELSE '[]'::jsonb
+        END
+      ) AS assigned_user_id
+      UNION ALL
+      SELECT jsonb_array_elements_text(
+        CASE
+          WHEN jsonb_typeof(${resourceAlias}.metadata->'userIds') = 'array' THEN ${resourceAlias}.metadata->'userIds'
+          ELSE '[]'::jsonb
+        END
+      ) AS assigned_user_id
+      UNION ALL
+      SELECT jsonb_array_elements_text(
+        CASE
+          WHEN jsonb_typeof(${resourceAlias}.metadata->'users') = 'array' THEN ${resourceAlias}.metadata->'users'
+          ELSE '[]'::jsonb
+        END
+      ) AS assigned_user_id
+      UNION ALL
+      SELECT regexp_split_to_table(COALESCE(${resourceAlias}.metadata->>'user_ids', ''), E'[\\\\s,]+') AS assigned_user_id
+      UNION ALL
+      SELECT regexp_split_to_table(COALESCE(${resourceAlias}.metadata->>'userIds', ''), E'[\\\\s,]+') AS assigned_user_id
+      UNION ALL
+      SELECT regexp_split_to_table(
+        CASE
+          WHEN jsonb_typeof(${resourceAlias}.metadata->'users') = 'string' THEN COALESCE(${resourceAlias}.metadata->>'users', '')
+          ELSE ''
+        END,
+        E'[\\\\s,]+'
+      ) AS assigned_user_id
+    ) assigned_user_ids
+    WHERE assigned_user_id <> ''
+  )`;
+}
+
 function extractUserIds(meta) {
   if (!meta || typeof meta !== "object") return [];
   const candidates = [meta.user_ids, meta.userIds];
@@ -919,18 +960,7 @@ async function findAnyUserConflict(
         WHERE br_user.booking_id = b.id
         ${assignedOrgWhere}
         AND (
-          CASE
-            WHEN jsonb_typeof(r_user.metadata->'user_ids') = 'array' THEN r_user.metadata->'user_ids'
-            ELSE '[]'::jsonb
-          END ?| $1
-          OR CASE
-            WHEN jsonb_typeof(r_user.metadata->'userIds') = 'array' THEN r_user.metadata->'userIds'
-            ELSE '[]'::jsonb
-          END ?| $1
-          OR CASE
-            WHEN jsonb_typeof(r_user.metadata->'users') = 'array' THEN r_user.metadata->'users'
-            ELSE '[]'::jsonb
-          END ?| $1
+          ${buildAssignedUserIdsArraySql("r_user")} && $1::text[]
           OR COALESCE(r_user.metadata->>'responsible_user_id', '') = ANY($1)
           OR COALESCE(r_user.metadata->>'responsibleUserId', '') = ANY($1)
           OR COALESCE(r_user.metadata->>'responsible_id', '') = ANY($1)
@@ -1351,7 +1381,7 @@ router.get("/", async (req, res) => {
             JOIN resources r_user ON r_user.id = br_user.resource_id
             WHERE br_user.booking_id = b.id
               AND (
-                COALESCE(r_user.metadata->'user_ids', '[]'::jsonb) ? $${userParamIndex}
+                $${userParamIndex} = ANY(${buildAssignedUserIdsArraySql("r_user")})
                 OR COALESCE(r_user.metadata->>'responsible_user_id', '') = $${userParamIndex}
                 OR COALESCE(r_user.metadata->>'responsibleUserId', '') = $${userParamIndex}
                 OR COALESCE(r_user.metadata->>'responsible_id', '') = $${userParamIndex}

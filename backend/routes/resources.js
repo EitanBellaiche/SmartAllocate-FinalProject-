@@ -14,6 +14,49 @@ function getOrgId(req) {
   return trimmed || null;
 }
 
+function normalizeAssignedUserIds(value) {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  if (typeof value === "string") {
+    return Array.from(
+      new Set(
+        value
+          .split(/[\s,]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  return value;
+}
+
+function normalizeResourceMetadata(rawMetadata) {
+  if (!rawMetadata || typeof rawMetadata !== "object" || Array.isArray(rawMetadata)) {
+    return rawMetadata ?? {};
+  }
+
+  const metadata = { ...rawMetadata };
+
+  if (Object.prototype.hasOwnProperty.call(metadata, "user_ids")) {
+    metadata.user_ids = normalizeAssignedUserIds(metadata.user_ids);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(metadata, "userIds")) {
+    metadata.userIds = normalizeAssignedUserIds(metadata.userIds);
+  }
+
+  return metadata;
+}
+
 async function ensureTable() {
   if (tableReady) return;
   await pool.query(`ALTER TABLE resources ADD COLUMN IF NOT EXISTS organization_id TEXT`);
@@ -107,13 +150,14 @@ router.get("/:id", async (req, res) => {
 router.post("/", async (req, res) => {
   const { name, type_id, metadata } = req.body;
   const orgId = getOrgId(req);
+  const normalizedMetadata = normalizeResourceMetadata(metadata);
 
   try {
     const result = await pool.query(
       `INSERT INTO resources (name, type_id, metadata, active, organization_id)
        VALUES ($1, $2, $3, true, $4)
        RETURNING *`,
-      [name, type_id, metadata, orgId]
+      [name, type_id, normalizedMetadata, orgId]
     );
 
     res.json(result.rows[0]);
@@ -128,13 +172,14 @@ router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { name, type_id, metadata } = req.body;
   const orgId = getOrgId(req);
+  const normalizedMetadata = normalizeResourceMetadata(metadata);
 
   if (!Number.isFinite(id)) {
     return res.status(400).json({ error: "Invalid resource id" });
   }
 
   try {
-    const params = [name, type_id, metadata, id];
+    const params = [name, type_id, normalizedMetadata, id];
     let where = "WHERE id = $4";
     if (orgId) {
       params.push(orgId);

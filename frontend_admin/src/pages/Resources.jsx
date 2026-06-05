@@ -12,19 +12,56 @@ function sortResourcesAlphabetically(items) {
   );
 }
 
+const RESERVED_METADATA_FIELD_NAMES = new Set(["user_ids", "userIds"]);
+
 function getTypeFieldNames(type) {
   return new Set(Array.isArray(type?.fields) ? type.fields.map((field) => field.name) : []);
 }
 
+function isAssignedUserIdsFieldName(fieldName) {
+  return RESERVED_METADATA_FIELD_NAMES.has(String(fieldName || "").trim());
+}
+
 function getCustomMetadataEntries(metadata, type) {
   const typeFieldNames = getTypeFieldNames(type);
-  return Object.entries(metadata || {}).filter(([key]) => !typeFieldNames.has(key));
+  return Object.entries(metadata || {}).filter(
+    ([key]) => !typeFieldNames.has(key) && !isAssignedUserIdsFieldName(key)
+  );
 }
 
 function normalizeCustomFieldValue(value, fieldType) {
   if (fieldType === "boolean") return Boolean(value);
   if (fieldType === "number") return value === "" ? "" : Number(value);
   return String(value ?? "");
+}
+
+function parseAssignedUserIds(value) {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  if (typeof value === "string") {
+    return Array.from(
+      new Set(
+        value
+          .split(/[\s,]+/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+  }
+
+  return [];
+}
+
+function formatAssignedUserIds(value) {
+  return parseAssignedUserIds(value).join(", ");
 }
 
 function buildMetadataSearchText(metadata) {
@@ -56,6 +93,51 @@ function buildMetadataSearchText(metadata) {
 }
 function getFieldDisplayName(field) {
   return field?.label || field?.name || "";
+}
+
+function AssignedUserIdsEditor({ value, onChange, inputClassName }) {
+  const assignedUserIds = parseAssignedUserIds(value);
+
+  return (
+    <div className="resources-assigned-users">
+      <div className="resources-assigned-users__header">
+        <div>
+          <h3>Assigned User IDs</h3>
+          <p>Paste IDs separated by commas, spaces, or new lines. The system will normalize them on save.</p>
+        </div>
+        <div className="resources-assigned-users__count">
+          {assignedUserIds.length} {assignedUserIds.length === 1 ? "user" : "users"}
+        </div>
+      </div>
+
+      <textarea
+        rows={4}
+        className={`${inputClassName} resources-assigned-users__textarea`}
+        placeholder={"970300001, 970300002, 970300003"}
+        value={formatAssignedUserIds(value)}
+        onChange={(e) => onChange("user_ids", e.target.value)}
+      />
+
+      <div className="resources-assigned-users__hint">
+        Example: <code>970300001, 970300002, 970300003</code>
+      </div>
+
+      {assignedUserIds.length > 0 && (
+        <div className="resources-assigned-users__preview">
+          {assignedUserIds.slice(0, 18).map((userId) => (
+            <span key={userId} className="resources-assigned-users__chip">
+              {userId}
+            </span>
+          ))}
+          {assignedUserIds.length > 18 && (
+            <span className="resources-assigned-users__more">
+              +{assignedUserIds.length - 18} more
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function isCinemaHallResource(resource) {
@@ -586,6 +668,15 @@ export default function Resources() {
   }
 
   function handleMetadataChange(field, value) {
+    if (field === "user_ids") {
+      setForm((prev) => {
+        const metadata = { ...prev.metadata, user_ids: value };
+        delete metadata.userIds;
+        return { ...prev, metadata };
+      });
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       metadata: { ...prev.metadata, [field]: value },
@@ -593,6 +684,15 @@ export default function Resources() {
   }
 
   function handleEditMetadataChange(field, value) {
+    if (field === "user_ids") {
+      setEditForm((prev) => {
+        const metadata = { ...prev.metadata, user_ids: value };
+        delete metadata.userIds;
+        return { ...prev, metadata };
+      });
+      return;
+    }
+
     setEditForm((prev) => ({
       ...prev,
       metadata: { ...prev.metadata, [field]: value },
@@ -604,6 +704,16 @@ export default function Resources() {
     if (!fieldName) return;
 
     setForm((prev) => {
+      if (isAssignedUserIdsFieldName(fieldName)) {
+        return {
+          ...prev,
+          metadata: {
+            ...prev.metadata,
+            user_ids: prev.metadata?.user_ids ?? "",
+          },
+        };
+      }
+
       if (Object.prototype.hasOwnProperty.call(prev.metadata, fieldName)) {
         return prev;
       }
@@ -625,6 +735,16 @@ export default function Resources() {
     if (!fieldName) return;
 
     setEditForm((prev) => {
+      if (isAssignedUserIdsFieldName(fieldName)) {
+        return {
+          ...prev,
+          metadata: {
+            ...prev.metadata,
+            user_ids: prev.metadata?.user_ids ?? "",
+          },
+        };
+      }
+
       if (Object.prototype.hasOwnProperty.call(prev.metadata, fieldName)) {
         return prev;
       }
@@ -1562,6 +1682,14 @@ async function saveHallLayout() {
               onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
             />
 
+            <div className="mb-5">
+              <AssignedUserIdsEditor
+                value={form.metadata?.user_ids ?? form.metadata?.userIds ?? ""}
+                onChange={handleMetadataChange}
+                inputClassName={theme.input}
+              />
+            </div>
+
             {selectedType && Array.isArray(selectedType.fields) && (
               <>
                 <h3 className="mb-2 font-semibold">{config.resources.fieldsTitle}</h3>
@@ -1724,6 +1852,14 @@ async function saveHallLayout() {
               value={editForm.name}
               onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
             />
+
+            <div className="mb-5">
+              <AssignedUserIdsEditor
+                value={editForm.metadata?.user_ids ?? editForm.metadata?.userIds ?? ""}
+                onChange={handleEditMetadataChange}
+                inputClassName={theme.input}
+              />
+            </div>
 
             {editSelectedType && Array.isArray(editSelectedType.fields) && (
               <>
