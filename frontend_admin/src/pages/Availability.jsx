@@ -47,9 +47,8 @@ function isLocationLikeResource(resource) {
 function buildCompactBookingResources(resources) {
   const list = Array.isArray(resources) ? resources.filter(Boolean) : [];
   const locationResources = list.filter(isLocationLikeResource);
-  const nonLocationResources = list.filter((resource) => !isLocationLikeResource(resource));
-  if (locationResources.length <= 1) return list;
-  return [locationResources[0], ...nonLocationResources];
+  if (locationResources.length > 0) return locationResources;
+  return list;
 }
 
 function getMovieStorageKey() {
@@ -205,9 +204,12 @@ useEffect(() => {
       const start = moment(`${dateStr} ${b.start_time}`).toDate();
       const end = moment(`${dateStr} ${b.end_time}`).toDate();
       const resourcesList = Array.isArray(b.resources) ? b.resources : [];
+      const visibleResources = selectedResource
+        ? resourcesList
+        : buildCompactBookingResources(resourcesList);
       const filteredResources = selectedResource
-        ? resourcesList.filter((r) => String(r.id) === String(selectedResource))
-        : resourcesList;
+        ? visibleResources.filter((r) => String(r.id) === String(selectedResource))
+        : visibleResources;
       if (selectedResource && filteredResources.length === 0) return;
 
       const resourceNames =

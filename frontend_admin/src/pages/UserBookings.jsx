@@ -105,7 +105,7 @@ export default function UserBookings() {
     }
     let active = true;
     setBookingsLoading(true);
-    apiGet(`/bookings?user_id=${encodeURIComponent(id)}&include_details=1`)
+    apiGet(`/bookings?user_id=${encodeURIComponent(id)}&include_details=1&include_cancelled=1`)
       .then((data) => {
         if (!active) return;
         setUserBookings(Array.isArray(data) ? data : []);

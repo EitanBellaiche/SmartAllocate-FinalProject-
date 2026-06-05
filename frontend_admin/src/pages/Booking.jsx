@@ -286,7 +286,7 @@ export default function Booking() {
       const [resourceData, typeData, bookingData] = await Promise.all([
         apiGet("/resources"),
         apiGet("/resource-types"),
-        apiGet("/bookings?include_details=1"),
+        apiGet("/bookings?include_details=1&include_cancelled=1"),
       ]);
       setResources(resourceData);
       setResourceTypes(typeData);
@@ -1049,14 +1049,38 @@ export default function Booking() {
                           {suggestion.why && (
                             <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
                           )}
-                          <div className="mt-1 text-sm text-slate-600">
-                            Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
-                          </div>
+                          {suggestion.type === "timeslot" && (
+                            <div className="mt-1 text-sm text-slate-600">
+                              Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
+                            </div>
+                          )}
+                          {suggestion.type === "timeslot" &&
+                            Number.isFinite(Number(suggestion.distance_from_original)) && (
+                              <div className="mt-1 text-sm text-slate-500">
+                                Distance from original time: {Number(suggestion.distance_from_original)} minutes
+                              </div>
+                            )}
                           <div className="mt-1 text-sm text-slate-600">
                             {Array.isArray(suggestion.resources)
                               ? suggestion.resources.map((resource) => resource.name).join(", ")
                               : ""}
                           </div>
+                          {Array.isArray(suggestion?.rule_summary?.soft_matches) &&
+                            suggestion.rule_summary.soft_matches.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {suggestion.rule_summary.soft_matches.slice(0, 4).map((match, matchIndex) => (
+                                  <span
+                                    key={`${suggestion.summary || "move-existing"}-match-${match.id || matchIndex}`}
+                                    className="rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-xs font-medium text-sky-800"
+                                  >
+                                    {match.name}
+                                    {Number.isFinite(Number(match.delta))
+                                      ? ` (${Number(match.delta) > 0 ? "+" : ""}${Number(match.delta)})`
+                                      : ""}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                         </div>
                         <button
                           type="button"

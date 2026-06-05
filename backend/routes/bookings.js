@@ -1323,11 +1323,12 @@ router.use(async (req, res, next) => {
 // GET bookings (optional filter by resource_id)
 router.get("/", async (req, res) => {
   try {
-    const { resource_id, include_details, user_id, national_id } = req.query;
+    const { resource_id, include_details, include_cancelled, user_id, national_id } = req.query;
     const orgId = getOrgId(req);
     const params = [];
     const conditions = [];
     const wantsDetails = include_details === "1" || include_details === "true";
+    const wantsCancelled = include_cancelled === "1" || include_cancelled === "true";
 
     if (resource_id) {
       params.push(Number(resource_id));
@@ -1364,6 +1365,9 @@ router.get("/", async (req, res) => {
     if (orgId) {
       params.push(orgId);
       conditions.push(`r.organization_id = $${params.length}`);
+    }
+    if (!wantsCancelled) {
+      conditions.push(`bc.booking_id IS NULL`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
