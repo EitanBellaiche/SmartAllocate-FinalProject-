@@ -39,6 +39,26 @@ function normalizeAssignedUserIds(value) {
   return value;
 }
 
+function syncAssignedStudentsCount(metadata) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return metadata;
+  if (!Object.prototype.hasOwnProperty.call(metadata, "students_number")) return metadata;
+
+  const assignedUserIds = Array.isArray(metadata.user_ids)
+    ? metadata.user_ids
+    : Array.isArray(metadata.userIds)
+    ? metadata.userIds
+    : null;
+
+  if (!assignedUserIds) return metadata;
+
+  metadata.students_number =
+    typeof metadata.students_number === "string"
+      ? String(assignedUserIds.length)
+      : assignedUserIds.length;
+
+  return metadata;
+}
+
 function normalizeResourceMetadata(rawMetadata) {
   if (!rawMetadata || typeof rawMetadata !== "object" || Array.isArray(rawMetadata)) {
     return rawMetadata ?? {};
@@ -54,7 +74,7 @@ function normalizeResourceMetadata(rawMetadata) {
     metadata.userIds = normalizeAssignedUserIds(metadata.userIds);
   }
 
-  return metadata;
+  return syncAssignedStudentsCount(metadata);
 }
 
 async function ensureTable() {

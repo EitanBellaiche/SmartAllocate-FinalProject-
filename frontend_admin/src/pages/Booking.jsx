@@ -429,7 +429,9 @@ export default function Booking() {
             : {};
         meta.responsible_user_id = responsibleId || meta.responsible_user_id || "";
         meta.user_ids = userIds;
-        meta.users = userIds.length;
+        if (Object.prototype.hasOwnProperty.call(meta, "students_number")) {
+          meta.students_number = userIds.length;
+        }
         await apiPut(`/resources/${resource.id}`, {
           name: resource.name,
           type_id: resource.type_id,

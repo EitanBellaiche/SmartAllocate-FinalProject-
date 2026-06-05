@@ -61,6 +61,7 @@ function parseAssignedUserIds(value) {
 }
 
 function formatAssignedUserIds(value) {
+  if (typeof value === "string") return value;
   return parseAssignedUserIds(value).join(", ");
 }
 
@@ -95,8 +96,25 @@ function getFieldDisplayName(field) {
   return field?.label || field?.name || "";
 }
 
-function AssignedUserIdsEditor({ value, onChange, inputClassName }) {
+function AssignedUserIdsEditor({ value, onChange, inputClassName, users = [] }) {
   const assignedUserIds = parseAssignedUserIds(value);
+  const [showAllUsers, setShowAllUsers] = useState(false);
+  const usersByNationalId = useMemo(
+    () =>
+      new Map(
+        (Array.isArray(users) ? users : [])
+          .map((user) => [String(user?.national_id || "").trim(), user])
+          .filter(([nationalId]) => nationalId)
+      ),
+    [users]
+  );
+  const matchedUsers = assignedUserIds
+    .map((userId) => ({
+      userId,
+      user: usersByNationalId.get(userId) || null,
+    }))
+    .filter((entry) => entry.user);
+  const missingUserIds = assignedUserIds.filter((userId) => !usersByNationalId.has(userId));
 
   return (
     <div className="resources-assigned-users">
@@ -130,9 +148,64 @@ function AssignedUserIdsEditor({ value, onChange, inputClassName }) {
             </span>
           ))}
           {assignedUserIds.length > 18 && (
-            <span className="resources-assigned-users__more">
+            <button
+              type="button"
+              className="resources-assigned-users__more"
+              onClick={() => setShowAllUsers((prev) => !prev)}
+            >
               +{assignedUserIds.length - 18} more
-            </span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {(showAllUsers || assignedUserIds.length <= 18) && assignedUserIds.length > 0 && (
+        <div className="resources-assigned-users__details">
+          <div className="resources-assigned-users__section">
+            <div className="resources-assigned-users__section-head">
+              <strong>Assigned And Found In System</strong>
+              <span>{matchedUsers.length}</span>
+            </div>
+            {matchedUsers.length > 0 ? (
+              <div className="resources-assigned-users__user-list">
+                {matchedUsers.map(({ userId, user }) => (
+                  <div key={userId} className="resources-assigned-users__user-row">
+                    <div>
+                      <div className="resources-assigned-users__user-name">
+                        {user.full_name || "User"}
+                      </div>
+                      <div className="resources-assigned-users__user-meta">
+                        {userId}
+                        {user.email ? ` · ${user.email}` : ""}
+                      </div>
+                    </div>
+                    <span className="resources-assigned-users__status resources-assigned-users__status--ok">
+                      Valid
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="resources-assigned-users__empty">
+                No assigned IDs currently match real users in this organization.
+              </div>
+            )}
+          </div>
+
+          {missingUserIds.length > 0 && (
+            <div className="resources-assigned-users__section">
+              <div className="resources-assigned-users__section-head">
+                <strong>Assigned But Not Found</strong>
+                <span>{missingUserIds.length}</span>
+              </div>
+              <div className="resources-assigned-users__missing-list">
+                {missingUserIds.map((userId) => (
+                  <span key={userId} className="resources-assigned-users__missing-chip">
+                    {userId}
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -487,6 +560,7 @@ function SummaryPill({ label, value, tone = "slate" }) {
 export default function Resources() {
   const [resources, setResources] = useState([]);
   const [types, setTypes] = useState([]);
+  const [users, setUsers] = useState([]);
   const [typeFilter, setTypeFilter] = useState("");
   const [nameFilter, setNameFilter] = useState("");
   const [expandedResourceGroups, setExpandedResourceGroups] = useState({});
@@ -598,12 +672,14 @@ export default function Resources() {
 
   async function loadData() {
     try {
-      const [resData, typeData] = await Promise.all([
+      const [resData, typeData, userData] = await Promise.all([
         apiGet("/resources"),
         apiGet("/resource-types"),
+        apiGet("/users"),
       ]);
       setResources(sortResourcesAlphabetically(resData));
       setTypes(typeData);
+      setUsers(Array.isArray(userData) ? userData : []);
     } catch (err) {
       console.error("Error loading resources:", err);
     } finally {
@@ -1687,6 +1763,7 @@ async function saveHallLayout() {
                 value={form.metadata?.user_ids ?? form.metadata?.userIds ?? ""}
                 onChange={handleMetadataChange}
                 inputClassName={theme.input}
+                users={users}
               />
             </div>
 
@@ -1858,6 +1935,7 @@ async function saveHallLayout() {
                 value={editForm.metadata?.user_ids ?? editForm.metadata?.userIds ?? ""}
                 onChange={handleEditMetadataChange}
                 inputClassName={theme.input}
+                users={users}
               />
             </div>
 

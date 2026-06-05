@@ -223,10 +223,7 @@ export default function UserBookings() {
 
           meta.user_ids = nextList;
           delete meta.users;
-          if (
-            Object.prototype.hasOwnProperty.call(meta, "students_number") ||
-            Object.prototype.hasOwnProperty.call(meta, "department")
-          ) {
+          if (Object.prototype.hasOwnProperty.call(meta, "students_number")) {
             meta.students_number = nextList.length;
           }
 
@@ -266,10 +263,7 @@ export default function UserBookings() {
       const nextList = currentList.filter((v) => v !== id);
       meta.user_ids = nextList;
       delete meta.users;
-      if (
-        Object.prototype.hasOwnProperty.call(meta, "students_number") ||
-        Object.prototype.hasOwnProperty.call(meta, "department")
-      ) {
+      if (Object.prototype.hasOwnProperty.call(meta, "students_number")) {
         meta.students_number = nextList.length;
       }
 
