@@ -1041,6 +1041,7 @@ export default function AutoScheduler({ embedded = false }) {
     } catch (err) {
       setMessageTone("error");
       setMessage(err?.message || "Auto schedule failed.");
+      await loadJobs();
     } finally {
       setRunning(false);
     }
@@ -1128,14 +1129,25 @@ export default function AutoScheduler({ embedded = false }) {
   async function cancelJob(job) {
     const jobId = Number(job?.id);
     if (!jobId) return;
+    const isRunningJob = String(job?.status || "").trim().toLowerCase() === "running";
+    if (isRunningJob) {
+      const confirmed = window.confirm(
+        `Force stop auto schedule job #${jobId}?`
+      );
+      if (!confirmed) return;
+    }
     setJobActionState({ id: jobId, action: "cancel" });
     try {
       await apiPost(`/auto-schedule/jobs/${jobId}/cancel`, {});
-      if (job) {
+      if (job && !isRunningJob) {
         loadJobIntoEditor(job);
       }
       setMessageTone("success");
-      setMessage("Job cancelled. The setup is back in the editor.");
+      setMessage(
+        isRunningJob
+          ? `Job #${jobId} was force-stopped. You can now delete or rerun it.`
+          : "Job cancelled. The setup is back in the editor."
+      );
       await loadJobs();
     } catch (err) {
       setMessageTone("error");
@@ -1672,14 +1684,16 @@ export default function AutoScheduler({ embedded = false }) {
                           Edit
                         </button>
                       )}
-                      {statusKey === "scheduled" && (
+                      {(statusKey === "scheduled" || statusKey === "running") && (
                         <button
                           type="button"
                           className="rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                           onClick={() => cancelJob(job)}
                           disabled={actionBusy === "cancel"}
                         >
-                          {actionBusy === "cancel" ? "Cancelling..." : "Cancel job"}
+                          {actionBusy === "cancel"
+                            ? (statusKey === "running" ? "Stopping..." : "Cancelling...")
+                            : (statusKey === "running" ? "Force stop" : "Cancel job")}
                         </button>
                       )}
                       {statusKey === "completed" && scheduled.length > 0 && !isReverted && (

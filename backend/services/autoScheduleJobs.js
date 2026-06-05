@@ -349,6 +349,48 @@ export async function createAutoScheduleJob({
   return rows[0];
 }
 
+export async function startAutoScheduleRun({
+  start_date,
+  end_date,
+  groups,
+  orgId,
+  createdBy,
+  allow_saturday,
+  blocked_dates,
+}) {
+  await ensureAutoScheduleJobsTable();
+  validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday, blocked_dates });
+
+  const payload = serializeAutoSchedulePayload({
+    start_date,
+    end_date,
+    groups,
+    orgId,
+    allow_saturday,
+    blocked_dates,
+  });
+  const { rows } = await pool.query(
+    `
+    INSERT INTO ${JOBS_TABLE} (
+      organization_id,
+      created_by,
+      run_at,
+      payload,
+      status,
+      started_at
+    )
+    VALUES ($1, $2, NOW(), $3::jsonb, 'running', NOW())
+    RETURNING *
+    `,
+    [
+      orgId,
+      createdBy || null,
+      JSON.stringify(payload),
+    ]
+  );
+  return rows[0];
+}
+
 export async function recordCompletedAutoScheduleRun({
   start_date,
   end_date,
@@ -392,6 +434,63 @@ export async function recordCompletedAutoScheduleRun({
       JSON.stringify(result || { scheduled: [], skipped: [] }),
     ]
   );
+  return rows[0];
+}
+
+export async function completeAutoScheduleRun({ id, result } = {}) {
+  await ensureAutoScheduleJobsTable();
+  const jobId = Number(id);
+  if (!Number.isFinite(jobId)) {
+    const err = new Error("Invalid job id");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const { rows } = await pool.query(
+    `
+    UPDATE ${JOBS_TABLE}
+    SET status = 'completed',
+        finished_at = NOW(),
+        result = $2::jsonb,
+        error = NULL
+    WHERE id = $1
+      AND status = 'running'
+    RETURNING *
+    `,
+    [jobId, JSON.stringify(result || { scheduled: [], skipped: [] })]
+  );
+
+  if (rows.length === 0) {
+    return getAutoScheduleJobOrThrow({ id: jobId });
+  }
+  return rows[0];
+}
+
+export async function failAutoScheduleRun({ id, error } = {}) {
+  await ensureAutoScheduleJobsTable();
+  const jobId = Number(id);
+  if (!Number.isFinite(jobId)) {
+    const err = new Error("Invalid job id");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const { rows } = await pool.query(
+    `
+    UPDATE ${JOBS_TABLE}
+    SET status = 'failed',
+        finished_at = NOW(),
+        error = $2
+    WHERE id = $1
+      AND status = 'running'
+    RETURNING *
+    `,
+    [jobId, String(error || "Auto schedule failed")]
+  );
+
+  if (rows.length === 0) {
+    return getAutoScheduleJobOrThrow({ id: jobId });
+  }
   return rows[0];
 }
 
@@ -443,9 +542,14 @@ export async function cancelAutoScheduleJob({ id, orgId } = {}) {
   const { rows } = await pool.query(
     `
     UPDATE ${JOBS_TABLE}
-    SET status = 'cancelled', finished_at = NOW()
+    SET status = 'cancelled',
+        finished_at = NOW(),
+        error = CASE
+          WHEN status = 'running' THEN 'Stopped by user'
+          ELSE error
+        END
     ${where}
-    AND status = 'scheduled'
+    AND status IN ('scheduled', 'running')
     RETURNING *
     `,
     params
@@ -661,6 +765,7 @@ export async function processDueAutoScheduleJobs({ maxPerTick = 1 } = {}) {
               finished_at = NOW(),
               result = $2::jsonb
           WHERE id = $1
+            AND status = 'running'
           `,
           [job.id, JSON.stringify(result)]
         );
@@ -672,6 +777,7 @@ export async function processDueAutoScheduleJobs({ maxPerTick = 1 } = {}) {
               finished_at = NOW(),
               error = $2
           WHERE id = $1
+            AND status = 'running'
           `,
           [job.id, String(err?.message || err)]
         );

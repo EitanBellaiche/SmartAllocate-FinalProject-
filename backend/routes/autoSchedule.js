@@ -14,13 +14,15 @@ import { diagnoseGroupFailure } from "./autoSchedule/core.js";
 import { executeAutoSchedule, normalizeOrgId } from "../services/autoScheduleService.js";
 import {
   cancelAutoScheduleJob,
+  completeAutoScheduleRun,
   createAutoScheduleJob,
   deleteAutoScheduleJob,
+  failAutoScheduleRun,
   getOrgSchedulingDeadlineInfo,
   getResponsibleSchedulingDeadlineInfo,
   listAutoScheduleJobs,
   rerunAutoScheduleJob,
-  recordCompletedAutoScheduleRun,
+  startAutoScheduleRun,
   revertAutoScheduleJob,
 } from "../services/autoScheduleJobs.js";
 
@@ -107,8 +109,19 @@ router.post("/diagnose", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
+  let runJob = null;
   try {
-    const orgId = getOrgId(req);
+    const orgId = normalizeOrgId(getOrgId(req));
+    runJob = await startAutoScheduleRun({
+      start_date: req.body?.start_date,
+      end_date: req.body?.end_date,
+      groups: req.body?.groups,
+      orgId,
+      createdBy: getCreatedBy(req),
+      allow_saturday: req.body?.allow_saturday,
+      blocked_dates: req.body?.blocked_dates,
+    });
+
     const data = await executeAutoSchedule({
       start_date: req.body?.start_date,
       end_date: req.body?.end_date,
@@ -117,18 +130,16 @@ router.post("/", async (req, res) => {
       allow_saturday: req.body?.allow_saturday,
       blocked_dates: req.body?.blocked_dates,
     });
-    await recordCompletedAutoScheduleRun({
-      start_date: req.body?.start_date,
-      end_date: req.body?.end_date,
-      groups: req.body?.groups,
-      orgId,
-      createdBy: getCreatedBy(req),
-      allow_saturday: req.body?.allow_saturday,
-      blocked_dates: req.body?.blocked_dates,
-      result: data,
-    });
+    await completeAutoScheduleRun({ id: runJob.id, result: data });
     res.json(data);
   } catch (err) {
+    if (runJob?.id) {
+      try {
+        await failAutoScheduleRun({ id: runJob.id, error: err?.message || err });
+      } catch (jobErr) {
+        console.error("Failed to mark auto schedule run as failed:", jobErr);
+      }
+    }
     console.error("Auto scheduling failed:", err);
     const code = Number(err?.statusCode) || 500;
     res.status(code).json({ error: err?.message || "Auto schedule failed" });
