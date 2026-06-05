@@ -55,6 +55,90 @@ function extractSuggestionRules(suggestion) {
     : [];
 }
 
+function normalizeNumericIds(values) {
+  return Array.isArray(values)
+    ? values.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+    : [];
+}
+
+function normalizePreferredTimeWindows(values) {
+  return (Array.isArray(values) ? values : [])
+    .map((window) => ({
+      start_time: String(window?.start_time || "").slice(0, 5),
+      end_time: String(window?.end_time || "").slice(0, 5),
+    }))
+    .filter((window) => window.start_time && window.end_time && window.start_time < window.end_time);
+}
+
+function toRunnableGroup(group, windowById = {}) {
+  const preferredTimeWindows = normalizePreferredTimeWindows(group?.preferred_time_windows);
+  if (preferredTimeWindows.length === 0) {
+    const preferredWindow = windowById[String(group?.preferred_window_id || "").trim()];
+    const startTime = String(preferredWindow?.start_time || "").slice(0, 5);
+    const endTime = String(preferredWindow?.end_time || "").slice(0, 5);
+    if (startTime && endTime && startTime < endTime) {
+      preferredTimeWindows.push({ start_time: startTime, end_time: endTime });
+    }
+  }
+
+  return {
+    ...group,
+    group_id: group?.group_id || buildGroupId(),
+    type_ids: normalizeNumericIds(group?.type_ids),
+    resource_ids: normalizeNumericIds(group?.resource_ids),
+    responsible_user_id: String(group?.responsible_user_id || "").trim(),
+    user_ids: Array.isArray(group?.user_ids)
+      ? group.user_ids.map((value) => String(value || "").trim()).filter(Boolean)
+      : parseIds(String(group?.user_ids || "")),
+    hours_per_day: Number(group?.hours_per_day) || DEFAULT_HOURS_PER_DAY,
+    days_per_week: Math.min(
+      7,
+      Math.max(1, Number(group?.days_per_week) || DEFAULT_DAYS_PER_WEEK)
+    ),
+    preferred_time_windows: preferredTimeWindows,
+  };
+}
+
+function buildSuggestedRetryGroup(group, suggestion, windowById = {}) {
+  if (!group || !suggestion) return null;
+
+  const nextGroup = toRunnableGroup(group, windowById);
+  if (suggestion.type === "timeslot") {
+    const startTime = String(suggestion?.start_time || "").slice(0, 5);
+    const endTime = String(suggestion?.end_time || "").slice(0, 5);
+    if (!startTime || !endTime || startTime >= endTime) return null;
+    nextGroup.preferred_time_windows = [{ start_time: startTime, end_time: endTime }];
+    if (Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0) {
+      nextGroup.resource_ids = normalizeNumericIds(suggestion.resource_ids);
+      nextGroup.type_ids = [];
+    }
+    return nextGroup;
+  }
+
+  if (suggestion.type === "resource") {
+    if (!Array.isArray(suggestion.resource_ids) || suggestion.resource_ids.length === 0) return null;
+    nextGroup.resource_ids = normalizeNumericIds(suggestion.resource_ids);
+    nextGroup.type_ids = [];
+    return nextGroup;
+  }
+
+  return null;
+}
+
+function buildSuggestionRetryKey({ jobId, groupId, suggestion }) {
+  const resourceSignature = Array.isArray(suggestion?.resource_ids)
+    ? suggestion.resource_ids.join(",")
+    : "";
+  return [
+    String(jobId || "adhoc"),
+    String(groupId || ""),
+    String(suggestion?.type || ""),
+    String(suggestion?.start_time || ""),
+    String(suggestion?.end_time || ""),
+    resourceSignature,
+  ].join("::");
+}
+
 function buildGroupTitle(group, resourceTypes, resourceById) {
   if (!group) return "Allocation";
   const typeNames = Array.isArray(group.type_ids)
@@ -408,6 +492,8 @@ function SkippedResultCards({
   resourceTypes,
   resourceById,
   onApplySuggestion,
+  applyingSuggestionKey,
+  getSuggestionActionKey,
 }) {
   if (!Array.isArray(skipped) || skipped.length === 0) return null;
   return (
@@ -509,15 +595,24 @@ function SkippedResultCards({
                         </div>
                       </div>
                     )}
-                    {(suggestion.type === "resource" || suggestion.type === "timeslot") && (
-                      <button
-                        type="button"
-                        className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
-                        onClick={() => onApplySuggestion?.(item.group_id, suggestion)}
-                      >
-                        {suggestion.type === "timeslot" ? "Load time suggestion" : "Use resource suggestion"}
-                      </button>
-                    )}
+                    {(suggestion.type === "resource" || suggestion.type === "timeslot") && (() => {
+                      const actionKey = getSuggestionActionKey?.(item, suggestion) || "";
+                      const isApplying = actionKey && applyingSuggestionKey === actionKey;
+                      return (
+                        <button
+                          type="button"
+                          className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => onApplySuggestion?.(item, suggestion)}
+                          disabled={isApplying}
+                        >
+                          {isApplying
+                            ? "Retrying..."
+                            : suggestion.type === "timeslot"
+                              ? "Retry with time suggestion"
+                              : "Retry with resource suggestion"}
+                        </button>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -601,13 +696,14 @@ export default function AutoScheduler({ embedded = false }) {
     preferredWindowId: "",
   });
   const [groups, setGroups] = useState([]);
-  const [lastRun, setLastRun] = useState({ scheduled: [], skipped: [] });
+  const [lastRun, setLastRun] = useState({ scheduled: [], skipped: [], payload: null });
   const [allocations, setAllocations] = useState([]);
   const [allocationsLoading, setAllocationsLoading] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(false);
   const [expandedJobIds, setExpandedJobIds] = useState([]);
   const [jobActionState, setJobActionState] = useState({ id: null, action: "" });
+  const [suggestionActionKey, setSuggestionActionKey] = useState("");
   const [availabilityModal, setAvailabilityModal] = useState({
     open: false,
     userId: "",
@@ -793,12 +889,13 @@ export default function AutoScheduler({ embedded = false }) {
     }, {});
   }, [resources]);
 
-  const groupById = useMemo(() => {
-    return groups.reduce((acc, group) => {
+  const lastRunGroupById = useMemo(() => {
+    const payloadGroups = Array.isArray(lastRun?.payload?.groups) ? lastRun.payload.groups : [];
+    return payloadGroups.reduce((acc, group) => {
       if (group?.group_id) acc[group.group_id] = group;
       return acc;
     }, {});
-  }, [groups]);
+  }, [lastRun]);
 
   const filteredResourceTypes = useMemo(() => {
     const query = resourceTypeQuery.trim().toLowerCase();
@@ -924,54 +1021,83 @@ export default function AutoScheduler({ embedded = false }) {
     );
   }
 
-  function ensureSuggestedWindowId(suggestion) {
-    const startTime = String(suggestion?.start_time || "").slice(0, 5);
-    const endTime = String(suggestion?.end_time || "").slice(0, 5);
-    if (!startTime || !endTime) return "";
-    const existing = timeWindows.find(
-      (window) => window.start_time === startTime && window.end_time === endTime
-    );
-    if (existing?.id) return existing.id;
-    const id = `win_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    setTimeWindows((prev) => [
-      ...prev,
-      {
-        id,
-        label: `Suggested ${startTime}-${endTime}`,
-        start_time: startTime,
-        end_time: endTime,
-      },
-    ]);
-    return id;
+  function buildWindowById() {
+    return timeWindows.reduce((acc, window) => {
+      const key = String(window?.id || "").trim();
+      if (key) acc[key] = window;
+      return acc;
+    }, {});
   }
 
-  function applyAutoSuggestion(groupId, suggestion) {
-    if (!groupId || !suggestion) return;
+  function buildCurrentRunPayload() {
+    const windowById = buildWindowById();
+    return {
+      start_date: rangeStart,
+      end_date: rangeEnd,
+      groups: groups.map((group) => toRunnableGroup(group, windowById)),
+      allow_saturday: allowSaturday,
+      blocked_dates: blockedDates,
+    };
+  }
 
-    if (suggestion.type === "timeslot") {
-      const preferredWindowId = ensureSuggestedWindowId(suggestion);
-      const patch = {
-        preferred_window_id: preferredWindowId,
-      };
-      if (Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0) {
-        patch.resource_ids = suggestion.resource_ids;
-        patch.type_ids = [];
-      }
-      updateGroup(groupId, patch);
-      setMessageTone("success");
-      setMessage(
-        `Loaded suggested time window ${suggestion.start_time}-${suggestion.end_time} for the allocation.`
-      );
+  async function applyAutoSuggestion({ item, suggestion, group, runConfig, sourceJobId } = {}) {
+    const groupId = item?.group_id || group?.group_id || "";
+    if (!groupId || !suggestion || !group) return;
+    if (running) return;
+
+    const actionKey = buildSuggestionRetryKey({ jobId: sourceJobId, groupId, suggestion });
+    const windowById = buildWindowById();
+    const nextGroup = buildSuggestedRetryGroup(group, suggestion, windowById);
+    if (!nextGroup) {
+      setMessageTone("error");
+      setMessage("This suggestion cannot be retried automatically.");
       return;
     }
 
-    if (Array.isArray(suggestion.resource_ids) && suggestion.resource_ids.length > 0) {
-      updateGroup(groupId, {
-        resource_ids: suggestion.resource_ids,
-        type_ids: [],
+    const startDate = String(runConfig?.start_date || "").trim();
+    const endDate = String(runConfig?.end_date || "").trim();
+    if (!startDate || !endDate) {
+      setMessageTone("error");
+      setMessage("Missing date range for the retry run.");
+      return;
+    }
+
+    const nextPayload = {
+      start_date: startDate,
+      end_date: endDate,
+      groups: [nextGroup],
+      allow_saturday: runConfig?.allow_saturday !== false,
+      blocked_dates: Array.isArray(runConfig?.blocked_dates) ? runConfig.blocked_dates : [],
+      org_id: runConfig?.org_id || null,
+    };
+
+    setRunning(true);
+    setSuggestionActionKey(actionKey);
+    setMessage("");
+    try {
+      const data = await apiPost("/auto-schedule", nextPayload);
+      const scheduledCount = data?.scheduled?.length || 0;
+      const skippedCount = data?.skipped?.length || 0;
+      setLastRun({
+        scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
+        skipped: Array.isArray(data?.skipped) ? data.skipped : [],
+        payload: nextPayload,
       });
-      setMessageTone("success");
-      setMessage(`Loaded alternative for allocation: ${suggestion.summary || "resource suggestion"}.`);
+      setMessageTone(skippedCount > 0 && scheduledCount === 0 ? "error" : "success");
+      setMessage(
+        skippedCount > 0 && scheduledCount === 0
+          ? `Retry completed without results. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
+          : `Retry created for the failed allocation. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
+      );
+      await loadAllocations();
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to retry failed allocation.");
+      await loadJobs();
+    } finally {
+      setRunning(false);
+      setSuggestionActionKey("");
     }
   }
 
@@ -1008,27 +1134,14 @@ export default function AutoScheduler({ embedded = false }) {
     setRunning(true);
     setMessage("");
     try {
-      const windowById = timeWindows.reduce((acc, w) => {
-        if (w?.id) acc[w.id] = w;
-        return acc;
-      }, {});
-      const payloadGroups = groups.map((g) => {
-        const w = g.preferred_window_id ? windowById[g.preferred_window_id] : null;
-        const preferred_time_windows = w ? [{ start_time: w.start_time, end_time: w.end_time }] : [];
-        return { ...g, preferred_time_windows };
-      });
-      const data = await apiPost("/auto-schedule", {
-        start_date: rangeStart,
-        end_date: rangeEnd,
-        groups: payloadGroups,
-        allow_saturday: allowSaturday,
-        blocked_dates: blockedDates,
-      });
+      const payload = buildCurrentRunPayload();
+      const data = await apiPost("/auto-schedule", payload);
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
       setLastRun({
         scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
         skipped: Array.isArray(data?.skipped) ? data.skipped : [],
+        payload,
       });
       setMessageTone(skippedCount > 0 && scheduledCount === 0 ? "error" : "success");
       setMessage(
@@ -1096,22 +1209,14 @@ export default function AutoScheduler({ embedded = false }) {
     setRunning(true);
     setMessage("");
     try {
-      const windowById = timeWindows.reduce((acc, w) => {
-        if (w?.id) acc[w.id] = w;
-        return acc;
-      }, {});
-      const payloadGroups = groups.map((g) => {
-        const w = g.preferred_window_id ? windowById[g.preferred_window_id] : null;
-        const preferred_time_windows = w ? [{ start_time: w.start_time, end_time: w.end_time }] : [];
-        return { ...g, preferred_time_windows };
-      });
+      const payload = buildCurrentRunPayload();
       const job = await apiPost("/auto-schedule/jobs", {
         run_at: runAt.toISOString(),
-        start_date: rangeStart,
-        end_date: rangeEnd,
-        groups: payloadGroups,
-        allow_saturday: allowSaturday,
-        blocked_dates: blockedDates,
+        start_date: payload.start_date,
+        end_date: payload.end_date,
+        groups: payload.groups,
+        allow_saturday: payload.allow_saturday,
+        blocked_dates: payload.blocked_dates,
       });
       setMessageTone("success");
       setMessage(
@@ -1774,7 +1879,23 @@ export default function AutoScheduler({ embedded = false }) {
                             groupById={jobGroupById}
                             resourceTypes={resourceTypes}
                             resourceById={resourceById}
-                            onApplySuggestion={applyAutoSuggestion}
+                            onApplySuggestion={(item, suggestion) =>
+                              applyAutoSuggestion({
+                                item,
+                                suggestion,
+                                group: jobGroupById[item?.group_id] || null,
+                                runConfig: job?.payload || null,
+                                sourceJobId: job.id,
+                              })
+                            }
+                            applyingSuggestionKey={suggestionActionKey}
+                            getSuggestionActionKey={(item, suggestion) =>
+                              buildSuggestionRetryKey({
+                                jobId: job.id,
+                                groupId: item?.group_id,
+                                suggestion,
+                              })
+                            }
                           />
                         </div>
                       )}
@@ -2306,7 +2427,7 @@ export default function AutoScheduler({ embedded = false }) {
           </div>
           <ScheduledDecisionCards
             scheduled={lastRun.scheduled}
-            groupById={groupById}
+            groupById={lastRunGroupById}
             resourceTypes={resourceTypes}
             resourceById={resourceById}
           />
@@ -2317,124 +2438,29 @@ export default function AutoScheduler({ embedded = false }) {
           <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
             Skipped details
           </div>
-          <div className="space-y-3">
-            {lastRun.skipped.slice(0, 10).map((item, idx) => {
-              const group = groupById[item.group_id] || null;
-              const title = buildGroupTitle(group, resourceTypes, resourceById);
-              const suggestions = extractGroupSuggestions(item);
-              const failedSlot = item?.failed_slot;
-              const occupiedBy = item?.occupied_by;
-              return (
-                <div
-                  key={`${item.group_id || idx}`}
-                  className="rounded-2xl border border-red-200 bg-white/75 p-4"
-                >
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {title}
-                  </div>
-                  <div className="text-sm font-semibold text-red-800">{item.reason}</div>
-                  {failedSlot?.date && failedSlot?.start_time && failedSlot?.end_time && (
-                    <div className="mt-1 text-xs text-red-700">
-                      Failed slot: {failedSlot.date} {failedSlot.start_time} - {failedSlot.end_time}
-                    </div>
-                  )}
-                  {occupiedBy?.resource_name && (
-                    <div className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-800">
-                      <div className="font-semibold">Blocking booking</div>
-                      <div className="mt-1">
-                        Resource: {occupiedBy.resource_name}
-                        {occupiedBy.resource_type_name ? ` (${occupiedBy.resource_type_name})` : ""}
-                      </div>
-                      <div>
-                        Booking #{occupiedBy.id ?? occupiedBy.booking_id} | {occupiedBy.date} {occupiedBy.start_time}-
-                        {occupiedBy.end_time}
-                        {occupiedBy.user_id ? ` | User ${occupiedBy.user_id}` : ""}
-                      </div>
-                    </div>
-                  )}
-                  {suggestions.length > 0 && (
-                    <div className="mt-4 space-y-3">
-                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
-                        Suggested alternatives
-                      </div>
-                      {suggestions.map((suggestion, suggestionIndex) => (
-                        <div
-                          key={`${item.group_id || idx}-suggestion-${suggestionIndex}`}
-                          className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4"
-                        >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-800">
-                              {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
-                            </span>
-                            {Number.isFinite(Number(suggestion?.score)) && (
-                              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700">
-                                Score {Number(suggestion.score)}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-3 text-sm font-semibold text-slate-900">
-                            {suggestion.summary || "Alternative"}
-                          </div>
-                          {suggestion.why && (
-                            <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
-                          )}
-                          {suggestion.type === "timeslot" && (
-                            <div className="mt-2 text-xs text-slate-600">
-                              Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
-                            </div>
-                          )}
-                          {Array.isArray(suggestion.resources) && suggestion.resources.length > 0 && (
-                            <div className="mt-2 text-xs text-slate-600">
-                              Resources: {suggestion.resources.map((resource) => resource.name).join(", ")}
-                            </div>
-                          )}
-                          {extractSuggestionRules(suggestion).length > 0 && (
-                            <div className="mt-3 rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                Why this suggestion scored
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                {extractSuggestionRules(suggestion).slice(0, 4).map((rule) => (
-                                  <div
-                                    key={`suggestion-rule-${item.group_id || idx}-${suggestionIndex}-${rule.id}-${rule.name}`}
-                                    className="flex items-center justify-between gap-2 text-xs"
-                                  >
-                                    <span className="text-slate-700">{rule.name}</span>
-                                    <span
-                                      className={`rounded-full px-2 py-1 font-semibold ${
-                                        Number(rule.delta) >= 0
-                                          ? "bg-emerald-100 text-emerald-800"
-                                          : "bg-amber-100 text-amber-800"
-                                      }`}
-                                    >
-                                      {Number(rule.delta) > 0 ? "+" : ""}
-                                      {Number(rule.delta)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          {(suggestion.type === "resource" || suggestion.type === "timeslot") && (
-                            <button
-                              type="button"
-                              className="mt-3 rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition hover:bg-amber-100"
-                              onClick={() => applyAutoSuggestion(item.group_id, suggestion)}
-                            >
-                              {suggestion.type === "timeslot" ? "Load time suggestion" : "Use resource suggestion"}
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-      {lastRun.skipped.length > 10 && (
-              <div className="text-xs text-red-700">+{lastRun.skipped.length - 10} more</div>
-            )}
-          </div>
+          <SkippedResultCards
+            skipped={lastRun.skipped}
+            groupById={lastRunGroupById}
+            resourceTypes={resourceTypes}
+            resourceById={resourceById}
+            onApplySuggestion={(item, suggestion) =>
+              applyAutoSuggestion({
+                item,
+                suggestion,
+                group: lastRunGroupById[item?.group_id] || null,
+                runConfig: lastRun?.payload || null,
+                sourceJobId: "last-run",
+              })
+            }
+            applyingSuggestionKey={suggestionActionKey}
+            getSuggestionActionKey={(item, suggestion) =>
+              buildSuggestionRetryKey({
+                jobId: "last-run",
+                groupId: item?.group_id,
+                suggestion,
+              })
+            }
+          />
         </div>
       )}
 
