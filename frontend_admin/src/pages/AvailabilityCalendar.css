@@ -492,6 +492,243 @@
   color: #6d28d9;
 }
 
+.availability-page--shenkar {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(204, 191, 172, 0.22), transparent 28%),
+    radial-gradient(circle at 92% 6%, rgba(160, 184, 186, 0.18), transparent 30%),
+    linear-gradient(180deg, #f5f1ea 0%, #ece5d9 54%, #e7dfd1 100%);
+}
+
+.availability-page--shenkar .availability-calendar-hero,
+.availability-page--shenkar .availability-metrics,
+.availability-page--shenkar .availability-calendar-panel {
+  border-color: rgba(106, 95, 79, 0.54);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(173, 191, 191, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(250, 246, 238, 0.98) 0%, rgba(242, 234, 220, 0.96) 100%);
+  box-shadow: 0 18px 36px rgba(95, 86, 73, 0.12);
+}
+
+.availability-page--shenkar .availability-eyebrow {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #675c4e;
+  letter-spacing: 0.16em;
+  padding: 0;
+}
+
+.availability-page--shenkar .availability-calendar-hero h1,
+.availability-page--shenkar .availability-calendar-panel h2,
+.availability-page--shenkar .availability-filter-card label,
+.availability-page--shenkar .availability-rbc .rbc-toolbar-label {
+  color: #2f2820;
+}
+
+.availability-page--shenkar .availability-calendar-hero p,
+.availability-page--shenkar .availability-calendar-panel__hint,
+.availability-page--shenkar .availability-filter-card > span,
+.availability-page--shenkar .availability-metrics span {
+  color: #5f5648;
+}
+
+.availability-page--shenkar .availability-filter-card,
+.availability-page--shenkar .availability-calendar-shell {
+  border-color: rgba(106, 95, 79, 0.46);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(246, 238, 226, 0.78));
+}
+
+.availability-page--shenkar .availability-filter-card select {
+  border-color: rgba(112, 101, 85, 0.5);
+  background: #fffdf8;
+  color: #332b21;
+}
+
+.availability-page--shenkar .availability-metrics article {
+  border-color: rgba(112, 101, 85, 0.44);
+  background: linear-gradient(180deg, #f9f3e8 0%, #f1e8d8 100%);
+}
+
+.availability-page--shenkar .availability-metrics article::before {
+  background: linear-gradient(180deg, #8f7961 0%, #b39f82 100%);
+}
+
+.availability-page--shenkar .availability-metrics strong {
+  color: #493f31;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-calendar,
+.availability-page--shenkar .availability-rbc .rbc-month-view,
+.availability-page--shenkar .availability-rbc .rbc-time-view,
+.availability-page--shenkar .availability-rbc .rbc-agenda-view {
+  border-color: rgba(112, 101, 85, 0.5) !important;
+  background: #fffdf9;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-toolbar {
+  border-bottom-color: rgba(112, 101, 85, 0.36);
+  background: linear-gradient(180deg, #fffdf9 0%, #f5ecde 100%);
+}
+
+.availability-page--shenkar .availability-rbc .rbc-btn-group {
+  background: #efe6d7;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-btn-group button {
+  color: #5f5140 !important;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-btn-group button:hover {
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #4a3e30 !important;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-btn-group button.rbc-active {
+  background: linear-gradient(135deg, #efe3d2 0%, #ddccb3 100%) !important;
+  color: #4a3e30 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.12) !important;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-header {
+  border-color: rgba(112, 101, 85, 0.36) !important;
+  background: #f7f0e4;
+  color: #4a3e30;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-month-row,
+.availability-page--shenkar .availability-rbc .rbc-day-bg,
+.availability-page--shenkar .availability-rbc .rbc-header,
+.availability-page--shenkar .availability-rbc .rbc-time-content,
+.availability-page--shenkar .availability-rbc .rbc-timeslot-group,
+.availability-page--shenkar .availability-rbc .rbc-time-header-content {
+  border-color: rgba(112, 101, 85, 0.28) !important;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-today {
+  background: linear-gradient(180deg, rgba(245, 236, 222, 0.78), rgba(251, 246, 237, 0.45)) !important;
+}
+
+.availability-page--shenkar .availability-rbc .availability-month-date-dot {
+  background: #a99374;
+  box-shadow: 0 0 0 4px rgba(169, 147, 116, 0.16);
+}
+
+.availability-page--shenkar .availability-rbc .rbc-event {
+  background: var(--availability-event-bg, linear-gradient(135deg, #d8cec0 0%, #c6b59e 100%)) !important;
+  color: var(--availability-event-fg, #3c3025) !important;
+  border-color: var(--availability-event-border, rgba(118, 104, 83, 0.42)) !important;
+  box-shadow: var(--availability-event-shadow, 0 8px 16px rgba(95, 86, 73, 0.12)) !important;
+}
+
+.availability-page--shenkar .availability-rbc .rbc-show-more {
+  color: #6b5944;
+}
+
+.availability-page--shenkar .availability-day-modal__backdrop,
+.availability-page--shenkar .availability-edit-modal__backdrop,
+.availability-page--shenkar .availability-create-modal__backdrop {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.availability-page--shenkar .availability-day-modal,
+.availability-page--shenkar .availability-edit-modal,
+.availability-page--shenkar .availability-create-modal {
+  border-color: rgba(110, 98, 79, 0.42) !important;
+  background: linear-gradient(180deg, #faf6ee 0%, #f1e9dc 100%) !important;
+  box-shadow: 0 26px 44px rgba(95, 86, 73, 0.2) !important;
+}
+
+.availability-page--shenkar .availability-day-modal__close,
+.availability-page--shenkar .availability-edit-modal__cancel,
+.availability-page--shenkar .availability-create-modal__cancel {
+  border-radius: 16px !important;
+  border-color: rgba(118, 106, 88, 0.56) !important;
+  background: linear-gradient(180deg, #f6f0e4 0%, #e8ddcb 100%) !important;
+  color: #4c4134 !important;
+}
+
+.availability-page--shenkar .availability-edit-modal__save,
+.availability-page--shenkar .availability-create-modal__save,
+.availability-page--shenkar .availability-edit-modal__custom-title {
+  border-radius: 16px !important;
+  border: 1px solid rgba(116, 103, 84, 0.58) !important;
+  background: linear-gradient(180deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+}
+
+.availability-page--shenkar .availability-edit-modal__delete {
+  border-radius: 16px !important;
+  border: 1px solid #b88f8f !important;
+  background: linear-gradient(135deg, #cfa4a4 0%, #bf8f8f 100%) !important;
+  color: #3f2f2f !important;
+}
+
+.availability-page--shenkar .availability-day-modal__booking {
+  border-color: rgba(112, 101, 85, 0.36) !important;
+  background: linear-gradient(180deg, #fcf9f3 0%, #f1e9dc 100%) !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.1) !important;
+}
+
+.availability-page--shenkar .availability-day-modal__booking:hover {
+  border-color: rgba(108, 95, 76, 0.56) !important;
+  background: linear-gradient(180deg, #f8f0e4 0%, #e9ddcb 100%) !important;
+}
+
+.availability-day-modal__booking--shenkar {
+  border-color: rgba(112, 101, 85, 0.36) !important;
+  background: linear-gradient(180deg, #fcf9f3 0%, #f1e9dc 100%) !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.1) !important;
+}
+
+.availability-day-modal__booking--shenkar:hover {
+  border-color: rgba(108, 95, 76, 0.56) !important;
+  background: linear-gradient(180deg, #f8f0e4 0%, #e9ddcb 100%) !important;
+}
+
+.availability-page--shenkar .availability-day-modal .inline-flex.rounded-full.border.border-emerald-200.bg-emerald-50 {
+  border-color: rgba(116, 103, 84, 0.42) !important;
+  background: linear-gradient(180deg, #eee3d2 0%, #e3d5bf 100%) !important;
+  color: #6a5844 !important;
+}
+
+.availability-page--shenkar .availability-day-modal__title {
+  color: #2f281f !important;
+}
+
+.availability-page--shenkar .availability-day-modal__subtitle,
+.availability-page--shenkar .availability-day-modal__user {
+  color: #5d5346 !important;
+}
+
+.availability-page--shenkar .availability-day-modal__time {
+  color: #3b3025 !important;
+}
+
+.availability-page--shenkar .availability-day-modal__booking-id {
+  color: #756551 !important;
+}
+
+.availability-page--shenkar .availability-day-modal__chip {
+  border-color: rgba(116, 103, 84, 0.4) !important;
+  background: #fffaf1 !important;
+  color: #5a4c3c !important;
+}
+
+.availability-page--shenkar .availability-day-modal__close {
+  border-color: rgba(116, 103, 84, 0.54) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #f6f0e4 0%, #e8ddcb 100%) !important;
+  color: #4c4134 !important;
+  box-shadow: 0 8px 14px rgba(95, 86, 73, 0.14) !important;
+}
+
+.availability-page--shenkar .availability-day-modal__close:hover {
+  background: linear-gradient(180deg, #eee3d2 0%, #e0d1ba 100%) !important;
+}
+
 @media (max-width: 1100px) {
   .availability-calendar-hero {
     grid-template-columns: 1fr;
