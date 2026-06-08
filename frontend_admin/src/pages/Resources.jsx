@@ -1682,7 +1682,7 @@ async function saveHallLayout() {
                         <span>{group.exactMatches} matches</span>
                       )}
                       <span>{group.resources.length} resources</span>
-                      <b>Open group</b>
+                      <b className="resource-result-tile__open-group">Open group</b>
                     </div>
                   </button>
                 );
