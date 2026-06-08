@@ -107,6 +107,7 @@ export default function MainLayout() {
     config.navigation?.[currentItem.key] || currentItem.fallback;
   const pageSubtitle = `Manage ${String(currentTitle).toLowerCase()} with a calmer, clearer administrative workspace.`;
   const showTopbar = !location.pathname.startsWith("/availability");
+  const showTopbarEyebrow = config.domain !== "shenkar";
 
   useEffect(() => {
     document.title = `${currentTitle} | SmartAllocate Admin`;
@@ -198,8 +199,8 @@ export default function MainLayout() {
 
         {showTopbar && (
           <header className="admin-topbar">
-            <div>
-              <p className="admin-topbar__label">Control Surface</p>
+            <div className={`admin-topbar__copy ${showTopbarEyebrow ? "" : "admin-topbar__copy--compact"}`}>
+              {showTopbarEyebrow && <p className="admin-topbar__label">Control Surface</p>}
               <h2 className="admin-topbar__title">{currentTitle}</h2>
               <p className="admin-topbar__subtitle">{pageSubtitle}</p>
             </div>

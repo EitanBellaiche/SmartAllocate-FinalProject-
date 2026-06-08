@@ -340,6 +340,10 @@
   line-height: 1.7;
 }
 
+.admin-topbar__copy--compact .admin-topbar__subtitle {
+  margin-top: 6px;
+}
+
 .admin-topbar__right {
   display: flex;
   flex-wrap: wrap;
