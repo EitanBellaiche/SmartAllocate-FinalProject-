@@ -542,16 +542,27 @@ function splitRowIntoSections(rowItems) {
   };
 }
 
-function SummaryPill({ label, value, tone = "slate" }) {
+function SummaryPill({ label, value, tone = "slate", isClassic = false }) {
   const tones = {
     blue: "border-blue-200 bg-blue-50 text-blue-700",
     slate: "border-slate-200 bg-slate-100 text-slate-700",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
   };
 
+  const classicTones = {
+    blue: "border-stone-300 bg-stone-50 text-stone-700",
+    slate: "border-stone-300 bg-white text-stone-700",
+    emerald: "border-stone-300 bg-stone-50 text-stone-700",
+  };
+
+  const toneClass = isClassic ? (classicTones[tone] || classicTones.slate) : (tones[tone] || tones.slate);
+  const labelClass = isClassic
+    ? "resources-summary-pill__label resources-summary-pill__label--classic text-xs font-semibold uppercase"
+    : "resources-summary-pill__label text-xs font-semibold uppercase tracking-[0.16em]";
+
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${tones[tone] || tones.slate}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</div>
+    <div className={`resources-summary-pill rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className={labelClass}>{label}</div>
       <div className="mt-2 text-2xl font-black">{value}</div>
     </div>
   );
@@ -1257,12 +1268,18 @@ async function saveHallLayout() {
   }
 
   return (
-    <div className="resources-page space-y-6">
+    <div className={`resources-page ${!isCinema ? "resources-page--classic" : ""} space-y-6`}>
       {!selectedHallId && (
         <section className={`resources-toolbar overflow-visible rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${isCinema ? config.theme.heroDark : `${theme.card} bg-gradient-to-br ${theme.hero}`}`}>
         <div className="resources-toolbar__top flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className={`resources-eyebrow mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${isCinema ? "border-red-900/40 bg-red-950/50 text-red-200" : config.theme.heroEyebrow}`}>
+            <div
+              className={
+                isCinema
+                  ? "resources-eyebrow mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] border-red-900/40 bg-red-950/50 text-red-200"
+                  : "resources-eyebrow resources-eyebrow--classic mb-3 inline-flex items-center text-xs font-semibold uppercase"
+              }
+            >
               {config.resources.eyebrow}
             </div>
             <p className={`resources-toolbar__subtitle mt-3 text-base leading-7 ${isCinema ? "text-slate-300" : theme.textSoft}`}>
@@ -1319,9 +1336,20 @@ async function saveHallLayout() {
               label={config.resources.matchedResults}
               value={isCinema ? (hasActiveFilter ? filteredResources.length : 0) : hasActiveFilter ? nameMatchedResources.length : 0}
               tone="blue"
+              isClassic={!isCinema}
             />
-            <SummaryPill label={config.resources.selectedFilter} value={selectedTypeName} tone="slate" />
-            <SummaryPill label={config.resources.totalResources} value={resources.length} tone="emerald" />
+            <SummaryPill
+              label={config.resources.selectedFilter}
+              value={selectedTypeName}
+              tone="slate"
+              isClassic={!isCinema}
+            />
+            <SummaryPill
+              label={config.resources.totalResources}
+              value={resources.length}
+              tone="emerald"
+              isClassic={!isCinema}
+            />
           </div>
         </div>
         </section>

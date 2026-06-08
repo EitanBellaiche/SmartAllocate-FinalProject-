@@ -1674,6 +1674,34 @@
   color: #6e624f !important;
 }
 
+.admin-shell--shenkar .dashboard-search--primary::before,
+.admin-shell--shenkar .dashboard-search__label,
+.admin-shell--shenkar .dashboard-search__label--classic {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .dashboard-search__label,
+.admin-shell--shenkar .dashboard-search__label--classic {
+  color: #665c4e !important;
+  letter-spacing: 0.13em !important;
+  padding: 0 !important;
+}
+
+.admin-shell--shenkar .dashboard-stat-card--classic {
+  border-color: rgba(122, 114, 100, 0.42) !important;
+  background: linear-gradient(180deg, #fdfdfc 0%, #f8f6f2 100%) !important;
+}
+
+.admin-shell--shenkar .dashboard-stat-card__eyebrow--classic {
+  background: transparent !important;
+  border: 0 !important;
+  color: #665c4e !important;
+  padding: 0 !important;
+  letter-spacing: 0.12em !important;
+}
+
 .admin-shell--shenkar .dashboard-stat-card,
 .admin-shell--shenkar .dashboard-insight-card,
 .admin-shell--shenkar .dashboard-search,
@@ -1700,6 +1728,18 @@
 .admin-shell--shenkar .dashboard-modal__subtitle,
 .admin-shell--shenkar .dashboard-booking-card__meta {
   color: #4f4a40 !important;
+}
+
+.admin-shell--shenkar .dashboard-insight-card::before {
+  display: none !important;
+}
+
+.admin-shell--shenkar .dashboard-insight-card__label {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #6a604f !important;
+  padding: 0 !important;
 }
 
 .admin-shell--shenkar .dashboard-stat-card__title,

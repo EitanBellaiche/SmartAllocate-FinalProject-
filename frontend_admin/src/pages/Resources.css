@@ -784,6 +784,15 @@
   letter-spacing: 0.16em !important;
 }
 
+.admin-shell--shenkar .resources-eyebrow--classic {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #5e5548 !important;
+  letter-spacing: 0.16em !important;
+}
+
 .admin-shell--shenkar .resources-filter-panel .mt-4.grid > div {
   background: #fbfcfc !important;
   box-shadow: 0 8px 16px rgba(95, 86, 73, 0.05) !important;
@@ -799,6 +808,17 @@
   letter-spacing: 0.12em !important;
 }
 
+.admin-shell--shenkar .resources-summary-pill {
+  border-color: rgba(122, 114, 100, 0.34) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%) !important;
+  color: #4e4539 !important;
+}
+
+.admin-shell--shenkar .resources-summary-pill__label {
+  background: transparent !important;
+  color: #665c4e !important;
+}
+
 .admin-shell--shenkar .resource-result-group__eyebrow {
   padding: 0 !important;
   border: 0 !important;
@@ -806,6 +826,49 @@
   background: transparent !important;
   color: #6a604f !important;
   font-size: 0.68rem;
+}
+
+.resources-page--classic .resources-toolbar::before,
+.resources-page--classic .resource-card::before,
+.resources-page--classic .resource-result-tile::before {
+  display: none !important;
+}
+
+.resources-page--classic .resources-eyebrow,
+.resources-page--classic .resources-eyebrow--classic {
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #5f5649 !important;
+  letter-spacing: 0.14em !important;
+}
+
+.resources-page--classic .resources-summary-pill {
+  border-color: rgba(148, 139, 126, 0.34) !important;
+  background: #fbfaf8 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.05) !important;
+}
+
+.resources-page--classic .resources-summary-pill__label {
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #6a604f !important;
+  letter-spacing: 0.11em !important;
+}
+
+.resources-page--classic .resources-summary-pill__label--classic {
+  background: transparent !important;
+}
+
+.resources-page--classic .resources-filter-panel .mt-4.grid > div::after {
+  display: none !important;
 }
 
 @media (max-width: 760px) {
