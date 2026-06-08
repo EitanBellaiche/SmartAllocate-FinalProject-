@@ -69,7 +69,7 @@ export default function SchedulingConstraintsPanel({
               type="button"
               onClick={addBlockedDate}
               disabled={!/^\d{4}-\d{2}-\d{2}$/.test(String(blockedDateDraft || "").trim())}
-              className="rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+              className="scheduling-constraints__add-btn rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
             >
               Add blocked date
             </button>

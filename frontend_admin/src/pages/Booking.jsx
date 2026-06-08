@@ -1230,7 +1230,7 @@ export default function Booking() {
 
                       <label
                         htmlFor="recurring-toggle"
-                        className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"
+                        className="booking-recurring-toggle inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"
                       >
                         <input
                           id="recurring-toggle"
@@ -1239,7 +1239,7 @@ export default function Booking() {
                           onChange={(e) => setRecurring(e.target.checked)}
                           className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
-                        Recurring schedule
+                        <span className="booking-recurring-toggle__text">Recurring schedule</span>
                       </label>
                     </div>
 
@@ -1371,7 +1371,7 @@ export default function Booking() {
 
                       <label
                         htmlFor="assign-users-toggle"
-                        className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"
+                        className="booking-assign-users-toggle inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700"
                       >
                         <input
                           id="assign-users-toggle"
@@ -1384,7 +1384,7 @@ export default function Booking() {
                           }}
                           className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                         />
-                        Assign to users
+                        <span className="booking-assign-users-toggle__text">Assign to users</span>
                       </label>
                     </div>
 
@@ -1555,9 +1555,9 @@ export default function Booking() {
                             onChange={(e) => setResourceQuery(e.target.value)}
                             placeholder="Search resources..."
                           />
-                          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                          <div className="booking-resource-filter-row grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                             <select
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
+                              className="booking-resource-filter-select rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-500"
                               value={resourceFilterTypeId}
                               onChange={(e) => setResourceFilterTypeId(e.target.value)}
                             >
@@ -1568,7 +1568,7 @@ export default function Booking() {
                                 </option>
                               ))}
                             </select>
-                            <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+                            <label className="booking-resource-filter-toggle inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
                               <input
                                 type="checkbox"
                                 checked={showSelectedOnly}
