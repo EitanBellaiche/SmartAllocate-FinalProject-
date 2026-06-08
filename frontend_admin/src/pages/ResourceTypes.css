@@ -289,6 +289,106 @@
   border: 1px solid rgba(122, 114, 100, 0.34) !important;
 }
 
+.admin-shell--shenkar .resource-types-hero {
+  border-color: rgba(104, 95, 80, 0.52) !important;
+  background: linear-gradient(140deg, #edf3f2 0%, #e8efee 54%, #f3ede1 100%) !important;
+  box-shadow: 0 14px 28px rgba(95, 86, 73, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+.admin-shell--shenkar .resource-types-hero::before {
+  background: linear-gradient(180deg, #95adb5 0%, #c6bca5 100%) !important;
+}
+
+.admin-shell--shenkar .resource-types-eyebrow {
+  border-color: rgba(122, 114, 100, 0.44) !important;
+  background: #f4efe4 !important;
+  color: #655b4c !important;
+}
+
+.admin-shell--shenkar .resource-types-toolbar__subtitle {
+  color: #585043 !important;
+}
+
+.admin-shell--shenkar .resource-types-add-button {
+  border: 1px solid rgba(106, 95, 79, 0.38) !important;
+  background: linear-gradient(135deg, #89a4ad 0%, #7f9aa3 100%) !important;
+  color: #1f2a2f !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.16) !important;
+}
+
+.admin-shell--shenkar .resource-types-metric {
+  border-color: rgba(110, 98, 79, 0.44) !important;
+  background: linear-gradient(180deg, #fffdfa 0%, #f4f1eb 100%) !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.08) !important;
+}
+
+.admin-shell--shenkar .resource-types-metric::after {
+  opacity: 0.42;
+}
+
+.admin-shell--shenkar .resource-types-metric__label {
+  color: #6a604f !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--blue {
+  color: #3f5f71 !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--slate {
+  color: #3b342a !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--amber {
+  color: #8a5521 !important;
+}
+
+.admin-shell--shenkar .resource-types-list {
+  border-color: rgba(104, 95, 80, 0.5) !important;
+  background: linear-gradient(180deg, #fbfcfb 0%, #f1ede6 100%) !important;
+  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.1) !important;
+}
+
+.admin-shell--shenkar .resource-type-card {
+  border-color: rgba(104, 95, 80, 0.46) !important;
+  background: linear-gradient(180deg, #fffdf9 0%, #f5f1ea 100%) !important;
+  box-shadow: 0 12px 22px rgba(95, 86, 73, 0.08) !important;
+}
+
+.admin-shell--shenkar .resource-type-card:hover {
+  border-color: rgba(104, 95, 80, 0.6) !important;
+  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .resource-type-card h2 {
+  color: #2b241c !important;
+}
+
+.admin-shell--shenkar .resource-type-card p {
+  color: #544b3e !important;
+}
+
+.admin-shell--shenkar .resource-type-card .rounded-2xl.border.p-4 {
+  border-color: rgba(122, 114, 100, 0.44) !important;
+  background: linear-gradient(180deg, #fbf9f4 0%, #f3ede2 100%) !important;
+}
+
+.admin-shell--shenkar .resource-type-card > div > div:first-child > div:nth-child(3) > div::before {
+  background: linear-gradient(180deg, #9eb4bb 0%, #c5baa3 100%) !important;
+}
+
+.admin-shell--shenkar .resource-type-card > div > div:first-child > div:nth-child(3) > div span {
+  border-color: rgba(122, 114, 100, 0.42) !important;
+  background: #f4efe4 !important;
+  color: #5f5547 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .resource-type-card__actions button:first-child {
+  border: 1px solid rgba(122, 114, 100, 0.46) !important;
+  background: linear-gradient(180deg, #fffdfa 0%, #eef3f2 100%) !important;
+  color: #3d5660 !important;
+}
+
 .resource-type-card__actions button:first-child {
   border: 1px solid rgba(125, 211, 252, 0.5) !important;
   background: #ffffff !important;
