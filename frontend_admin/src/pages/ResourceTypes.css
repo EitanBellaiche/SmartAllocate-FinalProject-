@@ -317,9 +317,9 @@
 }
 
 .admin-shell--shenkar .resource-types-metric {
-  border-color: rgba(110, 98, 79, 0.44) !important;
-  background: linear-gradient(180deg, #fffdfa 0%, #f4f1eb 100%) !important;
-  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.08) !important;
+  border-color: rgba(102, 91, 74, 0.54) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.12) !important;
 }
 
 .admin-shell--shenkar .resource-types-metric::after {
@@ -330,33 +330,51 @@
   color: #6a604f !important;
 }
 
+.admin-shell--shenkar .resource-types-metric__value {
+  color: #7a5a3f !important;
+}
+
 .admin-shell--shenkar .resource-types-metric--blue {
-  color: #3f5f71 !important;
+  color: #4e625d !important;
 }
 
 .admin-shell--shenkar .resource-types-metric--slate {
-  color: #3b342a !important;
+  color: #4e625d !important;
 }
 
 .admin-shell--shenkar .resource-types-metric--amber {
-  color: #8a5521 !important;
+  color: #4e625d !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--blue,
+.admin-shell--shenkar .resource-types-metric--slate,
+.admin-shell--shenkar .resource-types-metric--amber {
+  background: linear-gradient(180deg, #f5ecde 0%, #ece1cf 100%) !important;
 }
 
 .admin-shell--shenkar .resource-types-list {
-  border-color: rgba(104, 95, 80, 0.5) !important;
-  background: linear-gradient(180deg, #fbfcfb 0%, #f1ede6 100%) !important;
-  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.1) !important;
+  border-color: rgba(101, 92, 77, 0.56) !important;
+  background: linear-gradient(180deg, #f4eee4 0%, #ebe2d3 100%) !important;
+  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
 }
 
 .admin-shell--shenkar .resource-type-card {
-  border-color: rgba(104, 95, 80, 0.46) !important;
-  background: linear-gradient(180deg, #fffdf9 0%, #f5f1ea 100%) !important;
-  box-shadow: 0 12px 22px rgba(95, 86, 73, 0.08) !important;
+  border-color: rgba(101, 92, 77, 0.58) !important;
+  background: linear-gradient(180deg, #eef3f1 0%, #e4ebe8 100%) !important;
+  box-shadow: 0 12px 22px rgba(95, 86, 73, 0.13) !important;
 }
 
 .admin-shell--shenkar .resource-type-card:hover {
-  border-color: rgba(104, 95, 80, 0.6) !important;
-  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
+  border-color: rgba(98, 88, 72, 0.68) !important;
+  box-shadow: 0 18px 32px rgba(95, 86, 73, 0.18) !important;
+}
+
+.admin-shell--shenkar .resource-type-card::before {
+  background: linear-gradient(90deg, #8d7558 0%, #b79f82 100%) !important;
+}
+
+.admin-shell--shenkar .resource-type-card:hover::before {
+  opacity: 0.95 !important;
 }
 
 .admin-shell--shenkar .resource-type-card h2 {
@@ -368,8 +386,8 @@
 }
 
 .admin-shell--shenkar .resource-type-card .rounded-2xl.border.p-4 {
-  border-color: rgba(122, 114, 100, 0.44) !important;
-  background: linear-gradient(180deg, #fbf9f4 0%, #f3ede2 100%) !important;
+  border-color: rgba(112, 101, 85, 0.5) !important;
+  background: linear-gradient(180deg, #edf3f1 0%, #e1e9e5 100%) !important;
 }
 
 .admin-shell--shenkar .resource-type-card > div > div:first-child > div:nth-child(3) > div::before {
@@ -478,6 +496,10 @@
 
 .resource-types-modal thead {
   background: linear-gradient(135deg, #0f172a 0%, #075985 100%) !important;
+}
+
+.resource-types-modal-backdrop--shenkar .resource-types-modal thead {
+  background: linear-gradient(135deg, #3f3a33 0%, #5a5247 100%) !important;
 }
 
 .resource-types-modal td,
