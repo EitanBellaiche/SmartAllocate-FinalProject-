@@ -1947,12 +1947,14 @@ async function saveHallLayout() {
       {showEdit && (
         <ModalPortal>
         <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
-          <div className={`resources-modal-surface max-h-[90vh] w-full max-w-[600px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
-            <h2 className="mb-4 text-xl font-bold">Edit Resource</h2>
+          <div className={`resources-modal-surface resources-edit-modal flex max-h-[90vh] w-full max-w-[600px] flex-col overflow-hidden rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
+            <h2 className="resources-edit-modal__title mb-4 text-xl font-bold">Edit Resource</h2>
+
+            <div className="resources-edit-modal__body">
 
             <label className="mb-2 block font-medium">Select Type</label>
             <select
-              className={`mb-4 ${theme.input}`}
+              className={`resources-edit-modal__input mb-4 ${theme.input}`}
               value={editForm.type_id}
               onChange={(e) => handleEditSelectType(e.target.value)}
             >
@@ -1967,7 +1969,7 @@ async function saveHallLayout() {
             <input
               type="text"
               placeholder={config.resources.namePlaceholder}
-              className={`mb-4 ${theme.input}`}
+              className={`resources-edit-modal__input mb-4 ${theme.input}`}
               value={editForm.name}
               onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
             />
@@ -1983,9 +1985,9 @@ async function saveHallLayout() {
 
             {editSelectedType && Array.isArray(editSelectedType.fields) && (
               <>
-                <h3 className="mb-2 font-semibold">{config.resources.fieldsTitle}</h3>
+                <h3 className="resources-edit-modal__section-title mb-2 font-semibold">{config.resources.fieldsTitle}</h3>
                 {editSelectedType.fields.map((field, index) => (
-                  <div key={index} className="mb-3">
+                  <div key={index} className="resources-edit-modal__field-row mb-3">
                     <label className="mb-1 block text-sm font-medium">
                       {getFieldDisplayName(field)} ({field.type})
                     </label>
@@ -2001,7 +2003,7 @@ async function saveHallLayout() {
                     ) : (
                       <input
                         type={field.type === "number" ? "number" : "text"}
-                        className={theme.input}
+                        className={`resources-edit-modal__input ${theme.input}`}
                         value={editForm.metadata[field.name] ?? ""}
                         onChange={(e) => handleEditMetadataChange(field.name, e.target.value)}
                       />
@@ -2013,19 +2015,19 @@ async function saveHallLayout() {
 
             {editSelectedType && (
               <>
-                <h3 className="mb-2 mt-6 font-semibold">{config.resources.customFieldsTitle}</h3>
+                <h3 className="resources-edit-modal__section-title mb-2 mt-6 font-semibold">{config.resources.customFieldsTitle}</h3>
                 <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
                   <input
                     type="text"
                     placeholder="Field name"
-                    className={theme.input}
+                    className={`resources-edit-modal__input ${theme.input}`}
                     value={editCustomFieldDraft.name}
                     onChange={(e) =>
                       setEditCustomFieldDraft((prev) => ({ ...prev, name: e.target.value }))
                     }
                   />
                   <select
-                    className={theme.input}
+                    className={`resources-edit-modal__input ${theme.input}`}
                     value={editCustomFieldDraft.type}
                     onChange={(e) =>
                       setEditCustomFieldDraft((prev) => ({ ...prev, type: e.target.value }))
@@ -2038,7 +2040,7 @@ async function saveHallLayout() {
                   <button
                     type="button"
                     onClick={addEditCustomField}
-                    className="rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-800"
+                    className="resources-edit-modal__add-field rounded px-4 py-2 text-white"
                   >
                     Add Field
                   </button>
@@ -2054,7 +2056,7 @@ async function saveHallLayout() {
                         : "text";
 
                     return (
-                      <div key={fieldName} className="mb-3 rounded border p-3">
+                      <div key={fieldName} className="resources-edit-modal__custom-card mb-3 rounded border p-3">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <label className="text-sm font-medium">
                             {fieldName} ({fieldType})
@@ -2062,7 +2064,7 @@ async function saveHallLayout() {
                           <button
                             type="button"
                             onClick={() => removeEditCustomField(fieldName)}
-                            className="rounded bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
+                            className="resources-edit-modal__remove rounded px-2 py-1 text-sm text-white"
                           >
                             Remove
                           </button>
@@ -2079,7 +2081,7 @@ async function saveHallLayout() {
                         ) : (
                           <input
                             type={fieldType === "number" ? "number" : "text"}
-                            className={theme.input}
+                            className={`resources-edit-modal__input ${theme.input}`}
                             value={fieldValue ?? ""}
                             onChange={(e) =>
                               handleEditMetadataChange(
@@ -2099,22 +2101,23 @@ async function saveHallLayout() {
                 )}
               </>
             )}
+            </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="resources-edit-modal__footer mt-6 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowEdit(false);
                   setEditSelectedType(null);
                   setEditCustomFieldDraft({ name: "", type: "text" });
                 }}
-                className="rounded border px-4 py-2"
+                className="resources-edit-modal__cancel rounded border px-4 py-2"
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveEdit}
-                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                className="resources-edit-modal__save rounded px-4 py-2 text-white"
               >
                 Save Changes
               </button>
