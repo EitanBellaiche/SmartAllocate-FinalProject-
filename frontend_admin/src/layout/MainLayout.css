@@ -531,6 +531,70 @@
   color: #0f2f2f;
 }
 
+.admin-shell--shenkar {
+  background: linear-gradient(180deg, #edf2f1 0%, #e8efee 62%, #f2eee4 100%);
+}
+
+.admin-shell--shenkar .admin-sidebar {
+  background: linear-gradient(180deg, #5b5143 0%, #6b6152 42%, #7a6b56 100%);
+  border-right-color: rgba(201, 192, 171, 0.28);
+  box-shadow: 12px 0 24px rgba(73, 66, 55, 0.18);
+}
+
+.admin-shell--shenkar .admin-sidebar__eyebrow,
+.admin-shell--shenkar .admin-sidebar__spotlight-label,
+.admin-shell--shenkar .admin-topbar__label {
+  color: #d8d1bf;
+}
+
+.admin-shell--shenkar .admin-sidebar__status {
+  background: rgba(201, 192, 171, 0.18);
+  border-color: rgba(216, 209, 191, 0.34);
+  color: #fbf9f4;
+}
+
+.admin-shell--shenkar .admin-sidebar__status-dot {
+  background: #90aab3;
+  box-shadow: 0 0 0 6px rgba(144, 170, 179, 0.16);
+}
+
+.admin-shell--shenkar .admin-nav-item--active {
+  background: rgba(201, 192, 171, 0.26);
+  border-color: rgba(216, 209, 191, 0.34);
+  box-shadow: 0 8px 14px rgba(91, 81, 67, 0.14);
+}
+
+.admin-shell--shenkar .admin-nav-item:hover {
+  border-color: rgba(216, 209, 191, 0.24);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.admin-shell--shenkar .admin-sidebar__spotlight {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(216, 209, 191, 0.22);
+}
+
+.admin-shell--shenkar .admin-topbar,
+.admin-shell--shenkar .admin-mobilebar {
+  border-color: rgba(201, 192, 171, 0.42);
+  background: rgba(248, 251, 251, 0.94);
+  box-shadow: 0 14px 28px rgba(91, 81, 67, 0.1);
+}
+
+.admin-shell--shenkar .admin-topbar__pill {
+  border-color: rgba(201, 192, 171, 0.42);
+  background: linear-gradient(180deg, #f8fbfb 0%, #f5f0e6 100%);
+}
+
+.admin-shell--shenkar .admin-topbar__pill-label {
+  color: #7a7264;
+}
+
+.admin-shell--shenkar .admin-topbar__pill-value,
+.admin-shell--shenkar .admin-topbar__title {
+  color: #2f2b24;
+}
+
 .admin-shell--clinic .dashboard-hero,
 .admin-shell--clinic .resources-toolbar,
 .admin-shell--clinic .resources-list,
@@ -561,6 +625,109 @@
     radial-gradient(circle at 0% 100%, rgba(204, 251, 241, 0.16), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(240, 253, 244, 0.95) 100%) !important;
   box-shadow: 0 24px 54px rgba(6, 95, 70, 0.08) !important;
+}
+
+.admin-shell--shenkar .dashboard-hero,
+.admin-shell--shenkar .resources-toolbar,
+.admin-shell--shenkar .resources-list,
+.admin-shell--shenkar .resources-filter-panel,
+.admin-shell--shenkar .resource-types-hero,
+.admin-shell--shenkar .resource-types-list,
+.admin-shell--shenkar .booking-hero,
+.admin-shell--shenkar .booking-form-section,
+.admin-shell--shenkar .booking-live-panel,
+.admin-shell--shenkar .auto-run-panel,
+.admin-shell--shenkar .auto-windows-panel,
+.admin-shell--shenkar .auto-jobs-panel,
+.admin-shell--shenkar .auto-availability-panel,
+.admin-shell--shenkar .user-bookings-hero,
+.admin-shell--shenkar .user-bookings-panel,
+.admin-shell--shenkar .resource-requests-hero,
+.admin-shell--shenkar .resource-requests-panel,
+.admin-shell--shenkar .rules-hero,
+.admin-shell--shenkar .rules-guidance,
+.admin-shell--shenkar .rules-builder,
+.admin-shell--shenkar .rules-list-panel,
+.admin-shell--shenkar .availability-calendar-hero,
+.admin-shell--shenkar .availability-metrics,
+.admin-shell--shenkar .availability-calendar-panel {
+  border-color: rgba(95, 86, 73, 0.42) !important;
+  background: linear-gradient(180deg, rgba(248, 251, 251, 0.98) 0%, rgba(245, 240, 230, 0.95) 100%) !important;
+  box-shadow: 0 14px 28px rgba(91, 81, 67, 0.08) !important;
+}
+
+.admin-shell--shenkar .dashboard-hero::before,
+.admin-shell--shenkar .resources-toolbar::before,
+.admin-shell--shenkar .resource-types-hero::before,
+.admin-shell--shenkar .booking-hero::before,
+.admin-shell--shenkar .resource-requests-hero::before,
+.admin-shell--shenkar .rules-hero::before,
+.admin-shell--shenkar .availability-calendar-hero::before {
+  background: linear-gradient(90deg, #8faab3 0%, #b4c0c0 56%, #c9c0ab 100%) !important;
+}
+
+.admin-shell--shenkar .resources-eyebrow,
+.admin-shell--shenkar .resource-types-eyebrow,
+.admin-shell--shenkar .dashboard-hero__eyebrow,
+.admin-shell--shenkar .availability-eyebrow,
+.admin-shell--shenkar .rules-card__view-button,
+.admin-shell--shenkar .resource-card span[class*="rounded-full"],
+.admin-shell--shenkar .resource-type-card span[class*="rounded-full"] {
+  border-color: rgba(201, 192, 171, 0.42) !important;
+  background: rgba(243, 237, 225, 0.9) !important;
+  color: #6e624f !important;
+}
+
+.admin-shell--shenkar .resources-add-button,
+.admin-shell--shenkar .resource-types-add-button,
+.admin-shell--shenkar .availability-primary-action,
+.admin-shell--shenkar .resource-requests-refresh,
+.admin-shell--shenkar .user-bookings-save,
+.admin-shell--shenkar .rules-wizard-button,
+.admin-shell--shenkar .rules-wizard-modal__primary,
+.admin-shell--shenkar .auto-jobs-panel__refresh,
+.admin-shell--shenkar .auto-run-panel > .grid > button {
+  border: 1px solid rgba(201, 192, 171, 0.3) !important;
+  background: #8faab3 !important;
+  color: #1f2a2f !important;
+  box-shadow: 0 8px 16px rgba(130, 115, 89, 0.14) !important;
+}
+
+.admin-shell--shenkar input,
+.admin-shell--shenkar select,
+.admin-shell--shenkar textarea {
+  border-color: rgba(201, 192, 171, 0.6);
+}
+
+.admin-shell--shenkar input:focus,
+.admin-shell--shenkar select:focus,
+.admin-shell--shenkar textarea:focus {
+  border-color: rgba(143, 170, 179, 0.56) !important;
+  box-shadow: 0 0 0 5px rgba(143, 170, 179, 0.14) !important;
+}
+
+.admin-shell--shenkar .admin-content {
+  --admin-ink: #1f1b16;
+  --admin-muted: #4f4a40;
+  --admin-line: rgba(95, 86, 73, 0.34);
+  --admin-line-strong: rgba(95, 86, 73, 0.46);
+}
+
+.admin-shell--shenkar .admin-sidebar__subtitle,
+.admin-shell--shenkar .admin-nav-item__meta,
+.admin-shell--shenkar .admin-sidebar__spotlight-text,
+.admin-shell--shenkar .admin-sidebar__copyright {
+  color: rgba(248, 245, 238, 0.84);
+}
+
+.admin-shell--shenkar .admin-topbar__subtitle {
+  color: #4f4a40;
+}
+
+.admin-shell--shenkar .admin-topbar,
+.admin-shell--shenkar .admin-topbar__pill,
+.admin-shell--shenkar .admin-mobilebar {
+  border-color: rgba(122, 114, 100, 0.42);
 }
 
 .admin-shell--clinic .dashboard-hero::before,

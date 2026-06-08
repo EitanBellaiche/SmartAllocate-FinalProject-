@@ -634,7 +634,13 @@ export default function App() {
   return (
     <div
       className={`user-app-shell ${
-        isCinema ? "user-app-shell--cinema" : isClinic ? "user-app-shell--clinic" : "user-app-shell--generic"
+        isCinema
+          ? "user-app-shell--cinema"
+          : isClinic
+            ? "user-app-shell--clinic"
+            : isShenkar
+              ? "user-app-shell--shenkar"
+              : "user-app-shell--generic"
       }`}
       style={{
         minHeight: "100vh",

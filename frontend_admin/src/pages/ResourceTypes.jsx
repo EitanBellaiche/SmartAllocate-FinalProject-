@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
 import "./ResourceTypes.css";
+
+function ModalPortal({ children }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
 
 function sortTypesAlphabetically(items) {
   return [...items].sort(
@@ -411,8 +417,9 @@ export default function ResourceTypes() {
       </section>
 
       {showAdd && (
-        <div className="resource-types-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`resource-types-modal max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
+        <ModalPortal>
+          <div className={`resource-types-modal-backdrop resource-types-modal-backdrop--${config.domain} fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4`}>
+            <div className={`resource-types-modal resource-types-modal--${config.domain} max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
             <h2 className={`mb-4 text-2xl font-bold ${theme.textStrong}`}>Add Resource Type</h2>
 
             <div className="mb-6 space-y-3">
@@ -464,28 +471,30 @@ export default function ResourceTypes() {
               }
             />
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                onClick={() => setShowAdd(false)}
-                className={`rounded-2xl border px-4 py-2 font-semibold ${theme.buttonGhost}`}
-              >
-                Cancel
-              </button>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={() => setShowAdd(false)}
+                  className={`rounded-2xl border px-4 py-2 font-semibold ${theme.buttonGhost}`}
+                >
+                  Cancel
+                </button>
 
-              <button
-                onClick={saveNewType}
-                className={`rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonPrimary}`}
-              >
-                Save Type
-              </button>
+                <button
+                  onClick={saveNewType}
+                  className={`rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonPrimary}`}
+                >
+                  Save Type
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {editModal.open && (
-        <div className="resource-types-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className={`resource-types-modal max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
+        <ModalPortal>
+          <div className={`resource-types-modal-backdrop resource-types-modal-backdrop--${config.domain} fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4`}>
+            <div className={`resource-types-modal resource-types-modal--${config.domain} max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border p-5 shadow-xl sm:p-6 ${theme.modalCard}`}>
             <h2 className={`mb-4 text-2xl font-bold ${theme.textStrong}`}>
               Edit Resource Type - {editModal.type.name}
             </h2>
@@ -557,25 +566,26 @@ export default function ResourceTypes() {
               }
             />
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                onClick={() =>
-                  setEditModal({ open: false, type: null, fields: [], roles: [], roleInput: "" })
-                }
-                className={`rounded-2xl border px-4 py-2 font-semibold ${theme.buttonGhost}`}
-              >
-                Cancel
-              </button>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  onClick={() =>
+                    setEditModal({ open: false, type: null, fields: [], roles: [], roleInput: "" })
+                  }
+                  className={`rounded-2xl border px-4 py-2 font-semibold ${theme.buttonGhost}`}
+                >
+                  Cancel
+                </button>
 
-              <button
-                onClick={saveEditType}
-                className={`rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonPrimary}`}
-              >
-                Save Changes
-              </button>
+                <button
+                  onClick={saveEditType}
+                  className={`rounded-2xl px-4 py-2 font-semibold transition ${theme.buttonPrimary}`}
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   );

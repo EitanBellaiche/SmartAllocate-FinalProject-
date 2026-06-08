@@ -769,6 +769,45 @@
   background: rgba(248, 250, 252, 0.72);
 }
 
+.admin-shell--shenkar .resources-toolbar::before,
+.admin-shell--shenkar .resource-card::before,
+.admin-shell--shenkar .resource-result-tile::before {
+  display: none !important;
+}
+
+.admin-shell--shenkar .resources-eyebrow {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #5e5548 !important;
+  letter-spacing: 0.16em !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div {
+  background: #fbfcfc !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.05) !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div::after {
+  display: none !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div > div:first-child {
+  background: transparent !important;
+  color: #5e5548 !important;
+  letter-spacing: 0.12em !important;
+}
+
+.admin-shell--shenkar .resource-result-group__eyebrow {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #6a604f !important;
+  font-size: 0.68rem;
+}
+
 @media (max-width: 760px) {
   .resources-toolbar,
   .resources-list {

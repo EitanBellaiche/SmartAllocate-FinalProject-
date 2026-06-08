@@ -284,6 +284,11 @@
   font-weight: 800;
 }
 
+.admin-shell--shenkar .resource-type-card__actions button,
+.resource-types-modal-backdrop--shenkar .resource-types-modal button {
+  border: 1px solid rgba(122, 114, 100, 0.34) !important;
+}
+
 .resource-type-card__actions button:first-child {
   border: 1px solid rgba(125, 211, 252, 0.5) !important;
   background: #ffffff !important;
@@ -297,8 +302,34 @@
   box-shadow: 0 14px 24px rgba(220, 38, 38, 0.16) !important;
 }
 
+.admin-shell--shenkar .resource-type-card__actions button:last-child,
+.resource-types-modal-backdrop--shenkar .resource-types-modal button[class*="bg-red-700"],
+.resource-types-modal-backdrop--shenkar .resource-types-modal .hover\:bg-red-800,
+.resource-types-modal-backdrop--shenkar .resource-types-modal .hover\:bg-red-700 {
+  border: 1px solid #b88f8f !important;
+  background: linear-gradient(135deg, #cfa4a4 0%, #bf8f8f 100%) !important;
+  color: #3f2f2f !important;
+  box-shadow: 0 10px 18px rgba(122, 114, 100, 0.16) !important;
+}
+
+.resource-types-modal-backdrop--shenkar .resource-types-modal button[class*="bg-red-700"]:hover,
+.admin-shell--shenkar .resource-type-card__actions button:last-child:hover {
+  background: linear-gradient(135deg, #c49797 0%, #b68383 100%) !important;
+  border-color: #a97c7c !important;
+}
+
+.resource-types-modal-backdrop--shenkar .resource-types-modal .bg-red-900\/40,
+.resource-types-modal-backdrop--shenkar .resource-types-modal .hover\:bg-red-900\/60 {
+  border: 1px solid #b88f8f !important;
+  background: rgba(207, 164, 164, 0.22) !important;
+  color: #5f4444 !important;
+}
+
 .resource-types-modal-backdrop {
-  background: rgba(15, 23, 42, 0.48) !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2000 !important;
+  background: rgba(255, 255, 255, 0.82) !important;
   backdrop-filter: blur(12px);
 }
 

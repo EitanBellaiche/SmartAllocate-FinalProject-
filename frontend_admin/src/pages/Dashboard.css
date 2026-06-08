@@ -1159,6 +1159,7 @@
   line-height: 1.55;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 4;
+  line-clamp: 4;
 }
 
 .dashboard-resource-card__actions {
@@ -1585,6 +1586,126 @@
 .admin-shell--cinema .dashboard-hero__panel-card::before,
 .admin-shell--cinema .dashboard-hero__progress-track span {
   background: linear-gradient(180deg, #f59e0b 0%, #db2777 58%, #a855f7 100%);
+}
+
+.admin-shell--shenkar .dashboard-hero {
+  border-color: rgba(111, 102, 88, 0.42) !important;
+  background: linear-gradient(135deg, #e8efee 0%, #e2ebea 62%, #f1ebdd 100%) !important;
+  color: #2f2b24;
+  box-shadow: 0 12px 22px rgba(130, 115, 89, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.admin-shell--shenkar .dashboard-hero::before {
+  background: linear-gradient(180deg, #8faab3 0%, #b4c0c0 48%, #c9c0ab 100%);
+}
+
+.admin-shell--shenkar .dashboard-hero::after {
+  background: linear-gradient(135deg, rgba(143, 170, 179, 0.08), rgba(201, 192, 171, 0.12));
+}
+
+.admin-shell--shenkar .dashboard-hero__eyebrow {
+  border-color: rgba(201, 192, 171, 0.42);
+  background: rgba(243, 237, 225, 0.86);
+  color: #6e624f;
+}
+
+.admin-shell--shenkar .dashboard-hero__title,
+.admin-shell--shenkar .dashboard-hero__panel-title,
+.admin-shell--shenkar .dashboard-hero__panel-card strong {
+  color: #2f2b24 !important;
+}
+
+.admin-shell--shenkar .dashboard-hero__subtitle,
+.admin-shell--shenkar .dashboard-hero__panel-copy,
+.admin-shell--shenkar .dashboard-hero__panel-card span {
+  color: #433a2f !important;
+}
+
+.admin-shell--shenkar .dashboard-hero__chip {
+  border-color: rgba(201, 192, 171, 0.5);
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #5f5649 !important;
+}
+
+.admin-shell--shenkar .dashboard-hero__panel {
+  border-color: rgba(96, 88, 76, 0.46) !important;
+  background: #e8efee !important;
+  box-shadow: 0 12px 20px rgba(95, 86, 73, 0.14);
+}
+
+.admin-shell--shenkar .dashboard-hero__panel-label {
+  color: #655b4c;
+}
+
+.admin-shell--shenkar .dashboard-hero__panel-card {
+  border-color: rgba(96, 88, 76, 0.4) !important;
+  background: #e1e9e8 !important;
+}
+
+.admin-shell--shenkar .dashboard-hero__panel-card::before,
+.admin-shell--shenkar .dashboard-hero__progress-track span {
+  background: linear-gradient(180deg, #8faab3 0%, #c9c0ab 100%);
+}
+
+.admin-shell--shenkar .dashboard-hero__progress {
+  background: #dde6e5;
+  border-color: rgba(122, 114, 100, 0.36);
+}
+
+.admin-shell--shenkar .dashboard-hero__progress-row,
+.admin-shell--shenkar .dashboard-hero__progress-row strong {
+  color: #3f362c !important;
+}
+
+.admin-shell--shenkar .dashboard-hero__progress-track {
+  background: #a4b2b0;
+}
+
+.admin-shell--shenkar .dashboard-resource-card__button,
+.admin-shell--shenkar .dashboard-modal__actions button:last-child {
+  background: #8faab3 !important;
+  color: #1f2a2f !important;
+  box-shadow: 0 8px 14px rgba(130, 115, 89, 0.12) !important;
+}
+
+.admin-shell--shenkar .dashboard-search__count {
+  background: linear-gradient(135deg, #edf3f3 0%, #f3ede1 100%) !important;
+  border-color: rgba(201, 192, 171, 0.44);
+  color: #6e624f !important;
+}
+
+.admin-shell--shenkar .dashboard-stat-card,
+.admin-shell--shenkar .dashboard-insight-card,
+.admin-shell--shenkar .dashboard-search,
+.admin-shell--shenkar .dashboard-resource-card,
+.admin-shell--shenkar .dashboard-modal,
+.admin-shell--shenkar .dashboard-modal__section,
+.admin-shell--shenkar .dashboard-booking-card,
+.admin-shell--shenkar .dashboard-booking-card__resource {
+  border-color: rgba(95, 86, 73, 0.46) !important;
+}
+
+.admin-shell--shenkar .dashboard-search__input,
+.admin-shell--shenkar .dashboard-modal__field input:not([type="checkbox"]),
+.admin-shell--shenkar .dashboard-modal__field select,
+.admin-shell--shenkar .dashboard-modal__section input:not([type="checkbox"]),
+.admin-shell--shenkar .dashboard-modal__section select {
+  border-color: rgba(122, 114, 100, 0.42) !important;
+  color: #1f1b16 !important;
+}
+
+.admin-shell--shenkar .dashboard-search__subtitle,
+.admin-shell--shenkar .dashboard-insight-card__text,
+.admin-shell--shenkar .dashboard-resource-card__meta-text,
+.admin-shell--shenkar .dashboard-modal__subtitle,
+.admin-shell--shenkar .dashboard-booking-card__meta {
+  color: #4f4a40 !important;
+}
+
+.admin-shell--shenkar .dashboard-stat-card__title,
+.admin-shell--shenkar .dashboard-resource-card__meta-label,
+.admin-shell--shenkar .dashboard-modal__field label {
+  color: #5f5649 !important;
 }
 
 .dashboard-details-summary {
