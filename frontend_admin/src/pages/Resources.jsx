@@ -2293,7 +2293,7 @@ async function saveHallLayout() {
       {detailsModal.open && (
         <ModalPortal>
         <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
-          <div className={`resources-modal-surface resources-details-modal max-h-[90vh] w-full max-w-[500px] overflow-y-auto rounded-[28px] border border-purple-900/20 bg-[linear-gradient(180deg,#fff_0%,#faf7ff_100%)] p-5 shadow-[0_18px_45px_rgba(88,28,135,0.12)] sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
+          <div className={`resources-modal-surface resources-details-modal flex max-h-[90vh] w-full max-w-[500px] flex-col overflow-hidden rounded-[28px] border border-purple-900/20 bg-[linear-gradient(180deg,#fff_0%,#faf7ff_100%)] p-5 shadow-[0_18px_45px_rgba(88,28,135,0.12)] sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
             <h2 className="mb-4 text-xl font-bold">
               Details - {detailsModal.item?.name}
             </h2>
@@ -2306,6 +2306,7 @@ async function saveHallLayout() {
               {isCinema && detailsModal.item?.type_name === "Seat" ? "Seat Details" : "Fields"}
             </h3>
 
+            <div className="resources-details-modal__body">
             {isCinema && detailsModal.item?.type_name === "Seat" ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -2413,8 +2414,9 @@ async function saveHallLayout() {
                 {JSON.stringify(detailsModal.item?.metadata || {}, null, 2)}
               </pre>
             )}
+            </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="resources-details-modal__footer">
               <button
                 onClick={() => setDetailsModal({ open: false, item: null })}
                 className="resources-details-modal__close rounded-xl border border-purple-900/20 bg-white px-5 py-2.5 text-sm font-semibold text-purple-950 hover:bg-purple-50"

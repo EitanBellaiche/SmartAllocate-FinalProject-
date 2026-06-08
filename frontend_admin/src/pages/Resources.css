@@ -846,8 +846,9 @@
 }
 
 .admin-shell--shenkar .resources-modal-backdrop {
-  background: rgba(41, 36, 31, 0.36) !important;
-  backdrop-filter: blur(2px);
+  background: rgba(255, 255, 255, 0.62) !important;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
 }
 
 .admin-shell--shenkar .resources-modal-surface {
@@ -882,9 +883,76 @@
 }
 
 .admin-shell--shenkar .resources-details-modal__close {
-  border-color: rgba(112, 101, 85, 0.46) !important;
-  background: linear-gradient(180deg, #f6f0e4 0%, #ebe1d1 100%) !important;
-  color: #4a3e31 !important;
+  border-color: rgba(108, 92, 72, 0.66) !important;
+  background: linear-gradient(180deg, #e3d7c8 0%, #d5c4ae 100%) !important;
+  color: #352a20 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.2) !important;
+}
+
+.admin-shell--shenkar .resources-details-modal__close:hover {
+  background: linear-gradient(180deg, #ddcfbe 0%, #ccb89f 100%) !important;
+}
+
+.resources-details-modal__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.resources-details-modal__footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(120, 109, 92, 0.26);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.resources-details-modal pre {
+  max-height: 52vh;
+  overflow: auto;
+}
+
+/* Portal modals are mounted under body, so use explicit portal classes for Shenkar styling. */
+.resources-modal-backdrop--shenkar {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.resources-modal-surface--shenkar {
+  border: 1px solid rgba(110, 98, 79, 0.34) !important;
+  background: linear-gradient(180deg, #faf6ee 0%, #f1e9dc 100%) !important;
+  box-shadow: 0 30px 52px rgba(95, 86, 73, 0.22) !important;
+}
+
+.resources-modal-surface--shenkar h2,
+.resources-modal-surface--shenkar h3,
+.resources-modal-surface--shenkar label,
+.resources-modal-surface--shenkar strong,
+.resources-modal-surface--shenkar .text-purple-950 {
+  color: #3f362b !important;
+}
+
+.resources-modal-surface--shenkar input,
+.resources-modal-surface--shenkar select,
+.resources-modal-surface--shenkar textarea,
+.resources-modal-surface--shenkar pre {
+  border-color: rgba(112, 101, 85, 0.45) !important;
+  background: #fffdf8 !important;
+  color: #3f362a !important;
+}
+
+.resources-modal-surface--shenkar .resources-details-modal__close {
+  border-color: rgba(118, 106, 88, 0.58) !important;
+  background: linear-gradient(180deg, #f4ede1 0%, #e8ddcb 100%) !important;
+  color: #4d4235 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.15) !important;
+}
+
+.resources-modal-surface--shenkar .resources-details-modal__close:hover {
+  background: linear-gradient(180deg, #ede3d2 0%, #dfd0b8 100%) !important;
+  border-color: rgba(110, 97, 78, 0.64) !important;
 }
 
 .admin-shell--shenkar .resources-filter-panel {
