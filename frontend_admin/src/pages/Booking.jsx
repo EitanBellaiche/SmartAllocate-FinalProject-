@@ -1435,45 +1435,46 @@ export default function Booking() {
                         </div>
 
                         {responsibleUser && (
-                          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-slate-700">
-                            <div className="mb-2 font-semibold text-slate-900">
+                          <div className="booking-responsible-availability">
+                            <div className="booking-responsible-availability__title">
                               Responsible availability
                             </div>
                             {responsibleAvailability.length === 0 &&
                             responsibleOverrides.length === 0 ? (
-                              <div>No availability defined yet.</div>
+                              <div className="booking-responsible-availability__empty">No availability defined yet.</div>
                             ) : (
                               <>
                                 {responsibleAvailability.length > 0 && (
-                                  <div className="space-y-1">
+                                  <div className="booking-responsible-availability__slots">
                                     {responsibleAvailability.map((slot) => (
-                                      <div key={slot.id}>
-                                        {WEEKDAY_LABELS[Number(slot.day_of_week)] ||
-                                          `Day ${slot.day_of_week}`} {" "}
-                                        {formatIsraelTime(slot.start_time)}-
-                                        {formatIsraelTime(slot.end_time)}
-                                        {slot.start_date || slot.end_date
-                                          ? ` | ${formatIsraelDateRange(
-                                              slot.start_date,
-                                              slot.end_date
-                                            )}`
-                                          : ""}
+                                      <div key={slot.id} className="booking-responsible-availability__slot">
+                                        <span className="booking-responsible-availability__day">
+                                          {WEEKDAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}
+                                        </span>
+                                        <span className="booking-responsible-availability__time">
+                                          {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                                        </span>
+                                        {(slot.start_date || slot.end_date) && (
+                                          <span className="booking-responsible-availability__range">
+                                            {formatIsraelDateRange(slot.start_date, slot.end_date)}
+                                          </span>
+                                        )}
                                       </div>
                                     ))}
                                   </div>
                                 )}
                                 {responsibleOverrides.length > 0 && (
-                                  <div className="mt-3 border-t border-emerald-100 pt-3 text-xs text-slate-500">
-                                    Overrides:
+                                  <div className="booking-responsible-availability__overrides">
+                                    <div className="booking-responsible-availability__overrides-title">Overrides</div>
                                     {responsibleOverrides.map((slot) => (
-                                      <div key={slot.id}>
-                                        {formatIsraelDate(slot.date)} | {" "}
-                                        {slot.is_available ? "Available" : "Blocked"}
-                                        {slot.start_time && slot.end_time
-                                          ? ` | ${formatIsraelTime(
-                                              slot.start_time
-                                            )}-${formatIsraelTime(slot.end_time)}`
-                                          : ""}
+                                      <div key={slot.id} className="booking-responsible-availability__override-item">
+                                        <span>{formatIsraelDate(slot.date)}</span>
+                                        <span>{slot.is_available ? "Available" : "Blocked"}</span>
+                                        {slot.start_time && slot.end_time && (
+                                          <span>
+                                            {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                                          </span>
+                                        )}
                                       </div>
                                     ))}
                                   </div>

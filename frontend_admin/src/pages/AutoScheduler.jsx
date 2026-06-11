@@ -245,62 +245,39 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
                     Score {Number(decision.score)}
                   </span>
                 )}
-                {statsLine && (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                    {statsLine}
+                {selectedRules.length > 0 && (
+                  <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                    {selectedRules.length} matched rules
                   </span>
                 )}
               </div>
             </div>
 
-            {decision.narrative && (
-              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                {decision.narrative}
-              </div>
-            )}
-
-            {selectedResources.length > 0 && (
-              <div className="mt-3 text-xs text-slate-600">
-                Resources: {selectedResources.map((resource) => resource.name).join(", ")}
-              </div>
-            )}
-
-            {Array.isArray(decision.blockers) && decision.blockers.length > 0 && (
-              <div className="mt-2 text-xs text-amber-700">
-                Before success: {decision.blockers.join(" | ")}
-              </div>
-            )}
-
             {selectedRules.length > 0 && (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Score breakdown
-                </div>
-                <div className="mt-3 space-y-2">
-                  {selectedRules.slice(0, 6).map((rule) => (
-                    <div
-                      key={`scheduled-rule-${item.booking_id || idx}-${rule.id}-${rule.name}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-slate-900">{rule.name}</div>
-                        {rule.description && (
-                          <div className="mt-1 text-xs text-slate-500">{rule.description}</div>
-                        )}
-                      </div>
-                      <div
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          Number(rule.delta) >= 0
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800"
-                        }`}
-                      >
-                        {Number(rule.delta) > 0 ? "+" : ""}
-                        {Number(rule.delta)}
-                      </div>
+              <div className="mt-3 space-y-2">
+                {selectedRules.map((rule, ruleIdx) => (
+                  <div
+                    key={`rule-${item.booking_id || idx}-${rule.id || ruleIdx}`}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                  >
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{rule.name}</div>
+                      {rule.description && (
+                        <div className="mt-1 text-xs text-slate-500">{rule.description}</div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                    <div
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        Number(rule.delta) >= 0
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {Number(rule.delta) > 0 ? "+" : ""}
+                      {Number(rule.delta)}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -968,43 +945,54 @@ export default function AutoScheduler({ embedded = false }) {
       daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
       preferredWindowId: "",
     });
-    setResponsibleQuery("");
-    setResponsibleOptions([]);
-    setResponsibleUser(null);
-    setMessage("");
-  }
-
-  function updateGroup(groupId, patch) {
-    setGroups((prev) =>
-      prev.map((g) => (g.group_id === groupId ? { ...g, ...patch } : g))
-    );
-  }
-
-  function removeGroup(groupId) {
-    setGroups((prev) => prev.filter((g) => g.group_id !== groupId));
-  }
-
-  function moveGroup(groupId, direction) {
-    setGroups((prev) => {
-      const idx = prev.findIndex((g) => g.group_id === groupId);
-      if (idx < 0) return prev;
-      const nextIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (nextIdx < 0 || nextIdx >= prev.length) return prev;
-      const copy = [...prev];
-      const [item] = copy.splice(idx, 1);
-      copy.splice(nextIdx, 0, item);
-      return copy;
-    });
-  }
-
-  function addTimeWindow() {
-    const id = `win_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    setTimeWindows((prev) => [
-      ...prev,
-      { id, label: "Custom window", start_time: "08:00", end_time: "12:00" },
-    ]);
-  }
-
+            {responsibleUser && (
+              <div className="booking-responsible-availability">
+                <div className="booking-responsible-availability__title">Responsible availability</div>
+                {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
+                  <div className="booking-responsible-availability__empty">
+                    No availability defined. Treated as available every day.
+                  </div>
+                ) : (
+                  <>
+                    {responsibleAvailability.length > 0 && (
+                      <div className="booking-responsible-availability__slots">
+                        {responsibleAvailability.map((slot) => (
+                          <div key={slot.id} className="booking-responsible-availability__slot">
+                            <span className="booking-responsible-availability__day">
+                              {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}
+                            </span>
+                            <span className="booking-responsible-availability__time">
+                              {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                            </span>
+                            {(slot.start_date || slot.end_date) && (
+                              <span className="booking-responsible-availability__range">
+                                {formatIsraelDateRange(slot.start_date, slot.end_date)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {responsibleOverrides.length > 0 && (
+                      <div className="booking-responsible-availability__overrides">
+                        <div className="booking-responsible-availability__overrides-title">Overrides</div>
+                        {responsibleOverrides.map((slot) => (
+                          <div key={slot.id} className="booking-responsible-availability__override-item">
+                            <span>{formatIsraelDate(slot.date)}</span>
+                            <span>{slot.is_available ? "Available" : "Blocked"}</span>
+                            {slot.start_time && slot.end_time && (
+                              <span>
+                                {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
   function updateTimeWindow(windowId, patch) {
     setTimeWindows((prev) => prev.map((w) => (w.id === windowId ? { ...w, ...patch } : w)));
   }
