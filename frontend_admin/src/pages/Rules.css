@@ -551,6 +551,222 @@
   opacity: 0.48;
 }
 
+.rules-details-overlay {
+  padding: 24px;
+  background:
+    radial-gradient(circle at 72% 14%, rgba(14, 165, 233, 0.16), transparent 34%),
+    rgba(15, 23, 42, 0.48) !important;
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.rules-details-modal {
+  width: min(820px, calc(100vw - 44px)) !important;
+  padding: 0 !important;
+  border: 1px solid rgba(186, 230, 253, 0.82);
+  border-radius: 28px !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(45, 212, 191, 0.14), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.98));
+  box-shadow:
+    0 34px 90px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(14, 165, 233, 0.42) rgba(226, 232, 240, 0.7);
+}
+
+.rules-details-modal__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 26px 28px 20px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.64);
+  background:
+    linear-gradient(90deg, rgba(240, 249, 255, 0.98), rgba(240, 253, 250, 0.96)),
+    rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+}
+
+.rules-details-modal__header::after {
+  content: "";
+  position: absolute;
+  left: 28px;
+  right: 28px;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0284c7 0%, #14b8a6 58%, #10b981 100%);
+}
+
+.rules-details-modal__eyebrow {
+  margin-bottom: 8px;
+  color: #0369a1;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.rules-details-modal__header h2 {
+  margin: 0;
+  color: #0f172a;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: 1.75rem;
+  font-weight: 900;
+  letter-spacing: -0.045em;
+}
+
+.rules-details-modal__status {
+  flex: 0 0 auto;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  padding: 7px 12px;
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.rules-details-modal__status--active {
+  border-color: rgba(20, 184, 166, 0.28);
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.rules-details-modal__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr);
+  gap: 16px;
+  margin: 24px 28px 18px;
+}
+
+.rules-details-modal__summary-main,
+.rules-details-modal__facts,
+.rules-details-modal__json-card {
+  border: 1px solid rgba(203, 213, 225, 0.64);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+}
+
+.rules-details-modal__summary-main {
+  padding: 18px;
+}
+
+.rules-details-modal__summary-main > span {
+  display: inline-flex;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  border-radius: 999px;
+  background: #f0f9ff;
+  color: #0369a1;
+  padding: 5px 9px;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.rules-details-modal__summary-main h3 {
+  margin: 14px 0 8px;
+  color: #0f172a;
+  font-family: "Sora", "IBM Plex Sans", sans-serif;
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: -0.045em;
+}
+
+.rules-details-modal__summary-main p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.65;
+}
+
+.rules-details-modal__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+.rules-details-modal__facts div {
+  border: 1px solid rgba(226, 232, 240, 0.82);
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.84);
+  padding: 12px;
+}
+
+.rules-details-modal__facts span,
+.rules-details-modal__section-title {
+  display: block;
+  color: #0369a1;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.rules-details-modal__facts strong {
+  display: block;
+  margin-top: 7px;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+.rules-details-modal__json-grid {
+  display: grid;
+  gap: 16px;
+  margin: 0 28px 24px;
+}
+
+.rules-details-modal__json-card {
+  overflow: hidden;
+}
+
+.rules-details-modal__section-title {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.62);
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.rules-details-modal__json-card pre {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  border: 0;
+  background: #0f172a;
+  color: #dbeafe;
+  padding: 16px;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.rules-details-modal__footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0;
+  padding: 16px 28px 22px;
+  border-top: 1px solid rgba(203, 213, 225, 0.62);
+  background: rgba(248, 250, 252, 0.94);
+  backdrop-filter: blur(16px);
+}
+
+.rules-details-modal__close {
+  min-height: 46px;
+  min-width: 104px;
+  border-color: rgba(14, 165, 233, 0.28) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  color: #0f172a !important;
+  font-weight: 800;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.07);
+}
+
 @media (max-width: 1180px) {
   .rules-card__actions {
     justify-content: flex-start;
@@ -620,6 +836,336 @@
     margin-left: 18px;
     margin-right: 18px;
   }
+
+  .rules-details-overlay {
+    padding: 14px;
+  }
+
+  .rules-details-modal__header,
+  .rules-details-modal__footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .rules-details-modal__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rules-details-modal__summary,
+  .rules-details-modal__json-grid {
+    grid-template-columns: 1fr;
+    margin-left: 18px;
+    margin-right: 18px;
+  }
+
+  .rules-details-modal__facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-shell--shenkar .rules-page {
+  --rules-ink: #2f2b24;
+  --rules-muted: #6a604f;
+  --rules-line: rgba(103, 92, 76, 0.42);
+}
+
+.admin-shell--shenkar .rules-hero,
+.admin-shell--shenkar .rules-guidance,
+.admin-shell--shenkar .rules-builder,
+.admin-shell--shenkar .rules-list-panel {
+  border-color: rgba(103, 92, 76, 0.46) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(200, 184, 159, 0.18), transparent 30%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 18px 38px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .rules-hero::before {
+  width: 4px;
+  background: linear-gradient(180deg, #8b7b64 0%, #a89576 52%, #c8b89f 100%);
+}
+
+.admin-shell--shenkar .rules-hero::after {
+  background: radial-gradient(circle, rgba(168, 149, 118, 0.16), transparent 68%);
+}
+
+.admin-shell--shenkar .rules-builder::before,
+.admin-shell--shenkar .rules-list-panel::before,
+.admin-shell--shenkar .rules-card::before,
+.admin-shell--shenkar .rules-metric::before,
+.admin-shell--shenkar .rules-wizard-modal__header::after {
+  background: linear-gradient(90deg, #8b7b64 0%, #a89576 52%, #c8b89f 100%);
+}
+
+.admin-shell--shenkar .rules-hero__copy h1,
+.admin-shell--shenkar .rules-builder .text-base,
+.admin-shell--shenkar .rules-list-panel .text-lg,
+.admin-shell--shenkar .rules-card h2,
+.admin-shell--shenkar .rules-wizard-modal__title,
+.admin-shell--shenkar .rules-wizard-details summary {
+  color: #2f2b24 !important;
+}
+
+.admin-shell--shenkar .rules-hero__copy p,
+.admin-shell--shenkar .rules-list-panel .text-sm,
+.admin-shell--shenkar .rules-builder .text-xs,
+.admin-shell--shenkar .rules-guidance .text-sm,
+.admin-shell--shenkar .rules-wizard-step-card .text-xs,
+.admin-shell--shenkar .rules-wizard-review .text-sm,
+.admin-shell--shenkar .rules-wizard-choice__meta {
+  color: #6a604f !important;
+}
+
+.admin-shell--shenkar .rules-hero__copy .inline-flex {
+  border-color: rgba(116, 103, 84, 0.32) !important;
+  background: #f7f2e8 !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .rules-wizard-button,
+.admin-shell--shenkar .rules-wizard-modal__primary,
+.admin-shell--shenkar .rules-wizard-chat__bubble--user {
+  border: 1px solid rgba(83, 100, 90, 0.62) !important;
+  background: linear-gradient(180deg, #768a80 0%, #5c7167 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(82, 95, 85, 0.18) !important;
+}
+
+.admin-shell--shenkar .rules-wizard-button:hover,
+.admin-shell--shenkar .rules-wizard-modal__primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6c8076 0%, #52675d 100%) !important;
+}
+
+.admin-shell--shenkar .rules-metric {
+  border-color: rgba(112, 101, 85, 0.36) !important;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 149, 118, 0.12), transparent 34%),
+    linear-gradient(180deg, #fffdf8 0%, #f1e9dc 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.admin-shell--shenkar .rules-metric--active {
+  background: linear-gradient(180deg, #eefaf4 0%, #e3f5ec 100%) !important;
+}
+
+.admin-shell--shenkar .rules-metric .text-xs {
+  color: #5f5141 !important;
+}
+
+.admin-shell--shenkar .rules-metric .text-3xl {
+  color: #2f2b24 !important;
+}
+
+.admin-shell--shenkar .rules-guidance {
+  background:
+    linear-gradient(90deg, rgba(255, 253, 248, 0.86), rgba(247, 242, 232, 0.78)) !important;
+}
+
+.admin-shell--shenkar .rules-builder input,
+.admin-shell--shenkar .rules-builder select,
+.admin-shell--shenkar .rules-builder textarea,
+.admin-shell--shenkar .rules-wizard-modal textarea,
+.admin-shell--shenkar .rules-wizard-modal input,
+.admin-shell--shenkar .rules-wizard-modal select {
+  border-color: rgba(112, 101, 85, 0.46) !important;
+  background: #fffdf8 !important;
+  color: #352d24 !important;
+}
+
+.admin-shell--shenkar .rules-builder input:focus,
+.admin-shell--shenkar .rules-builder select:focus,
+.admin-shell--shenkar .rules-builder textarea:focus,
+.admin-shell--shenkar .rules-wizard-modal textarea:focus,
+.admin-shell--shenkar .rules-wizard-modal input:focus,
+.admin-shell--shenkar .rules-wizard-modal select:focus {
+  border-color: rgba(168, 149, 118, 0.72) !important;
+  outline: 3px solid rgba(168, 149, 118, 0.16) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .rules-list,
+.admin-shell--shenkar .rules-wizard-modal,
+.admin-shell--shenkar .rules-wizard-picker__list {
+  scrollbar-color: rgba(168, 149, 118, 0.48) rgba(236, 228, 214, 0.8);
+}
+
+.admin-shell--shenkar .rules-list::-webkit-scrollbar-thumb,
+.admin-shell--shenkar .rules-wizard-modal::-webkit-scrollbar-thumb {
+  background: rgba(168, 149, 118, 0.56);
+  background-clip: padding-box;
+}
+
+.admin-shell--shenkar .rules-card,
+.admin-shell--shenkar .rules-wizard-step-card,
+.admin-shell--shenkar .rules-wizard-choice,
+.admin-shell--shenkar .rules-wizard-picker__option,
+.admin-shell--shenkar .rules-wizard-details {
+  border-color: rgba(112, 101, 85, 0.34) !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f4ede1 100%) !important;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.075);
+}
+
+.admin-shell--shenkar .rules-card:hover,
+.admin-shell--shenkar .rules-wizard-choice:hover,
+.admin-shell--shenkar .rules-wizard-picker__option:hover {
+  border-color: rgba(168, 149, 118, 0.58) !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f1e9dc 100%) !important;
+}
+
+.admin-shell--shenkar .rules-card__view-button,
+.admin-shell--shenkar .rules-wizard-modal__close,
+.admin-shell--shenkar .rules-wizard-modal__back {
+  border-color: rgba(116, 103, 84, 0.38) !important;
+  background: #fffdf8 !important;
+  color: #5a4c3c !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.08) !important;
+}
+
+.admin-shell--shenkar .rules-card__view-button:hover,
+.admin-shell--shenkar .rules-wizard-modal__close:hover,
+.admin-shell--shenkar .rules-wizard-modal__back:hover:not(:disabled) {
+  background: #f1e9dc !important;
+  color: #3f352b !important;
+}
+
+.admin-shell--shenkar .rules-wizard-overlay {
+  background:
+    radial-gradient(circle at 70% 15%, rgba(168, 149, 118, 0.16), transparent 34%),
+    rgba(48, 42, 34, 0.42) !important;
+}
+
+.admin-shell--shenkar .rules-wizard-modal {
+  border-color: rgba(103, 92, 76, 0.46) !important;
+  background:
+    radial-gradient(circle at 94% 0%, rgba(200, 184, 159, 0.18), transparent 30%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .rules-wizard-modal__header,
+.admin-shell--shenkar .rules-wizard-modal__footer {
+  border-color: rgba(116, 103, 84, 0.28) !important;
+  background: rgba(247, 242, 232, 0.94) !important;
+}
+
+.admin-shell--shenkar .rules-wizard-modal__step {
+  color: #6a604f !important;
+}
+
+.admin-shell--shenkar .rules-wizard-chat__bubble--assistant {
+  border-color: rgba(112, 101, 85, 0.28) !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f4ede1 100%) !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .rules-wizard-choice--active,
+.admin-shell--shenkar .rules-wizard-picker__option--active {
+  border-color: rgba(111, 154, 133, 0.5) !important;
+  background: linear-gradient(180deg, #eefaf4 0%, #e3f5ec 100%) !important;
+}
+
+.admin-shell--shenkar .rules-wizard-picker__badge {
+  border: 1px solid rgba(116, 103, 84, 0.22);
+  background: #f7f2e8;
+  color: #5a4c3c;
+}
+
+.admin-shell--shenkar .rules-wizard-review pre {
+  border-color: rgba(71, 60, 48, 0.36) !important;
+  background: #2f2b24 !important;
+  color: #f7f2e8 !important;
+}
+
+.admin-shell--shenkar .rules-wizard-modal__primary:disabled,
+.admin-shell--shenkar .rules-wizard-modal__back:disabled {
+  border-color: rgba(176, 168, 153, 0.7) !important;
+  background: #e0d7c8 !important;
+  color: #8a7d68 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .rules-details-overlay {
+  background:
+    radial-gradient(circle at 70% 15%, rgba(168, 149, 118, 0.16), transparent 34%),
+    rgba(48, 42, 34, 0.42) !important;
+}
+
+.admin-shell--shenkar .rules-details-modal {
+  border-color: rgba(103, 92, 76, 0.46) !important;
+  background:
+    radial-gradient(circle at 94% 0%, rgba(200, 184, 159, 0.18), transparent 30%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  scrollbar-color: rgba(168, 149, 118, 0.48) rgba(236, 228, 214, 0.8);
+}
+
+.admin-shell--shenkar .rules-details-modal__header,
+.admin-shell--shenkar .rules-details-modal__footer {
+  border-color: rgba(116, 103, 84, 0.28) !important;
+  background: rgba(247, 242, 232, 0.94) !important;
+}
+
+.admin-shell--shenkar .rules-details-modal__header::after {
+  background: linear-gradient(90deg, #8b7b64 0%, #a89576 52%, #c8b89f 100%);
+}
+
+.admin-shell--shenkar .rules-details-modal__eyebrow,
+.admin-shell--shenkar .rules-details-modal__facts span,
+.admin-shell--shenkar .rules-details-modal__section-title {
+  color: #6a604f;
+}
+
+.admin-shell--shenkar .rules-details-modal__header h2,
+.admin-shell--shenkar .rules-details-modal__summary-main h3,
+.admin-shell--shenkar .rules-details-modal__facts strong {
+  color: #2f2b24;
+}
+
+.admin-shell--shenkar .rules-details-modal__summary-main,
+.admin-shell--shenkar .rules-details-modal__facts,
+.admin-shell--shenkar .rules-details-modal__json-card {
+  border-color: rgba(112, 101, 85, 0.34) !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f4ede1 100%) !important;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.075);
+}
+
+.admin-shell--shenkar .rules-details-modal__summary-main > span,
+.admin-shell--shenkar .rules-details-modal__status {
+  border-color: rgba(116, 103, 84, 0.3) !important;
+  background: #f7f2e8 !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .rules-details-modal__status--active {
+  border-color: rgba(111, 154, 133, 0.34) !important;
+  background: #eefaf4 !important;
+  color: #31544a !important;
+}
+
+.admin-shell--shenkar .rules-details-modal__summary-main p {
+  color: #6a604f;
+}
+
+.admin-shell--shenkar .rules-details-modal__facts div,
+.admin-shell--shenkar .rules-details-modal__section-title {
+  border-color: rgba(116, 103, 84, 0.22) !important;
+  background: rgba(255, 253, 248, 0.62) !important;
+}
+
+.admin-shell--shenkar .rules-details-modal__json-card pre {
+  background: #2f2b24;
+  color: #f7f2e8;
+}
+
+.admin-shell--shenkar .rules-details-modal__close {
+  border-color: rgba(116, 103, 84, 0.38) !important;
+  background: #fffdf8 !important;
+  color: #5a4c3c !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.08) !important;
+}
+
+.admin-shell--shenkar .rules-details-modal__close:hover {
+  background: #f1e9dc !important;
+  color: #3f352b !important;
 }
 
 .admin-shell--cinema .rules-page {
