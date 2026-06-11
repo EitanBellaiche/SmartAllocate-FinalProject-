@@ -856,7 +856,7 @@
 
 .admin-shell--shenkar .resources-toolbar {
   border-color: rgba(101, 92, 77, 0.56) !important;
-  background: linear-gradient(140deg, #eaf0ef 0%, #e4ecea 55%, #f2ebde 100%) !important;
+  background: linear-gradient(140deg, #eaf0ef 0%, #e4ecea 55%, #ece4d6 100%) !important;
   box-shadow: 0 14px 28px rgba(95, 86, 73, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
 }
 
@@ -1107,7 +1107,7 @@
 
 .admin-shell--shenkar .resources-filter-panel {
   border-color: rgba(102, 91, 74, 0.5) !important;
-  background: linear-gradient(180deg, #f8f2e8 0%, #efe6d7 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: 0 12px 22px rgba(95, 86, 73, 0.1) !important;
 }
 
@@ -1130,7 +1130,7 @@
 
 .admin-shell--shenkar .resources-filter-panel .mt-4.grid > div {
   border-color: rgba(112, 101, 85, 0.46) !important;
-  background: linear-gradient(180deg, #f6ede0 0%, #ebdfce 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: 0 8px 16px rgba(95, 86, 73, 0.08) !important;
 }
 
@@ -1140,13 +1140,13 @@
 
 .admin-shell--shenkar .resources-list {
   border-color: rgba(101, 92, 77, 0.56) !important;
-  background: linear-gradient(180deg, #f4eee4 0%, #ebe2d3 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
 }
 
 .admin-shell--shenkar .resources-cinema-empty {
   border-color: rgba(122, 114, 100, 0.38) !important;
-  background: linear-gradient(180deg, #f8f2e7 0%, #eee4d3 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
 }
 
 .admin-shell--shenkar .resources-cinema-empty div:first-child {
@@ -1159,7 +1159,7 @@
 
 .admin-shell--shenkar .resource-card {
   border-color: rgba(101, 92, 77, 0.52) !important;
-  background: linear-gradient(180deg, #f8f2e8 0%, #eee4d4 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: 0 12px 24px rgba(95, 86, 73, 0.11) !important;
 }
 
@@ -1192,7 +1192,7 @@
 
 .admin-shell--shenkar .resource-card .whitespace-nowrap button:nth-child(2),
 .admin-shell--shenkar .resource-card--cinema-grid__actions button:nth-child(2) {
-  background: linear-gradient(180deg, #f7f3eb 0%, #ece4d7 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   color: #625747 !important;
   border-color: rgba(122, 114, 100, 0.46) !important;
 }

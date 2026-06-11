@@ -291,7 +291,7 @@
 
 .admin-shell--shenkar .resource-types-hero {
   border-color: rgba(104, 95, 80, 0.52) !important;
-  background: linear-gradient(140deg, #edf3f2 0%, #e8efee 54%, #f3ede1 100%) !important;
+  background: linear-gradient(140deg, #edf3f2 0%, #e8efee 54%, #ece4d6 100%) !important;
   box-shadow: 0 14px 28px rgba(95, 86, 73, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
@@ -301,7 +301,7 @@
 
 .admin-shell--shenkar .resource-types-eyebrow {
   border-color: rgba(122, 114, 100, 0.44) !important;
-  background: #f4efe4 !important;
+  background: #f7f2e8 !important;
   color: #655b4c !important;
 }
 
@@ -349,12 +349,12 @@
 .admin-shell--shenkar .resource-types-metric--blue,
 .admin-shell--shenkar .resource-types-metric--slate,
 .admin-shell--shenkar .resource-types-metric--amber {
-  background: linear-gradient(180deg, #f5ecde 0%, #ece1cf 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
 }
 
 .admin-shell--shenkar .resource-types-list {
   border-color: rgba(101, 92, 77, 0.56) !important;
-  background: linear-gradient(180deg, #f4eee4 0%, #ebe2d3 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
 }
 
@@ -396,7 +396,7 @@
 
 .admin-shell--shenkar .resource-type-card > div > div:first-child > div:nth-child(3) > div span {
   border-color: rgba(122, 114, 100, 0.42) !important;
-  background: #f4efe4 !important;
+  background: #f7f2e8 !important;
   color: #5f5547 !important;
   box-shadow: none !important;
 }

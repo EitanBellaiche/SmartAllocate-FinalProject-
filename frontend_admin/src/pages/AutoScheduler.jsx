@@ -250,8 +250,14 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
                     {selectedRules.length} matched rules
                   </span>
                 )}
+                {selectedResources.length > 0 && (
+                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                    {selectedResources.length} resources selected
+                  </span>
+                )}
               </div>
             </div>
+            {statsLine && <div className="mt-2 text-xs text-slate-500">{statsLine}</div>}
 
             {selectedRules.length > 0 && (
               <div className="mt-3 space-y-2">
@@ -945,54 +951,21 @@ export default function AutoScheduler({ embedded = false }) {
       daysPerWeek: String(DEFAULT_DAYS_PER_WEEK),
       preferredWindowId: "",
     });
-            {responsibleUser && (
-              <div className="booking-responsible-availability">
-                <div className="booking-responsible-availability__title">Responsible availability</div>
-                {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
-                  <div className="booking-responsible-availability__empty">
-                    No availability defined. Treated as available every day.
-                  </div>
-                ) : (
-                  <>
-                    {responsibleAvailability.length > 0 && (
-                      <div className="booking-responsible-availability__slots">
-                        {responsibleAvailability.map((slot) => (
-                          <div key={slot.id} className="booking-responsible-availability__slot">
-                            <span className="booking-responsible-availability__day">
-                              {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}
-                            </span>
-                            <span className="booking-responsible-availability__time">
-                              {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
-                            </span>
-                            {(slot.start_date || slot.end_date) && (
-                              <span className="booking-responsible-availability__range">
-                                {formatIsraelDateRange(slot.start_date, slot.end_date)}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {responsibleOverrides.length > 0 && (
-                      <div className="booking-responsible-availability__overrides">
-                        <div className="booking-responsible-availability__overrides-title">Overrides</div>
-                        {responsibleOverrides.map((slot) => (
-                          <div key={slot.id} className="booking-responsible-availability__override-item">
-                            <span>{formatIsraelDate(slot.date)}</span>
-                            <span>{slot.is_available ? "Available" : "Blocked"}</span>
-                            {slot.start_time && slot.end_time && (
-                              <span>
-                                {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
+  }
+
+  function addTimeWindow() {
+    const suffix = timeWindows.length + 1;
+    setTimeWindows((prev) => [
+      ...prev,
+      {
+        id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        label: `Custom ${suffix}`,
+        start_time: "08:00",
+        end_time: "10:00",
+      },
+    ]);
+  }
+
   function updateTimeWindow(windowId, patch) {
     setTimeWindows((prev) => prev.map((w) => (w.id === windowId ? { ...w, ...patch } : w)));
   }
@@ -1015,6 +988,28 @@ export default function AutoScheduler({ embedded = false }) {
       if (key) acc[key] = window;
       return acc;
     }, {});
+  }
+
+  function updateGroup(groupId, patch) {
+    setGroups((prev) =>
+      prev.map((group) => (group.group_id === groupId ? { ...group, ...patch } : group))
+    );
+  }
+
+  function moveGroup(groupId, direction) {
+    setGroups((prev) => {
+      const index = prev.findIndex((group) => group.group_id === groupId);
+      if (index === -1) return prev;
+      const nextIndex = direction === "up" ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  }
+
+  function removeGroup(groupId) {
+    setGroups((prev) => prev.filter((group) => group.group_id !== groupId));
   }
 
   function buildCurrentRunPayload() {

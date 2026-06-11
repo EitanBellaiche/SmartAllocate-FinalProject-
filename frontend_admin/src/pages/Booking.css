@@ -623,12 +623,14 @@
 .admin-shell--shenkar .booking-hero,
 .admin-shell--shenkar .booking-form-section,
 .admin-shell--shenkar .booking-live-panel,
+.admin-shell--shenkar .auto-run-panel,
+.admin-shell--shenkar .auto-windows-panel,
 .admin-shell--shenkar .auto-jobs-panel {
   border-color: rgba(103, 92, 76, 0.56) !important;
   background:
     radial-gradient(circle at 92% 0%, rgba(171, 191, 192, 0.15), transparent 26%),
     radial-gradient(circle at 0% 100%, rgba(198, 183, 157, 0.14), transparent 24%),
-    linear-gradient(180deg, rgba(250, 246, 238, 0.99) 0%, rgba(241, 233, 220, 0.96) 100%) !important;
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: 0 20px 38px rgba(95, 86, 73, 0.14) !important;
 }
 
@@ -664,7 +666,7 @@
 
 .admin-shell--shenkar .booking-mode-toggle {
   border-color: rgba(116, 104, 85, 0.44) !important;
-  background: linear-gradient(135deg, #efe6d8 0%, #e3d6c3 100%) !important;
+  background: linear-gradient(135deg, #f7f2e8 0%, #ece4d6 100%) !important;
   box-shadow: none !important;
 }
 
@@ -695,14 +697,14 @@
 .admin-shell--shenkar .booking-resource-filter-select,
 .admin-shell--shenkar .booking-resource-filter-toggle {
   border-color: rgba(112, 101, 85, 0.36) !important;
-  background: linear-gradient(180deg, #fbf7ef 0%, #f2e9db 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   color: #4b4134 !important;
   box-shadow: none !important;
 }
 
 .admin-shell--shenkar .booking-resource-filter-toggle:hover {
   border-color: rgba(104, 91, 73, 0.46) !important;
-  background: linear-gradient(180deg, #f7efe2 0%, #e9decc 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
 }
 
 .admin-shell--shenkar .booking-resource-filter-toggle input {
@@ -720,7 +722,7 @@
   border-color: rgba(139, 159, 148, 0.42);
   background:
     radial-gradient(circle at 100% 0%, rgba(177, 196, 188, 0.18), transparent 35%),
-    linear-gradient(180deg, rgba(246, 241, 233, 0.98) 0%, rgba(239, 231, 218, 0.96) 100%);
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.65),
     0 12px 24px rgba(98, 88, 73, 0.08);
@@ -732,7 +734,7 @@
 
 .admin-shell--shenkar .booking-responsible-availability__slot {
   border-color: rgba(144, 160, 152, 0.38);
-  background: linear-gradient(180deg, rgba(255, 252, 247, 0.92) 0%, rgba(247, 241, 232, 0.84) 100%);
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%);
   color: #4f4336;
   box-shadow: 0 8px 16px rgba(98, 88, 73, 0.08);
 }
@@ -749,7 +751,7 @@
 
 .admin-shell--shenkar .booking-responsible-availability__day {
   border-color: rgba(140, 156, 146, 0.42);
-  background: linear-gradient(180deg, #ece8dd 0%, #ddd4c3 100%);
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%);
   color: #4c4133;
 }
 
@@ -770,7 +772,7 @@
 .admin-shell--shenkar .auto-job-card {
   border-color: rgba(112, 101, 85, 0.42) !important;
   background:
-    linear-gradient(180deg, #fcf9f3 0%, #f1e9dc 100%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%),
     linear-gradient(90deg, rgba(171, 191, 192, 0.08), transparent 40%) !important;
   box-shadow: 0 10px 22px rgba(95, 86, 73, 0.1);
 }
@@ -779,13 +781,13 @@
 .admin-shell--shenkar .auto-job-card--expanded {
   border-color: rgba(107, 94, 75, 0.58) !important;
   background:
-    linear-gradient(180deg, #f8f0e4 0%, #e9ddcb 100%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%),
     linear-gradient(90deg, rgba(171, 191, 192, 0.12), transparent 42%) !important;
 }
 
 .admin-shell--shenkar .booking-live-card .rounded-full {
   border-color: rgba(116, 103, 84, 0.38) !important;
-  background: #fffaf1 !important;
+  background: #f7f2e8 !important;
   color: #5a4c3c !important;
 }
 
@@ -798,7 +800,7 @@
 .admin-shell--shenkar .booking-live-card button:first-of-type,
 .admin-shell--shenkar .auto-job-card__actions button:first-child {
   border: 1px solid rgba(116, 103, 84, 0.46) !important;
-  background: linear-gradient(180deg, #f6efe3 0%, #eadfce 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
   color: #4a3f32 !important;
 }
 
@@ -851,7 +853,7 @@
   border-bottom: 1px solid rgba(124, 111, 92, 0.28) !important;
   background:
     radial-gradient(circle at 95% 0%, rgba(168, 186, 193, 0.16), transparent 34%),
-    linear-gradient(180deg, rgba(246, 239, 229, 0.98) 0%, rgba(238, 228, 212, 0.95) 100%) !important;
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
 }
 
 .admin-shell--shenkar .auto-jobs-panel .auto-jobs-list,
@@ -954,7 +956,7 @@
 
 .admin-shell--shenkar .auto-run-mode-toggle {
   border-color: rgba(112, 101, 85, 0.4) !important;
-  background: linear-gradient(180deg, #f4ede1 0%, #e9decd 100%) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
 }
 
 .admin-shell--shenkar .auto-run-mode-toggle button.bg-blue-600,
