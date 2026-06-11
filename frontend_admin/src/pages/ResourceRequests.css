@@ -262,6 +262,166 @@
   }
 }
 
+.admin-shell--shenkar .resource-requests-page {
+  --requests-ink: #2f2b24;
+  --requests-muted: #6a604f;
+  --requests-line: rgba(103, 92, 76, 0.42);
+}
+
+.admin-shell--shenkar .resource-requests-hero,
+.admin-shell--shenkar .resource-requests-panel {
+  border-color: rgba(103, 92, 76, 0.46) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(200, 184, 159, 0.18), transparent 30%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 18px 38px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .resource-requests-hero::before {
+  width: 4px;
+  background: linear-gradient(180deg, #8b7b64 0%, #a89576 52%, #c8b89f 100%);
+}
+
+.admin-shell--shenkar .resource-requests-hero::after {
+  background: radial-gradient(circle, rgba(168, 149, 118, 0.16), transparent 68%);
+}
+
+.admin-shell--shenkar .resource-requests-panel::before,
+.admin-shell--shenkar .resource-request-group::before {
+  background: linear-gradient(90deg, #8b7b64 0%, #a89576 52%, #c8b89f 100%);
+}
+
+.admin-shell--shenkar .resource-requests-hero__copy h1,
+.admin-shell--shenkar .resource-requests-panel h2 {
+  color: #2f2b24 !important;
+}
+
+.admin-shell--shenkar .resource-requests-hero__copy p,
+.admin-shell--shenkar .resource-requests-panel p {
+  color: #6a604f !important;
+}
+
+.admin-shell--shenkar .resource-requests-hero__copy .inline-flex {
+  border-color: rgba(116, 103, 84, 0.32) !important;
+  background: #f7f2e8 !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .resource-requests-metric {
+  border-color: rgba(112, 101, 85, 0.36);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(168, 149, 118, 0.12), transparent 34%),
+    linear-gradient(180deg, #fffdf8 0%, #f1e9dc 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+.admin-shell--shenkar .resource-requests-metric span {
+  color: #5f5141;
+}
+
+.admin-shell--shenkar .resource-requests-metric strong {
+  color: #2f2b24;
+}
+
+.admin-shell--shenkar .resource-requests-metric--red {
+  background: linear-gradient(180deg, #fff5ef 0%, #f0ddd4 100%) !important;
+}
+
+.admin-shell--shenkar .resource-requests-metric--green {
+  background: linear-gradient(180deg, #eefaf4 0%, #e3f5ec 100%) !important;
+}
+
+.admin-shell--shenkar .resource-requests-metric--blue {
+  background: linear-gradient(180deg, #fffdf8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .resource-requests-filterbar {
+  border-color: rgba(112, 101, 85, 0.36) !important;
+  background: rgba(255, 253, 248, 0.74) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 14px 24px rgba(95, 86, 73, 0.08) !important;
+}
+
+.admin-shell--shenkar .resource-requests-search,
+.admin-shell--shenkar .resource-requests-select,
+.admin-shell--shenkar .resource-request-card select {
+  border-color: rgba(112, 101, 85, 0.46) !important;
+  background: #fffdf8 !important;
+  color: #352d24 !important;
+}
+
+.admin-shell--shenkar .resource-requests-search:focus,
+.admin-shell--shenkar .resource-requests-select:focus,
+.admin-shell--shenkar .resource-request-card select:focus {
+  border-color: rgba(168, 149, 118, 0.72) !important;
+  box-shadow: 0 0 0 4px rgba(168, 149, 118, 0.16) !important;
+}
+
+.admin-shell--shenkar .resource-requests-refresh {
+  border: 1px solid rgba(83, 100, 90, 0.62) !important;
+  background: linear-gradient(180deg, #768a80 0%, #5c7167 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(82, 95, 85, 0.18) !important;
+}
+
+.admin-shell--shenkar .resource-requests-refresh:hover:not(:disabled) {
+  background: linear-gradient(180deg, #6c8076 0%, #52675d 100%) !important;
+}
+
+.admin-shell--shenkar .resource-requests-refresh:disabled {
+  border-color: rgba(176, 168, 153, 0.7) !important;
+  background: #e0d7c8 !important;
+  color: #8a7d68 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .resource-requests-group-list,
+.admin-shell--shenkar .resource-requests-request-list {
+  scrollbar-color: rgba(168, 149, 118, 0.48) rgba(236, 228, 214, 0.8);
+}
+
+.admin-shell--shenkar .resource-requests-group-list::-webkit-scrollbar-thumb,
+.admin-shell--shenkar .resource-requests-request-list::-webkit-scrollbar-thumb {
+  background: rgba(168, 149, 118, 0.56);
+  background-clip: padding-box;
+}
+
+.admin-shell--shenkar .resource-request-group,
+.admin-shell--shenkar .resource-request-card,
+.admin-shell--shenkar .resource-requests-detail__summary {
+  border-color: rgba(112, 101, 85, 0.34) !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f4ede1 100%) !important;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.075);
+}
+
+.admin-shell--shenkar .resource-request-group:hover {
+  border-color: rgba(168, 149, 118, 0.58) !important;
+  background: linear-gradient(180deg, #fffdf8 0%, #f1e9dc 100%) !important;
+}
+
+.admin-shell--shenkar .resource-request-group__pending {
+  border: 1px solid rgba(155, 121, 110, 0.4) !important;
+  background: linear-gradient(180deg, #f1e2dc 0%, #e6d0c7 100%) !important;
+  color: #6f463b !important;
+}
+
+.admin-shell--shenkar .resource-requests-back {
+  border-color: rgba(116, 103, 84, 0.38) !important;
+  background: #fffdf8 !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .resource-requests-back:hover {
+  background: #f4ede1 !important;
+}
+
+.admin-shell--shenkar .resource-requests-panel .border-dashed {
+  border-color: rgba(116, 103, 84, 0.28) !important;
+  background: rgba(255, 253, 248, 0.62) !important;
+  color: #6a604f !important;
+}
+
 .admin-shell--cinema .resource-requests-page {
   --requests-ink: #201036;
   --requests-muted: #6b5a78;
