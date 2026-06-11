@@ -2011,14 +2011,15 @@ export default function AutoScheduler({ embedded = false }) {
               )}
             </div>
           </div>
-          <div className="grid gap-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:col-span-2">
-            <div>
+          <div className="auto-people-panel grid gap-5 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:col-span-2">
+            <div className="auto-people-panel__header">
+              <div className="auto-people-panel__eyebrow">Assignment</div>
               <h3 className="text-xl font-semibold text-slate-900">People assignment</h3>
               <p className="mt-1 text-sm text-slate-500">
                 Keep this optional. Pick a responsible user only when this allocation should be tied to one, and optionally add additional user IDs.
               </p>
             </div>
-            <div>
+            <div className="auto-people-field auto-people-field--responsible">
               <label className="mb-2 block text-sm font-semibold text-slate-800">
                 Responsible user (optional)
               </label>
@@ -2040,12 +2041,12 @@ export default function AutoScheduler({ embedded = false }) {
                 <div className="mt-2 text-sm text-red-600">{responsibleError}</div>
               )}
               {responsibleOptions.length > 0 && (
-                <div className="mt-3 max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                <div className="auto-responsible-results mt-3 max-h-56 overflow-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
                   {responsibleOptions.map((user) => (
                     <button
                       key={user.id}
                       type="button"
-                      className="w-full rounded-xl px-3 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      className="auto-responsible-option w-full rounded-xl px-3 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-50"
                       onClick={() => {
                         const nextId = String(user.national_id || user.id || "").trim();
                         setResponsibleUser(user);
@@ -2060,50 +2061,78 @@ export default function AutoScheduler({ embedded = false }) {
                   ))}
                 </div>
               )}
-              <div className="mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">
+              <div className="auto-selected-chip mt-3 inline-flex rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600">
                 Selected: {responsibleUser?.national_id || selection.responsibleId || "None"}
               </div>
             </div>
 
             {responsibleUser && (
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-slate-700">
-                <div className="mb-2 font-semibold text-slate-900">Responsible availability</div>
+              <div className="auto-responsible-availability rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4 text-sm text-slate-700">
+                <div className="auto-responsible-availability__header">
+                  <div>
+                    <div className="auto-responsible-availability__eyebrow">Schedule signal</div>
+                    <div className="auto-responsible-availability__title">Responsible availability</div>
+                  </div>
+                  <div className="auto-responsible-availability__summary">
+                    {responsibleAvailability.length + responsibleOverrides.length} records
+                  </div>
+                </div>
                 {responsibleAvailability.length === 0 && responsibleOverrides.length === 0 ? (
-                  <div>No availability defined. Treated as available every day.</div>
+                  <div className="auto-responsible-availability__empty">
+                    <span className="auto-responsible-availability__dot" />
+                    <div>
+                      <strong>Available by default</strong>
+                      <span>No availability defined. Treated as available every day.</span>
+                    </div>
+                  </div>
                 ) : (
-                  <>
+                  <div className="auto-responsible-availability__content">
                     {responsibleAvailability.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="auto-responsible-availability__section">
+                        <div className="auto-responsible-availability__section-title">Weekly availability</div>
                         {responsibleAvailability.map((slot) => (
-                          <div key={slot.id}>
-                            {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}{" "}
-                            {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
-                            {slot.start_date || slot.end_date
-                              ? ` | ${formatIsraelDateRange(slot.start_date, slot.end_date)}`
-                              : ""}
+                          <div key={slot.id} className="auto-responsible-availability__row">
+                            <span className="auto-responsible-availability__day">
+                              {DAY_LABELS[Number(slot.day_of_week)] || `Day ${slot.day_of_week}`}
+                            </span>
+                            <span className="auto-responsible-availability__time">
+                              {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                            </span>
+                            {(slot.start_date || slot.end_date) && (
+                              <span className="auto-responsible-availability__range">
+                                {formatIsraelDateRange(slot.start_date, slot.end_date)}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
                     )}
                     {responsibleOverrides.length > 0 && (
-                      <div className="mt-3 border-t border-emerald-100 pt-3 text-xs text-slate-500">
-                        Overrides:
+                      <div className="auto-responsible-availability__section auto-responsible-availability__section--overrides">
+                        <div className="auto-responsible-availability__section-title">Overrides</div>
                         {responsibleOverrides.map((slot) => (
-                          <div key={slot.id}>
-                            {formatIsraelDate(slot.date)} | {slot.is_available ? "Available" : "Blocked"}
-                            {slot.start_time && slot.end_time
-                              ? ` | ${formatIsraelTime(slot.start_time)}-${formatIsraelTime(slot.end_time)}`
-                              : ""}
+                          <div key={slot.id} className="auto-responsible-availability__row">
+                            <span className="auto-responsible-availability__day">
+                              {formatIsraelDate(slot.date)}
+                            </span>
+                            <span className={slot.is_available ? "auto-responsible-availability__status" : "auto-responsible-availability__status auto-responsible-availability__status--blocked"}>
+                              {slot.is_available ? "Available" : "Blocked"}
+                            </span>
+                            {slot.start_time && slot.end_time ? (
+                              <span className="auto-responsible-availability__time">
+                                {formatIsraelTime(slot.start_time)}-{formatIsraelTime(slot.end_time)}
+                              </span>
+                            ) : null}
                           </div>
                         ))}
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
-            <div>
+            <div className="auto-people-field">
               <label className="mb-2 block text-sm font-semibold text-slate-800">
                 Assigned user IDs
               </label>
@@ -2118,7 +2147,7 @@ export default function AutoScheduler({ embedded = false }) {
               />
             </div>
 
-            <div>
+            <div className="auto-people-field">
               <label className="mb-2 block text-sm font-semibold text-slate-800">
                 Preferred time window (optional)
               </label>
@@ -2138,47 +2167,49 @@ export default function AutoScheduler({ embedded = false }) {
               </select>
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-800">
-                Hours per day
-              </label>
-              <input
-                type="number"
-                min="0.5"
-                step="0.5"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
-                value={selection.hoursPerDay}
-                onChange={(e) =>
-                  setSelection((prev) => ({ ...prev, hoursPerDay: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-800">
-                Days per week
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="7"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
-                value={selection.daysPerWeek}
-                onChange={(e) =>
-                  setSelection((prev) => ({ ...prev, daysPerWeek: e.target.value }))
-                }
-              />
-              <div className="mt-1 text-xs text-slate-500">
-                Auto schedule will split the weekly hours into this many sessions.
+            <div className="auto-people-number-grid">
+              <div className="auto-people-field">
+                <label className="mb-2 block text-sm font-semibold text-slate-800">
+                  Hours per day
+                </label>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
+                  value={selection.hoursPerDay}
+                  onChange={(e) =>
+                    setSelection((prev) => ({ ...prev, hoursPerDay: e.target.value }))
+                  }
+                />
               </div>
+              <div className="auto-people-field">
+                <label className="mb-2 block text-sm font-semibold text-slate-800">
+                  Days per week
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="7"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition focus:border-blue-500"
+                  value={selection.daysPerWeek}
+                  onChange={(e) =>
+                    setSelection((prev) => ({ ...prev, daysPerWeek: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="auto-people-panel__hint">
+              Auto schedule will split the weekly hours into this many sessions.
             </div>
             <button
               type="button"
-              className="rounded-2xl border border-blue-200 bg-white px-4 py-3 font-medium text-blue-700 transition hover:bg-blue-50"
+              className="auto-add-allocation-button rounded-2xl px-4 py-3 font-medium transition"
               onClick={addGroup}
             >
               Add allocation
             </button>
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-600">
+            <div className="auto-people-selection-summary rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-600">
               {selection.resourceIds.length > 0 || selection.typeIds.length > 0
                 ? `${selection.resourceIds.length} fixed resources selected. ${selection.typeIds.length} resource types selected for automatic matching.`
                 : "No resources selected yet."}
@@ -2351,7 +2382,7 @@ export default function AutoScheduler({ embedded = false }) {
           <button
             type="button"
             onClick={loadAllocations}
-            className="rounded-2xl border border-blue-200 bg-white px-4 py-2.5 font-medium text-blue-700 transition hover:bg-blue-50"
+            className="auto-allocations-refresh-button rounded-2xl px-4 py-2.5 font-medium transition"
             disabled={allocationsLoading}
           >
             {allocationsLoading ? "Loading..." : "Refresh list"}

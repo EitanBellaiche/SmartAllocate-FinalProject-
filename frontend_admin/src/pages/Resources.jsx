@@ -1773,30 +1773,41 @@ async function saveHallLayout() {
       {showAdd && (
         <ModalPortal>
         <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
-          <div className={`resources-modal-surface max-h-[90vh] w-full max-w-[600px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
-            <h2 className="mb-4 text-xl font-bold">{config.resources.addTitle}</h2>
+          <div className={`resources-modal-surface resources-add-modal max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
+            <div className="resources-add-modal__header">
+              <div className="resources-add-modal__eyebrow">Resource setup</div>
+              <h2>{config.resources.addTitle}</h2>
+              <p>Create the resource, connect it to a type, and optionally assign users.</p>
+            </div>
 
-            <label className="mb-2 block font-medium">Select Type</label>
-            <select
-              className={`mb-4 ${theme.input}`}
-              value={form.type_id}
-              onChange={(e) => handleSelectType(e.target.value)}
-            >
-              <option value="">-- Select Type --</option>
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            <div className="resources-add-modal__grid">
+              <div className="resources-add-modal__field">
+                <label>Select Type</label>
+                <select
+                  className={`resources-add-modal__input ${theme.input}`}
+                  value={form.type_id}
+                  onChange={(e) => handleSelectType(e.target.value)}
+                >
+                  <option value="">-- Select Type --</option>
+                  {types.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <input
-              type="text"
-              placeholder={config.resources.namePlaceholder}
-              className={`mb-4 ${theme.input}`}
-              value={form.name}
-              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            />
+              <div className="resources-add-modal__field">
+                <label>Resource name</label>
+                <input
+                  type="text"
+                  placeholder={config.resources.namePlaceholder}
+                  className={`resources-add-modal__input ${theme.input}`}
+                  value={form.name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+            </div>
 
             <div className="mb-5">
               <AssignedUserIdsEditor
@@ -1862,7 +1873,7 @@ async function saveHallLayout() {
                   <button
                     type="button"
                     onClick={addCustomField}
-                    className="rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-800"
+                    className="resources-add-modal__add-field rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-800"
                   >
                     Add Field
                   </button>
@@ -1885,7 +1896,7 @@ async function saveHallLayout() {
                         <button
                           type="button"
                           onClick={() => removeCustomField(fieldName)}
-                          className="rounded bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
+                          className="resources-add-modal__remove-field rounded bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
                         >
                           Remove
                         </button>
@@ -1920,21 +1931,21 @@ async function saveHallLayout() {
               </>
             )}
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="resources-add-modal__footer mt-6 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowAdd(false);
                   setSelectedType(null);
                   setCustomFieldDraft({ name: "", type: "text" });
                 }}
-                className="rounded border px-4 py-2"
+                className="resources-add-modal__cancel rounded border px-4 py-2"
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveResource}
-                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                className="resources-add-modal__save rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
               >
                 Save Resource
               </button>
