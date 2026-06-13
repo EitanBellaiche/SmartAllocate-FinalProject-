@@ -6,7 +6,7 @@ SELECT
   national_id
 FROM users
 WHERE organization_id = 'shenkar'
-  AND role IN ('user', 'responsible');
+  AND LOWER(COALESCE(role, '')) <> 'admin';
 
 CREATE TEMP TABLE tmp_reset_counts AS
 SELECT
@@ -188,9 +188,9 @@ FROM (
       END AS base_meta
     FROM (
       SELECT
-        p.id,
-        p.auto_count_fields,
-        p.filtered_user_ids,
+        step2.id,
+        step2.auto_count_fields,
+        step2.filtered_user_ids,
         CASE
           WHEN COALESCE(step2.meta->>'responsible_id', '') IN (SELECT national_id FROM tmp_shenkar_target_users)
             THEN step2.meta - 'responsible_id'
@@ -198,9 +198,9 @@ FROM (
         END AS meta
       FROM (
         SELECT
-          p.id,
-          p.auto_count_fields,
-          p.filtered_user_ids,
+          step1.id,
+          step1.auto_count_fields,
+          step1.filtered_user_ids,
           CASE
             WHEN COALESCE(step1.meta->>'responsibleUserId', '') IN (SELECT national_id FROM tmp_shenkar_target_users)
               THEN step1.meta - 'responsibleUserId'
@@ -258,7 +258,7 @@ WHERE r.id = cleaned.id;
 
 DELETE FROM users
 WHERE organization_id = 'shenkar'
-  AND role IN ('user', 'responsible');
+  AND LOWER(COALESCE(role, '')) <> 'admin';
 
 SELECT * FROM tmp_reset_counts;
 

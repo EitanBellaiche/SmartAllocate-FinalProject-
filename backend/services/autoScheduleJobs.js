@@ -9,6 +9,12 @@ import {
 const JOBS_TABLE = "auto_schedule_jobs_v2";
 let tableReady = false;
 
+function normalizeJobName(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, 120);
+}
+
 function normalizeMetadata(raw) {
   if (!raw) return {};
   if (typeof raw === "object") return raw;
@@ -279,6 +285,7 @@ export async function ensureAutoScheduleJobsTable() {
     CREATE TABLE IF NOT EXISTS ${JOBS_TABLE} (
       id SERIAL PRIMARY KEY,
       organization_id TEXT,
+      name TEXT,
       created_by TEXT,
       run_at TIMESTAMPTZ NOT NULL,
       payload JSONB NOT NULL,
@@ -290,6 +297,7 @@ export async function ensureAutoScheduleJobsTable() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE ${JOBS_TABLE} ADD COLUMN IF NOT EXISTS name TEXT`);
   await pool.query(
     `CREATE INDEX IF NOT EXISTS idx_${JOBS_TABLE}_due ON ${JOBS_TABLE} (status, run_at)`
   );
@@ -304,6 +312,7 @@ function parseRunAt(raw) {
 }
 
 export async function createAutoScheduleJob({
+  name,
   run_at,
   start_date,
   end_date,
@@ -335,12 +344,13 @@ export async function createAutoScheduleJob({
   });
   const { rows } = await pool.query(
     `
-    INSERT INTO ${JOBS_TABLE} (organization_id, created_by, run_at, payload)
-    VALUES ($1, $2, $3, $4::jsonb)
+    INSERT INTO ${JOBS_TABLE} (organization_id, name, created_by, run_at, payload)
+    VALUES ($1, $2, $3, $4, $5::jsonb)
     RETURNING *
     `,
     [
       orgId,
+      normalizeJobName(name),
       createdBy || null,
       runAt.toISOString(),
       JSON.stringify(payload),
@@ -349,7 +359,112 @@ export async function createAutoScheduleJob({
   return rows[0];
 }
 
+export async function updateAutoScheduleJob({
+  id,
+  orgId,
+  name,
+  run_at,
+  start_date,
+  end_date,
+  groups,
+  allow_saturday,
+  blocked_dates,
+} = {}) {
+  const job = await getAutoScheduleJobOrThrow({ id, orgId });
+  const statusKey = String(job.status || "").trim().toLowerCase();
+  const hasScheduleChanges =
+    run_at !== undefined ||
+    start_date !== undefined ||
+    end_date !== undefined ||
+    groups !== undefined ||
+    allow_saturday !== undefined ||
+    blocked_dates !== undefined;
+
+  if (!hasScheduleChanges) {
+    if (statusKey === "running") {
+      const err = new Error("Running jobs cannot be renamed");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    const { rows } = await pool.query(
+      `
+      UPDATE ${JOBS_TABLE}
+      SET name = $2
+      WHERE id = $1
+        AND status <> 'running'
+      RETURNING *
+      `,
+      [Number(job.id), normalizeJobName(name)]
+    );
+
+    if (rows.length === 0) {
+      const err = new Error("Job not found or cannot be updated");
+      err.statusCode = 404;
+      throw err;
+    }
+    return rows[0];
+  }
+
+  if (statusKey !== "scheduled") {
+    const err = new Error("Only scheduled jobs can be fully updated");
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const payload = job.payload || {};
+  const runAt = parseRunAt(run_at ?? job.run_at);
+  if (!runAt) {
+    const err = new Error("Invalid run_at date/time");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  validateAndNormalizeAutoScheduleInput({
+    start_date: start_date ?? payload.start_date,
+    end_date: end_date ?? payload.end_date,
+    groups: groups ?? payload.groups,
+    allow_saturday: allow_saturday ?? payload.allow_saturday,
+    blocked_dates: blocked_dates ?? payload.blocked_dates,
+  });
+
+  const nextPayload = serializeAutoSchedulePayload({
+    start_date: start_date ?? payload.start_date,
+    end_date: end_date ?? payload.end_date,
+    groups: groups ?? payload.groups,
+    orgId: normalizeOrgId(payload.org_id || job.organization_id),
+    allow_saturday: allow_saturday ?? payload.allow_saturday,
+    blocked_dates: blocked_dates ?? payload.blocked_dates,
+  });
+
+  const { rows } = await pool.query(
+    `
+    UPDATE ${JOBS_TABLE}
+    SET name = $2,
+        run_at = $3,
+        payload = $4::jsonb
+    WHERE id = $1
+      AND status = 'scheduled'
+    RETURNING *
+    `,
+    [
+      Number(job.id),
+      normalizeJobName(name ?? job.name),
+      runAt.toISOString(),
+      JSON.stringify(nextPayload),
+    ]
+  );
+
+  if (rows.length === 0) {
+    const err = new Error("Job not found or cannot be updated");
+    err.statusCode = 404;
+    throw err;
+  }
+  return rows[0];
+}
+
 export async function startAutoScheduleRun({
+  name,
   start_date,
   end_date,
   groups,
@@ -373,17 +488,19 @@ export async function startAutoScheduleRun({
     `
     INSERT INTO ${JOBS_TABLE} (
       organization_id,
+      name,
       created_by,
       run_at,
       payload,
       status,
       started_at
     )
-    VALUES ($1, $2, NOW(), $3::jsonb, 'running', NOW())
+    VALUES ($1, $2, $3, NOW(), $4::jsonb, 'running', NOW())
     RETURNING *
     `,
     [
       orgId,
+      normalizeJobName(name),
       createdBy || null,
       JSON.stringify(payload),
     ]
@@ -392,6 +509,7 @@ export async function startAutoScheduleRun({
 }
 
 export async function recordCompletedAutoScheduleRun({
+  name,
   start_date,
   end_date,
   groups,
@@ -416,6 +534,7 @@ export async function recordCompletedAutoScheduleRun({
     `
     INSERT INTO ${JOBS_TABLE} (
       organization_id,
+      name,
       created_by,
       run_at,
       payload,
@@ -424,11 +543,12 @@ export async function recordCompletedAutoScheduleRun({
       finished_at,
       result
     )
-    VALUES ($1, $2, NOW(), $3::jsonb, 'completed', NOW(), NOW(), $4::jsonb)
+    VALUES ($1, $2, $3, NOW(), $4::jsonb, 'completed', NOW(), NOW(), $5::jsonb)
     RETURNING *
     `,
     [
       orgId,
+      normalizeJobName(name),
       createdBy || null,
       JSON.stringify(payload),
       JSON.stringify(result || { scheduled: [], skipped: [] }),
@@ -572,6 +692,7 @@ export async function rerunAutoScheduleJob({ id, orgId, createdBy } = {}) {
   }
   const payload = job.payload || {};
   return createAutoScheduleJob({
+    name: job.name || null,
     run_at: new Date().toISOString(),
     start_date: payload.start_date,
     end_date: payload.end_date,

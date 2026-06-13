@@ -295,17 +295,75 @@
 .auto-job-card__summary {
   display: grid !important;
   grid-template-columns: minmax(150px, 0.8fr) minmax(220px, 1.25fr) auto;
-  align-items: center !important;
+  align-items: start !important;
   gap: 12px !important;
 }
 
-.auto-job-card__title {
+.auto-job-card__heading {
   grid-column: 1 / 3;
   min-width: 0;
-  overflow: hidden;
+}
+
+.auto-job-card__title {
+  min-width: 0;
   color: #0f172a !important;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.auto-job-card__name {
+  min-width: 0;
+  flex: 1 1 auto;
+  color: #0f172a;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.auto-job-card__status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 4px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.auto-job-card__status--completed {
+  background: #ecfdf5;
+  border-color: rgba(16, 185, 129, 0.22);
+  color: #047857;
+}
+
+.auto-job-card__status--scheduled {
+  background: #eff6ff;
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #1d4ed8;
+}
+
+.auto-job-card__status--running {
+  background: #fff7ed;
+  border-color: rgba(249, 115, 22, 0.2);
+  color: #c2410c;
+}
+
+.auto-job-card__status--failed,
+.auto-job-card__status--cancelled {
+  background: #fef2f2;
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #b91c1c;
 }
 
 .auto-job-card__line {
