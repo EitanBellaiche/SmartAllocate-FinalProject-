@@ -1,5 +1,6 @@
 import express from "express";
 import db from "../db.js";
+import { isValidTargetType } from "../ruleTargetTypes.js";
 
 const router = express.Router();
 let tableReady = false;
@@ -70,7 +71,7 @@ router.post("/", async (req, res) => {
     } = req.body ?? {};
 
     if (!name || typeof name !== "string") return res.status(400).json({ error: "name is required" });
-    if (!["resource", "booking", "pair"].includes(target_type)) return res.status(400).json({ error: "invalid target_type" });
+    if (!isValidTargetType(target_type)) return res.status(400).json({ error: "invalid target_type" });
     if (typeof is_hard !== "boolean") return res.status(400).json({ error: "is_hard must be boolean" });
     if (typeof is_active !== "boolean") return res.status(400).json({ error: "is_active must be boolean" });
     if (!Number.isFinite(Number(weight))) return res.status(400).json({ error: "weight must be number" });
@@ -123,7 +124,7 @@ router.put("/:id", async (req, res) => {
     } = req.body ?? {};
 
     if (!name || typeof name !== "string") return res.status(400).json({ error: "name is required" });
-    if (!["resource", "booking", "pair"].includes(target_type)) return res.status(400).json({ error: "invalid target_type" });
+    if (!isValidTargetType(target_type)) return res.status(400).json({ error: "invalid target_type" });
     if (typeof is_hard !== "boolean") return res.status(400).json({ error: "is_hard must be boolean" });
     if (typeof is_active !== "boolean") return res.status(400).json({ error: "is_active must be boolean" });
     if (!Number.isFinite(Number(weight))) return res.status(400).json({ error: "weight must be number" });

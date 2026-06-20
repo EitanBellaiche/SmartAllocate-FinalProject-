@@ -99,6 +99,20 @@ function getActionEffect(rule) {
   return rule?.is_hard ? "forbid" : "score";
 }
 
+function getRuleLogic(condition) {
+  if (
+    condition &&
+    typeof condition === "object" &&
+    !Array.isArray(condition) &&
+    condition.logic &&
+    typeof condition.logic === "object" &&
+    !Array.isArray(condition.logic)
+  ) {
+    return condition.logic;
+  }
+  return condition;
+}
+
 function getScoreDelta(rule) {
   if (rule?.action?.effect !== "score") return 0;
   if (Number.isFinite(Number(rule?.action?.value))) return Number(rule.action.value);
@@ -118,7 +132,7 @@ function evaluateRulesForContext(rules, context, resourceId = null) {
     if (!rule?.is_active) continue;
     const effect = getActionEffect(rule);
     const delta = effect === "score" ? getScoreDelta(rule) : 0;
-    const matched = evaluateCondition(rule.condition, context);
+    const matched = evaluateCondition(getRuleLogic(rule.condition), context);
     const traceBase = {
       id: rule.id,
       name: rule.name,
@@ -193,6 +207,7 @@ export function evaluateRules({ rules, booking, resources, roles }) {
   const bookingRules = rules.filter((r) => r.target_type === "booking");
   const resourceRules = rules.filter((r) => r.target_type === "resource");
   const pairRules = rules.filter((r) => r.target_type === "pair");
+  const multiRules = rules.filter((r) => r.target_type === "multi");
 
   const resourcesByType = {};
   const resourcesByTypeList = {};
@@ -236,6 +251,13 @@ export function evaluateRules({ rules, booking, resources, roles }) {
   results.alerts.push(...bookingEval.alerts);
   results.ruleTraces.push(...bookingEval.ruleTraces);
   results.score += bookingEval.score;
+
+  const multiEval = evaluateRulesForContext(multiRules, bookingContext, null);
+  results.hardViolations.push(...multiEval.hardViolations);
+  results.softMatches.push(...multiEval.softMatches);
+  results.alerts.push(...multiEval.alerts);
+  results.ruleTraces.push(...multiEval.ruleTraces);
+  results.score += multiEval.score;
 
   for (const resource of resources) {
     const role = roles?.[resource.id] ?? null;

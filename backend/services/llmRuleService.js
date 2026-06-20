@@ -1,4 +1,9 @@
 import OpenAI from "openai";
+import {
+  getPairSideForResourceId,
+  getPairSideResourceIds,
+  normalizeRuleResources,
+} from "./ruleResourceHelpers.js";
 
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const ALLOWED_OPS = ["==", "!=", ">", "<", ">=", "<=", "in"];
@@ -18,7 +23,18 @@ function buildSchema() {
           type: "object",
           additionalProperties: false,
           properties: {
-            side: { type: "string", enum: ALLOWED_SIDE },
+            side: {
+              anyOf: [
+                { type: "string", enum: ALLOWED_SIDE },
+                { type: "null" },
+              ],
+            },
+            resourceId: {
+              anyOf: [
+                { type: "string" },
+                { type: "null" },
+              ],
+            },
             field: { type: "string" },
             op: { type: "string", enum: ALLOWED_OPS },
             compare: { type: "string", enum: ALLOWED_COMPARE },
@@ -46,8 +62,14 @@ function buildSchema() {
               additionalProperties: false,
             },
             refField: { type: "string" },
+            refResourceId: {
+              anyOf: [
+                { type: "string" },
+                { type: "null" },
+              ],
+            },
           },
-          required: ["side", "field", "op", "compare", "value", "refField"],
+          required: ["side", "resourceId", "field", "op", "compare", "value", "refField", "refResourceId"],
         },
       },
       questions: {
@@ -62,78 +84,169 @@ function buildSchema() {
   };
 }
 
-export function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
-  if (!Array.isArray(clauses) || !clauses.length) {
-    throw new Error("No clauses returned by LLM");
+function normalizeField(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "";
+  if (value.startsWith("resource.")) return value.replace(/^resource\./, "");
+  if (value.startsWith("resources_by_type_id.")) {
+    return value.replace(/^resources_by_type_id\.[^\\.]+\./, "");
+  }
+  return value;
+}
+
+function buildResourceLookup(resources) {
+  const byId = new Map();
+  const fieldOwners = new Map();
+
+  for (const resource of resources) {
+    const normalized = {
+      id: String(resource?.id || "").trim(),
+      name: String(resource?.name || "").trim(),
+      fields: Array.isArray(resource?.fields)
+        ? Array.from(new Set(resource.fields.map((field) => String(field || "").trim()).filter(Boolean)))
+        : [],
+    };
+    if (!normalized.id) continue;
+    byId.set(normalized.id, normalized);
+
+    for (const field of normalized.fields) {
+      if (!fieldOwners.has(field)) fieldOwners.set(field, new Set());
+      fieldOwners.get(field).add(normalized.id);
+    }
   }
 
-  const allowedFieldsA = new Set(fieldsA || []);
-  const allowedFieldsB = new Set(fieldsB || []);
+  return { byId, fieldOwners };
+}
 
-  const normalizeField = (raw) => {
-    const value = String(raw || "");
-    if (allowedFieldsA.has(value) || allowedFieldsB.has(value)) return value;
-    if (value.startsWith("resource.")) return value.replace(/^resource\./, "");
-    if (value.startsWith("resources_by_type_id.")) {
-      return value.replace(/^resources_by_type_id\\.[^\\.]+\\./, "");
-    }
-    return value;
-  };
+function getLegacyResourceHint(clause, resources) {
+  if (clause?.resourceId) return String(clause.resourceId).trim();
+  const sideIds = getPairSideResourceIds(resources);
+  if (clause?.side === "A") return sideIds.A;
+  if (clause?.side === "B") return sideIds.B;
+  return "";
+}
+
+function getLegacyRefResourceHint(clause, resources) {
+  if (clause?.refResourceId) return String(clause.refResourceId).trim();
+  const sideIds = getPairSideResourceIds(resources);
+  if (clause?.side === "A") return sideIds.B;
+  if (clause?.side === "B") return sideIds.A;
+  return "";
+}
+
+function validateBaseClause(clause, idx) {
+  if (!clause || typeof clause !== "object") throw new Error(`Clause ${idx + 1} is invalid`);
+  if (!ALLOWED_OPS.includes(clause.op)) throw new Error(`Clause ${idx + 1}: invalid operator`);
+  if (!ALLOWED_COMPARE.includes(clause.compare)) {
+    throw new Error(`Clause ${idx + 1}: invalid compare type`);
+  }
+}
+
+function sanitizeSingleClauses(clauses, resources) {
+  const resource = resources[0] || { id: "A", fields: [] };
+  const allowedFields = new Set(resource.fields || []);
 
   return clauses.map((clause, idx) => {
-    if (!clause || typeof clause !== "object") throw new Error(`Clause ${idx + 1} is invalid`);
-    let side = clause.side;
-    let field = normalizeField(clause.field);
-    const op = clause.op;
+    validateBaseClause(clause, idx);
+
+    const field = normalizeField(clause.field);
+    const refField = normalizeField(clause.refField ?? "");
+    const compare = clause.compare;
+
+    if (clause.side && clause.side !== "A") {
+      throw new Error(`Clause ${idx + 1}: invalid side`);
+    }
+    if (clause.resourceId && String(clause.resourceId).trim() !== resource.id) {
+      throw new Error(`Clause ${idx + 1}: resourceId "${clause.resourceId}" is not the single target resource`);
+    }
+    if (!allowedFields.has(field)) {
+      throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A`);
+    }
+    if (compare === "field" && !allowedFields.has(refField)) {
+      throw new Error(`Clause ${idx + 1}: refField "${refField}" is not available for Resource A`);
+    }
+
+    return {
+      side: "A",
+      resourceId: resource.id,
+      field,
+      op: clause.op,
+      compare,
+      value: clause.value ?? "",
+      refField,
+      ...(compare === "field" ? { refResourceId: resource.id } : {}),
+    };
+  });
+}
+
+function sanitizePairClauses(clauses, resources) {
+  const resourceA = resources[0] || { id: "A", fields: [] };
+  const resourceB = resources[1] || { id: "B", fields: [] };
+  const allowedFieldsA = new Set(resourceA.fields || []);
+  const allowedFieldsB = new Set(resourceB.fields || []);
+  const sideIds = getPairSideResourceIds(resources);
+
+  function buildPairResult({ side, field, op, compare, value, refField }) {
+    return {
+      side,
+      resourceId: side === "A" ? sideIds.A : sideIds.B,
+      field,
+      op,
+      compare,
+      value,
+      refField,
+      ...(compare === "field"
+        ? { refResourceId: side === "A" ? sideIds.B : sideIds.A }
+        : {}),
+    };
+  }
+
+  return clauses.map((clause, idx) => {
+    validateBaseClause(clause, idx);
+
+    const field = normalizeField(clause.field);
+    const refField = normalizeField(clause.refField ?? "");
     const compare = clause.compare;
     const value = clause.value ?? "";
-    let refField = normalizeField(clause.refField ?? "");
+
     const fieldIsA = allowedFieldsA.has(field);
     const fieldIsB = allowedFieldsB.has(field);
     const refIsA = allowedFieldsA.has(refField);
     const refIsB = allowedFieldsB.has(refField);
 
-    if (!ALLOWED_SIDE.includes(side)) throw new Error(`Clause ${idx + 1}: invalid side`);
-    if (!ALLOWED_OPS.includes(op)) throw new Error(`Clause ${idx + 1}: invalid operator`);
-    if (!ALLOWED_COMPARE.includes(compare)) throw new Error(`Clause ${idx + 1}: invalid compare type`);
+    const resourceSide = getPairSideForResourceId(resources, clause.resourceId);
+    const refResourceSide = getPairSideForResourceId(resources, clause.refResourceId);
+    let side = resourceSide || clause.side;
 
+    if (clause.side && !ALLOWED_SIDE.includes(clause.side)) {
+      throw new Error(`Clause ${idx + 1}: invalid side`);
+    }
+    if (clause.resourceId && !resourceSide) {
+      throw new Error(`Clause ${idx + 1}: resourceId "${clause.resourceId}" is not part of this pair rule`);
+    }
+    if (clause.refResourceId && !refResourceSide) {
+      throw new Error(`Clause ${idx + 1}: refResourceId "${clause.refResourceId}" is not part of this pair rule`);
+    }
+    if (clause.side && resourceSide && clause.side !== resourceSide) {
+      throw new Error(`Clause ${idx + 1}: side and resourceId refer to different pair resources`);
+    }
     if (!fieldIsA && !fieldIsB) {
       throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A or B`);
-    }
-
-    if (target !== "pair") {
-      if (!fieldIsA) throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A`);
-      if (compare === "field" && !refIsA) {
-        throw new Error(`Clause ${idx + 1}: refField "${refField}" is not available for Resource A`);
-      }
-      return {
-        side: "A",
-        field,
-        op,
-        compare,
-        value,
-        refField,
-      };
     }
 
     if (compare === "value") {
       if (fieldIsA && !fieldIsB) side = "A";
       else if (fieldIsB && !fieldIsA) side = "B";
       else if (!ALLOWED_SIDE.includes(side)) side = "A";
+
       if (side === "A" && !fieldIsA) {
         throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource A`);
       }
       if (side === "B" && !fieldIsB) {
         throw new Error(`Clause ${idx + 1}: field "${field}" is not available for Resource B`);
       }
-      return {
-        side,
-        field,
-        op,
-        compare,
-        value,
-        refField,
-      };
+
+      return buildPairResult({ side, field, op: clause.op, compare, value, refField });
     }
 
     if (!refField) {
@@ -146,62 +259,53 @@ export function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
     const canBeA = fieldIsA && refIsB;
     const canBeB = fieldIsB && refIsA;
 
-    if (side === "A" && canBeA) {
-      return {
-        side: "A",
+    function tryBuild(candidateSide) {
+      const expectedRefSide = candidateSide === "A" ? "B" : "A";
+      if (resourceSide && resourceSide !== candidateSide) return null;
+      if (refResourceSide && refResourceSide !== expectedRefSide) return null;
+      return buildPairResult({
+        side: candidateSide,
         field,
-        op,
+        op: clause.op,
         compare,
         value,
         refField,
-      };
+      });
+    }
+
+    if (side === "A" && canBeA) {
+      const result = tryBuild("A");
+      if (result) return result;
     }
     if (side === "B" && canBeB) {
-      return {
-        side: "B",
-        field,
-        op,
-        compare,
-        value,
-        refField,
-      };
+      const result = tryBuild("B");
+      if (result) return result;
     }
     if (canBeA && !canBeB) {
-      return {
-        side: "A",
-        field,
-        op,
-        compare,
-        value,
-        refField,
-      };
+      const result = tryBuild("A");
+      if (result) return result;
     }
     if (canBeB && !canBeA) {
-      return {
-        side: "B",
-        field,
-        op,
-        compare,
-        value,
-        refField,
-      };
+      const result = tryBuild("B");
+      if (result) return result;
     }
     if (canBeA && canBeB) {
-      return {
-        side,
-        field,
-        op,
-        compare,
-        value,
-        refField,
-      };
+      const preferredSide = ALLOWED_SIDE.includes(side) ? side : "A";
+      const preferred = tryBuild(preferredSide);
+      if (preferred) return preferred;
+      const fallback = tryBuild(preferredSide === "A" ? "B" : "A");
+      if (fallback) return fallback;
     }
 
     if (fieldIsA && refIsA && !fieldIsB && !refIsB) {
-      throw new Error(`Clause ${idx + 1}: both fields belong to Resource A. For pair rules, the comparison must use one field from A and one from B`);
+      throw new Error(
+        `Clause ${idx + 1}: both fields belong to Resource A. For pair rules, the comparison must use one field from A and one from B`
+      );
     }
     if (fieldIsB && refIsB && !fieldIsA && !refIsA) {
-      throw new Error(`Clause ${idx + 1}: both fields belong to Resource B. For pair rules, the comparison must use one field from A and one from B`);
+      throw new Error(
+        `Clause ${idx + 1}: both fields belong to Resource B. For pair rules, the comparison must use one field from A and one from B`
+      );
     }
     if (fieldIsA && !refIsB) {
       throw new Error(`Clause ${idx + 1}: refField "${refField}" must come from Resource B`);
@@ -213,30 +317,145 @@ export function sanitizeClauses(clauses, { target, fieldsA, fieldsB }) {
   });
 }
 
-function buildPrompt({ sentence, target, typeAName, typeBName, fieldsA, fieldsB }) {
+function resolveMultiResourceId({
+  idx,
+  rawResourceId,
+  field,
+  byId,
+  fieldOwners,
+  label,
+  hintName,
+}) {
+  const resourceId = String(rawResourceId || "").trim();
+  if (resourceId) {
+    const resource = byId.get(resourceId);
+    if (!resource) {
+      throw new Error(`Clause ${idx + 1}: ${hintName} "${resourceId}" is not one of the provided resources`);
+    }
+    if (!resource.fields.includes(field)) {
+      throw new Error(`Clause ${idx + 1}: ${label} "${field}" is not available for resource "${resourceId}"`);
+    }
+    return resource.id;
+  }
+
+  const owners = Array.from(fieldOwners.get(field) || []);
+  if (!owners.length) {
+    throw new Error(`Clause ${idx + 1}: ${label} "${field}" is not available for any provided resource`);
+  }
+  if (owners.length === 1) return owners[0];
+
+  throw new Error(
+    `Clause ${idx + 1}: ${label} "${field}" exists on multiple resources. Provide ${hintName} explicitly`
+  );
+}
+
+function sanitizeMultiClauses(clauses, resources) {
+  const { byId, fieldOwners } = buildResourceLookup(resources);
+
+  return clauses.map((clause, idx) => {
+    validateBaseClause(clause, idx);
+
+    const field = normalizeField(clause.field);
+    const refField = normalizeField(clause.refField ?? "");
+    const compare = clause.compare;
+    const value = clause.value ?? "";
+
+    const resourceId = resolveMultiResourceId({
+      idx,
+      rawResourceId: getLegacyResourceHint(clause, resources),
+      field,
+      byId,
+      fieldOwners,
+      label: "field",
+      hintName: "resourceId",
+    });
+
+    if (compare === "value") {
+      return {
+        resourceId,
+        field,
+        op: clause.op,
+        compare,
+        value,
+        refField,
+      };
+    }
+
+    if (!refField) {
+      throw new Error(`Clause ${idx + 1}: missing refField for field comparison`);
+    }
+
+    const refResourceId = resolveMultiResourceId({
+      idx,
+      rawResourceId: getLegacyRefResourceHint(clause, resources),
+      field: refField,
+      byId,
+      fieldOwners,
+      label: "refField",
+      hintName: "refResourceId",
+    });
+
+    return {
+      resourceId,
+      field,
+      op: clause.op,
+      compare,
+      value,
+      refField,
+      refResourceId,
+    };
+  });
+}
+
+export function sanitizeClauses(clauses, { target, resources = [] }) {
+  if (!Array.isArray(clauses) || !clauses.length) {
+    throw new Error("No clauses returned by LLM");
+  }
+
+  if (target === "pair") return sanitizePairClauses(clauses, resources);
+  if (target === "multi") return sanitizeMultiClauses(clauses, resources);
+  return sanitizeSingleClauses(clauses, resources);
+}
+
+function buildPrompt({ sentence, target, resources }) {
   const lines = [
     "You are a rule parser. Convert the user sentence into structured rule clauses.",
-    "Use only the provided field lists.",
+    "Use only the provided resources and field lists.",
+    "Use raw field names like 'metadata.capacity' or 'metadata.students_number' without resource path prefixes.",
     "If the sentence implies comparing one field to another, use compare=field and set refField.",
-    "Field naming: use raw field names like 'metadata.capacity' or 'metadata.students_number' (no 'resource.' prefixes).",
-    "For single-target rules, side must be 'A' and refField must also be from the A list.",
-    "For pair-target rules, if side='A' then field must be from A list and refField must be from B list.",
-    "For pair-target rules, if side='B' then field must be from B list and refField must be from A list.",
-    "Example: if Classroom capacity is smaller than Course students_number, use compare=field with one side on metadata.capacity and the other on metadata.students_number.",
+    "For compare=value, keep refField as an empty string unless the comparison explicitly needs a field.",
     "If the sentence implies a boolean like 'no computers', set value=false.",
     "Split multiple conditions connected by 'and' into separate clauses.",
     "If the sentence is unclear or missing info, respond with status='clarify' and add 1-3 short questions.",
     "The user may write in Hebrew. You must still output JSON using English field names from the allowed lists.",
-    "Never invent fields.",
+    "Never invent resources, resource ids, or fields.",
+    "Every clause object must include side, resourceId, field, op, compare, value, refField, and refResourceId. Use null when side/resourceId/refResourceId do not apply.",
     "Output only JSON that matches the schema.",
     "",
     `Target: ${target}`,
-    `Resource A type: ${typeAName || "A"}`,
   ];
-  if (target === "pair") lines.push(`Resource B type: ${typeBName || "B"}`);
+
+  if (target === "single") {
+    lines.push("This is a single-resource rule. Use the only provided resource.");
+    lines.push("If you set side, it must be 'A'. If you set resourceId, it must be the only resource id.");
+  } else if (target === "pair") {
+    lines.push("This is a pair rule with exactly two resources.");
+    lines.push("Prefer side='A' for the first resource and side='B' for the second resource.");
+    lines.push("For pair rules, if side='A' then field must be from A and refField must be from B.");
+    lines.push("For pair rules, if side='B' then field must be from B and refField must be from A.");
+  } else {
+    lines.push("This is a multi-resource rule.");
+    lines.push("Set resourceId to the resource that owns field.");
+    lines.push("When compare=field, also set refResourceId to the resource that owns refField.");
+  }
+
   lines.push("");
-  lines.push(`Allowed fields for A: ${fieldsA.join(", ")}`);
-  if (target === "pair") lines.push(`Allowed fields for B: ${fieldsB.join(", ")}`);
+  lines.push("Resources:");
+  resources.forEach((resource, index) => {
+    lines.push(
+      `${index + 1}. id=${resource.id}; name=${resource.name || resource.id}; allowed fields: ${(resource.fields || []).join(", ")}`
+    );
+  });
   lines.push("");
   lines.push(`User sentence: ${sentence}`);
   return lines.join("\n");
@@ -245,6 +464,7 @@ function buildPrompt({ sentence, target, typeAName, typeBName, fieldsA, fieldsB 
 export async function parseRuleSentence({
   sentence,
   target,
+  resources = [],
   typeAName,
   typeBName,
   fieldsA = [],
@@ -254,9 +474,17 @@ export async function parseRuleSentence({
     throw new Error("OPENAI_API_KEY is not set");
   }
 
+  const normalizedResources = normalizeRuleResources({
+    resources,
+    typeAName,
+    typeBName,
+    fieldsA,
+    fieldsB,
+  });
+
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const schema = buildSchema();
-  const prompt = buildPrompt({ sentence, target, typeAName, typeBName, fieldsA, fieldsB });
+  const prompt = buildPrompt({ sentence, target, resources: normalizedResources });
 
   const response = await client.responses.create({
     model: DEFAULT_MODEL,
@@ -307,6 +535,9 @@ export async function parseRuleSentence({
     return { status: "clarify", clauses: [], questions: missingValueQuestions };
   }
 
-  const clauses = sanitizeClauses(rawClauses, { target, fieldsA, fieldsB });
+  const clauses = sanitizeClauses(rawClauses, {
+    target,
+    resources: normalizedResources,
+  });
   return { status: "ok", clauses, questions: [] };
 }

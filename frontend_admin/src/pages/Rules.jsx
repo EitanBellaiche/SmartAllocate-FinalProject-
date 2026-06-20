@@ -24,8 +24,34 @@ const EMPTY_COMPARISON = {
   constValue: "",
 };
 
-/** @typedef {{ id: string, side: "A" | "B", field: string, op: string, compare: "value" | "field", value: string, refField: string }} WizardCondition */
-/** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
+let wizardExtraScopeCounter = 1;
+
+function createEmptyWizardExtraScope() {
+  return {
+    id: `extra-${wizardExtraScopeCounter++}`,
+    scopeMode: "type",
+    resourceId: "",
+    typeId: "",
+  };
+}
+
+function createEmptyWizardCondition(id = "c1") {
+  return {
+    id,
+    side: "A",
+    resourceId: "A",
+    field: "",
+    op: "==",
+    compare: "value",
+    value: "",
+    refField: "",
+    refResourceId: "",
+  };
+}
+
+/** @typedef {{ id: string, side?: "A" | "B", resourceId?: string, field: string, op: string, compare: "value" | "field", value: string, refField: string, refResourceId?: string }} WizardCondition */
+/** @typedef {{ id: string, scopeMode: "type" | "resource", resourceId: string, typeId: string }} WizardExtraScope */
+/** @typedef {{ actionEffect: "forbid" | "score", target: "single" | "pair" | "multi", scopeAMode: "type" | "resource", scopeBMode: "type" | "resource", resourceAId: string, resourceBId: string, typeAId: string, typeBId: string, extraScopes: WizardExtraScope[], conditions: WizardCondition[], conditionSentence: string, lastAppliedSentence: string, name: string, description: string, is_active: boolean, sort_order: number, weight: number, scoreValue: number }} WizardState */
 
 function uniq(arr) {
   return Array.from(new Set(arr));
@@ -171,6 +197,9 @@ function formatValue(value) {
 
 function formatCondition(condition, typeNameById, resourceNameById) {
   if (!condition || typeof condition !== "object") return "";
+  if (condition.logic && typeof condition.logic === "object") {
+    return formatCondition(condition.logic, typeNameById, resourceNameById);
+  }
   const describeField = (field) => {
     if (!field) return "?";
     const raw = String(field);
@@ -430,9 +459,8 @@ export default function Rules() {
     resourceBId: "",
     typeAId: "",
     typeBId: "",
-    conditions: [
-      { id: "c1", side: "A", field: "", op: "==", compare: "value", value: "", refField: "" },
-    ],
+    extraScopes: [],
+    conditions: [createEmptyWizardCondition("c1")],
     conditionSentence: "",
     lastAppliedSentence: "",
     name: "",
@@ -570,6 +598,9 @@ export default function Rules() {
   function updateWizard(patch) {
     setWizard((prev) => {
       const next = { ...prev, ...patch };
+      if ("target" in patch && patch.target !== prev.target) {
+        next.lastAppliedSentence = "";
+      }
       if ("conditionSentence" in patch && patch.conditionSentence !== prev.conditionSentence) {
         next.lastAppliedSentence = "";
       }
@@ -603,11 +634,30 @@ export default function Rules() {
         next.scopeBMode = "type";
         next.resourceBId = "";
         next.typeBId = "";
+        next.extraScopes = [];
         next.conditions = next.conditions.map((c) => ({
           ...c,
           side: "A",
+          resourceId: "A",
           compare: "value",
           refField: "",
+          refResourceId: "",
+        }));
+      } else if (next.target === "pair") {
+        next.extraScopes = [];
+        next.conditions = next.conditions.map((c) => ({
+          ...c,
+          resourceId: c.resourceId || (c.side === "B" ? "B" : "A"),
+          refResourceId: c.compare === "field" ? c.refResourceId || (c.side === "B" ? "A" : "B") : "",
+        }));
+      } else if (next.target === "multi") {
+        if (!Array.isArray(next.extraScopes) || !next.extraScopes.length) {
+          next.extraScopes = [createEmptyWizardExtraScope()];
+        }
+        next.conditions = next.conditions.map((c) => ({
+          ...c,
+          resourceId: c.resourceId || "A",
+          refResourceId: c.compare === "field" ? c.refResourceId || "B" : "",
         }));
       }
       return next;
@@ -620,11 +670,58 @@ export default function Rules() {
       next.conditions[idx] = { ...next.conditions[idx], ...patch };
       if (next.target === "single") {
         next.conditions[idx].side = "A";
+        next.conditions[idx].resourceId = "A";
         next.conditions[idx].compare = "value";
         next.conditions[idx].refField = "";
+        next.conditions[idx].refResourceId = "";
+      }
+      if (next.target !== "multi") {
+        next.conditions[idx].resourceId = next.conditions[idx].side === "B" ? "B" : "A";
+        next.conditions[idx].refResourceId =
+          next.conditions[idx].compare === "field"
+            ? next.conditions[idx].side === "B"
+              ? "A"
+              : "B"
+            : "";
       }
       return next;
     });
+  }
+
+  function updateWizardExtraScope(scopeId, patch) {
+    setWizard((prev) => ({
+      ...prev,
+      lastAppliedSentence: "",
+      extraScopes: prev.extraScopes.map((scope) => {
+        if (scope.id !== scopeId) return scope;
+        const nextScope = { ...scope, ...patch };
+        if ("scopeMode" in patch && patch.scopeMode !== scope.scopeMode) {
+          nextScope.resourceId = "";
+          nextScope.typeId = "";
+        }
+        if ("resourceId" in patch && patch.resourceId !== scope.resourceId) {
+          const selected = resources.find((r) => String(r.id) === String(patch.resourceId));
+          nextScope.typeId = selected?.type_id ? String(selected.type_id) : "";
+        }
+        return nextScope;
+      }),
+    }));
+  }
+
+  function addWizardExtraScope() {
+    setWizard((prev) => ({
+      ...prev,
+      lastAppliedSentence: "",
+      extraScopes: [...prev.extraScopes, createEmptyWizardExtraScope()],
+    }));
+  }
+
+  function removeWizardExtraScope(scopeId) {
+    setWizard((prev) => ({
+      ...prev,
+      lastAppliedSentence: "",
+      extraScopes: prev.extraScopes.filter((scope) => scope.id !== scopeId),
+    }));
   }
 
   function getWizardPrompt(step) {
@@ -632,13 +729,15 @@ export default function Rules() {
       return "What should this rule do?";
     }
     if (step === 2) {
-      return "Does this rule check one resource, or compare Resource A to another Resource B?";
+      return "Does this rule check one resource, compare Resource A to Resource B, or coordinate three or more resources?";
     }
     if (step === 3) {
       return "Choose Resource A, the main resource this rule is about.";
     }
     if (step === 4) {
-      return "Choose Resource B, the second resource used for the comparison.";
+      return wizard.target === "multi"
+        ? "Choose the additional resources used together with Resource A."
+        : "Choose Resource B, the second resource used for the comparison.";
     }
     if (step === 5) {
       return "Describe the condition in plain English, and I will turn it into rule logic.";
@@ -663,9 +762,13 @@ export default function Rules() {
   }
 
   function buildWizardTargetReply(target = wizard.target) {
-    return target === "pair"
-      ? "Compare two resources: A is the main resource, B is the other one."
-      : "Check one resource only.";
+    if (target === "pair") {
+      return "Compare two resources: A is the main resource, B is the other one.";
+    }
+    if (target === "multi") {
+      return "Coordinate multiple resources: A is the main resource, plus Resource B and any extra resources.";
+    }
+    return "Check one resource only.";
   }
 
   function buildWizardScopeReply(side, mode, entry) {
@@ -737,6 +840,24 @@ export default function Rules() {
       return true;
     }
     if (step === 4) {
+      if (wizard.target === "multi") {
+        const hasResourceB = wizard.scopeBMode === "resource" ? !!wizard.resourceBId : !!wizard.typeBId;
+        if (!hasResourceB) {
+          setWizardError("Choose Resource B before continuing.");
+          return false;
+        }
+        const selectedExtras = wizard.extraScopes.filter((scope) =>
+          scope.scopeMode === "resource" ? scope.resourceId : scope.typeId
+        );
+        if (!selectedExtras.length) {
+          setWizardError("Add at least one more resource for a multi-resource rule.");
+          return false;
+        }
+        setWizardReply(4, `B plus ${selectedExtras.length} additional resource${selectedExtras.length === 1 ? "" : "s"} selected.`);
+        setWizardError("");
+        setWizardStep((current) => nextWizardStep(current));
+        return true;
+      }
       const isType = wizard.scopeBMode === "type";
       const selectedEntry = isType
         ? wizardTypeCatalog.find((entry) => String(entry.id) === String(wizard.typeBId))
@@ -807,7 +928,7 @@ export default function Rules() {
       ...prev,
       conditions: [
         ...prev.conditions,
-        { id: `c${prev.conditions.length + 1}`, side: "A", field: "", op: "==", compare: "value", value: "", refField: "" },
+        createEmptyWizardCondition(`c${prev.conditions.length + 1}`),
       ],
     }));
   }
@@ -833,8 +954,24 @@ export default function Rules() {
       setWizardError("Select Resource A type and fields first.");
       return;
     }
-    if (wizard.target === "pair" && !wizardFieldsB.length) {
+    if ((wizard.target === "pair" || wizard.target === "multi") && !wizardFieldsB.length) {
       setWizardError("Select Resource B type and fields first.");
+      return;
+    }
+    if (wizard.target === "multi") {
+      const extraSelections = wizardSelectedResources.filter((resource) => resource.id !== "A" && resource.id !== "B");
+      if (!extraSelections.length) {
+        setWizardError("Add at least one more resource before generating a multi-resource rule.");
+        return;
+      }
+      const missingFields = extraSelections.find((resource) => !resource.fields.length);
+      if (missingFields) {
+        setWizardError(`Select fields for ${missingFields.name} first.`);
+        return;
+      }
+    }
+    if (!wizardSelectedResources.length) {
+      setWizardError("Select the rule resources first.");
       return;
     }
     setWizardError("");
@@ -843,10 +980,11 @@ export default function Rules() {
       const payload = {
         sentence,
         target: wizard.target,
-        typeAName: schemaTypeById.get(String(wizard.typeAId))?.name || "",
-        typeBName: schemaTypeById.get(String(wizard.typeBId))?.name || "",
-        fieldsA: wizardFieldsA.map((f) => f.value),
-        fieldsB: wizardFieldsB.map((f) => f.value),
+        resources: wizardSelectedResources.map((resource) => ({
+          id: resource.id,
+          name: resource.name,
+          fields: resource.fields,
+        })),
       };
       const data = await apiPost("/rules/wizard-llm", payload);
       if (data?.status === "clarify") {
@@ -867,12 +1005,19 @@ export default function Rules() {
         lastAppliedSentence: sentence,
         conditions: clauses.map((c, idx) => ({
           id: `c${idx + 1}`,
-          side: c.side,
+          side: c.side || "A",
+          resourceId: c.resourceId || (c.side === "B" ? "B" : "A"),
           field: c.field,
           op: c.op,
           compare: c.compare,
-          value: c.value ?? "",
+          value:
+            typeof c.value === "string"
+              ? c.value
+              : c.value === null || typeof c.value === "undefined"
+              ? ""
+              : JSON.stringify(c.value),
           refField: c.refField ?? "",
+          refResourceId: c.refResourceId || (c.compare === "field" ? (c.side === "B" ? "A" : "B") : ""),
         })),
       }));
     } catch (err) {
@@ -905,17 +1050,38 @@ export default function Rules() {
   }
 
   function buildWizardClauses() {
+    if (wizard.target === "multi") {
+      return wizard.conditions
+        .map((c) => {
+          const selectedResource = wizardSelectedResourceMap.get(String(c.resourceId));
+          if (!selectedResource?.typeId || !c.field) return null;
+          const field = buildFieldPath(selectedResource.typeId, c.field);
+          if (!field) return null;
+          if (c.compare === "field") {
+            const refResource = wizardSelectedResourceMap.get(String(c.refResourceId));
+            const ref = refResource?.typeId ? buildFieldPath(refResource.typeId, c.refField) : "";
+            if (!ref) return null;
+            return { field, op: c.op, value: { ref } };
+          }
+          return { field, op: c.op, value: parseInputValue(c.value, c.op) };
+        })
+        .filter(Boolean);
+    }
+
     return wizard.conditions
       .map((c) => {
-        const isSideB = c.side === "B";
+        const resourceId = c.resourceId || (c.side === "B" ? "B" : "A");
+        const refResourceId =
+          c.refResourceId || (c.side === "B" ? "A" : "B");
+        const isSideB = resourceId === "B";
         const field = isSideB
           ? buildFieldPath(wizard.typeBId, c.field)
           : buildResourceFieldPath(c.field);
         if (!field) return null;
         if (c.compare === "field") {
-          const ref = isSideB
-            ? buildResourceFieldPath(c.refField)
-            : buildFieldPath(wizard.typeBId, c.refField);
+          const ref = refResourceId === "B"
+            ? buildFieldPath(wizard.typeBId, c.refField)
+            : buildResourceFieldPath(c.refField);
           if (!ref) return null;
           return { field, op: c.op, value: { ref } };
         }
@@ -933,10 +1099,18 @@ export default function Rules() {
       if (wizard.scopeAMode === "resource" && !wizard.resourceAId) return "Choose Resource A.";
       if (!wizard.typeAId) return "Choose Resource A type.";
     }
-    if (step >= 4 && wizard.target === "pair") {
+    if (step >= 4 && (wizard.target === "pair" || wizard.target === "multi")) {
       if (!wizard.scopeBMode) return "Choose whether Resource B is one resource or a whole type.";
       if (wizard.scopeBMode === "resource" && !wizard.resourceBId) return "Choose Resource B.";
       if (!wizard.typeBId) return "Choose Resource B type.";
+      if (wizard.target === "multi") {
+        const selectedExtras = wizard.extraScopes.filter((scope) =>
+          scope.scopeMode === "resource" ? scope.resourceId : scope.typeId
+        );
+        if (!selectedExtras.length) return "Add at least one more resource for a multi-resource rule.";
+        const missingType = selectedExtras.find((scope) => scope.scopeMode === "resource" ? !scope.resourceId : !scope.typeId);
+        if (missingType) return "Complete each additional resource selection.";
+      }
     }
     if (step >= 5) {
       const sentence = String(wizard.conditionSentence || "").trim();
@@ -947,7 +1121,22 @@ export default function Rules() {
       for (const [idx, c] of wizard.conditions.entries()) {
         if (!c.field) return `Choose a field for condition ${idx + 1}.`;
         if (!c.op) return `Choose an operator for condition ${idx + 1}.`;
-        if (wizard.target === "pair" && c.compare === "field") {
+        if (wizard.target === "multi") {
+          if (!c.resourceId) return `Choose a resource for condition ${idx + 1}.`;
+          if (c.compare === "field") {
+            if (!c.refResourceId) return `Choose a reference resource for condition ${idx + 1}.`;
+            if (!c.refField) return `Choose a reference field for condition ${idx + 1}.`;
+          } else {
+            const isEmptyValue =
+              c.value === "" || c.value === null || typeof c.value === "undefined";
+            if (c.op === "in" && isEmptyValue) {
+              return `Enter comma-separated values for condition ${idx + 1}.`;
+            }
+            if (c.op !== "in" && isEmptyValue) {
+              return `Enter a value for condition ${idx + 1}.`;
+            }
+          }
+        } else if (wizard.target === "pair" && c.compare === "field") {
           if (!wizard.typeBId) return "Choose Resource B type.";
           if (!c.refField) return `Choose a reference field for condition ${idx + 1}.`;
         } else {
@@ -987,6 +1176,41 @@ export default function Rules() {
 
   function buildWizardPayload() {
     const clauses = buildWizardClauses();
+    if (wizard.target === "multi") {
+      const selectedResources = wizardSelectedResources.map((resource) => ({
+        id: resource.id,
+        name: resource.name,
+        fields: resource.fields,
+      }));
+      const scopeClauses = wizardSelectedResources
+        .filter((resource) => resource.scopeMode === "resource" && resource.resourceId && resource.typeId)
+        .map((resource) => ({
+          field: `resources_by_type_id.${resource.typeId}.id`,
+          op: "==",
+          value: Number(resource.resourceId),
+        }));
+      const condition = {
+        resources: selectedResources,
+        logic: { all: [...scopeClauses, ...clauses] },
+      };
+      const action =
+        wizard.actionEffect === "score"
+          ? { effect: "score", value: Number(wizard.scoreValue) || 0 }
+          : { effect: "forbid" };
+
+      return {
+        name: wizard.name.trim(),
+        description: wizard.description ?? "",
+        target_type: "multi",
+        is_hard: wizard.actionEffect === "forbid",
+        is_active: !!wizard.is_active,
+        weight: wizard.actionEffect === "forbid" ? 0 : Number(wizard.weight) || 0,
+        sort_order: Number(wizard.sort_order) || 0,
+        condition,
+        action,
+      };
+    }
+
     const scopeClauseA =
       wizard.scopeAMode === "resource" && wizard.resourceAId
         ? { field: "resource.id", op: "==", value: Number(wizard.resourceAId) }
@@ -1022,38 +1246,39 @@ export default function Rules() {
   }
 
   function buildWizardSummary() {
-    const typeAName = wizard.scopeAMode === "resource"
-      ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
-      : schemaTypeById.get(String(wizard.typeAId))?.name || "Type A";
-    const typeBName = wizard.scopeBMode === "resource"
-      ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
-      : schemaTypeById.get(String(wizard.typeBId))?.name || "Type B";
     const actionText = wizard.actionEffect === "forbid" ? "Block" : `Score ${Number(wizard.scoreValue) || 0}`;
     const parts = buildWizardClauses().map((clause) => {
       if (!clause) return "";
       const fieldStr = String(clause.field || "");
-      const isResource = fieldStr.startsWith("resource.");
-      const isARef = fieldStr.includes(`resources_by_type_id.${wizard.typeAId}.`);
-      const leftType = isResource ? typeAName : isARef ? typeAName : typeBName;
-      const leftField = isResource
+      const leftMatch = fieldStr.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
+      const leftType = fieldStr.startsWith("resource.")
+        ? describeWizardResourceById("A")
+        : leftMatch
+        ? wizardSelectedResources.find((resource) => String(resource.typeId) === String(leftMatch[1]))?.name || `Type ${leftMatch[1]}`
+        : "Resource";
+      const leftField = fieldStr.startsWith("resource.")
         ? fieldLabelFromField(fieldStr.replace(/^resource\./, ""))
-        : fieldLabelFromField(fieldStr.split(".").slice(2).join("."));
+        : leftMatch
+        ? fieldLabelFromField(leftMatch[2])
+        : fieldLabelFromField(fieldStr);
       if (clause.value && typeof clause.value === "object" && "ref" in clause.value) {
         const refStr = String(clause.value.ref || "");
-        const refIsResource = refStr.startsWith("resource.");
-        const refType = refIsResource
-          ? typeAName
-          : refStr.includes(`resources_by_type_id.${wizard.typeAId}.`)
-          ? typeAName
-          : typeBName;
-        const refField = refIsResource
+        const refMatch = refStr.match(/^resources_by_type_id\.(\d+)\.(.+)$/);
+        const refType = refStr.startsWith("resource.")
+          ? describeWizardResourceById("A")
+          : refMatch
+          ? wizardSelectedResources.find((resource) => String(resource.typeId) === String(refMatch[1]))?.name || `Type ${refMatch[1]}`
+          : "Resource";
+        const refField = refStr.startsWith("resource.")
           ? fieldLabelFromField(refStr.replace(/^resource\./, ""))
-          : fieldLabelFromField(refStr.split(".").slice(2).join("."));
+          : refMatch
+          ? fieldLabelFromField(refMatch[2])
+          : fieldLabelFromField(refStr);
         return `${leftType}.${leftField} ${clause.op} ${refType}.${refField}`.trim();
       }
       return `${leftType}.${leftField} ${clause.op} ${JSON.stringify(clause.value)}`.trim();
     }).filter(Boolean);
-    if (!parts.length) return `If ${typeAName} matches the conditions → ${actionText}.`;
+    if (!parts.length) return `If ${describeWizardResourceById("A")} matches the conditions → ${actionText}.`;
     return `If ${parts.join(" AND ")} → ${actionText}.`;
   }
 
@@ -1102,6 +1327,97 @@ export default function Rules() {
         : getFieldOptionsForType(schemaTypes, wizard.typeBId),
     [resources, schemaTypes, wizard.resourceBId, wizard.scopeBMode, wizard.typeBId]
   );
+
+  function buildWizardResourceSelection({ id, scopeMode, resourceId, typeId, fallbackLabel }) {
+    if (scopeMode === "resource") {
+      const resource = resources.find((entry) => String(entry.id) === String(resourceId)) ?? null;
+      if (!resource?.id || !resource?.type_id) return null;
+      return {
+        id,
+        scopeMode,
+        resourceId: String(resource.id),
+        typeId: String(resource.type_id),
+        name: resource.name || fallbackLabel,
+        fields: getResourceFieldOptions(resource).map((field) => field.value),
+      };
+    }
+
+    if (!typeId) return null;
+    return {
+      id,
+      scopeMode,
+      resourceId: "",
+      typeId: String(typeId),
+      name: schemaTypeById.get(String(typeId))?.name || fallbackLabel,
+      fields: getFieldOptionsForType(schemaTypes, typeId).map((field) => field.value),
+    };
+  }
+
+  const wizardSelectedResources = useMemo(() => {
+    const selected = [];
+    const resourceASelection = buildWizardResourceSelection({
+      id: "A",
+      scopeMode: wizard.scopeAMode,
+      resourceId: wizard.resourceAId,
+      typeId: wizard.typeAId,
+      fallbackLabel: "Resource A",
+    });
+    if (resourceASelection) selected.push(resourceASelection);
+
+    if (wizard.target === "pair" || wizard.target === "multi") {
+      const resourceBSelection = buildWizardResourceSelection({
+        id: "B",
+        scopeMode: wizard.scopeBMode,
+        resourceId: wizard.resourceBId,
+        typeId: wizard.typeBId,
+        fallbackLabel: "Resource B",
+      });
+      if (resourceBSelection) selected.push(resourceBSelection);
+    }
+
+    if (wizard.target === "multi") {
+      wizard.extraScopes.forEach((scope, idx) => {
+        const selection = buildWizardResourceSelection({
+          id: `R${idx + 3}`,
+          scopeMode: scope.scopeMode,
+          resourceId: scope.resourceId,
+          typeId: scope.typeId,
+          fallbackLabel: `Resource ${idx + 3}`,
+        });
+        if (selection) selected.push(selection);
+      });
+    }
+
+    return selected;
+  }, [
+    resources,
+    schemaTypes,
+    schemaTypeById,
+    wizard.scopeAMode,
+    wizard.resourceAId,
+    wizard.typeAId,
+    wizard.scopeBMode,
+    wizard.resourceBId,
+    wizard.typeBId,
+    wizard.extraScopes,
+    wizard.target,
+  ]);
+
+  const wizardSelectedResourceMap = useMemo(
+    () => new Map(wizardSelectedResources.map((resource) => [resource.id, resource])),
+    [wizardSelectedResources]
+  );
+
+  function getWizardFieldOptionsByResourceId(resourceId) {
+    const resource = wizardSelectedResourceMap.get(String(resourceId));
+    return Array.isArray(resource?.fields)
+      ? resource.fields.map((field) => ({ label: field, value: field }))
+      : [];
+  }
+
+  function describeWizardResourceById(resourceId) {
+    return wizardSelectedResourceMap.get(String(resourceId))?.name || resourceId || "Resource";
+  }
 
   const wizardSummary = buildWizardSummary();
   const wizardPayload = buildWizardPayload();
@@ -1983,6 +2299,19 @@ export default function Rules() {
                       <span className="rules-wizard-choice__title">Compare two resources</span>
                       <span className="rules-wizard-choice__meta">Use this only when A must be compared to another resource B.</span>
                     </button>
+                    <button
+                      type="button"
+                      className={`rules-wizard-choice ${wizard.target === "multi" ? "rules-wizard-choice--active" : ""}`}
+                      onClick={() => {
+                        updateWizard({ target: "multi" });
+                        setWizardReply(2, buildWizardTargetReply("multi"));
+                        setWizardError("");
+                        setWizardStep((current) => (current === 2 ? nextWizardStep(current) : current));
+                      }}
+                    >
+                      <span className="rules-wizard-choice__title">Compare 3+ resources</span>
+                      <span className="rules-wizard-choice__meta">Use this for rules like lecturer + course + room or student + course + lecturer + class.</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2128,6 +2457,137 @@ export default function Rules() {
               </div>
             )}
 
+            {wizardStep === 4 && wizard.target === "multi" && (
+              <div className="flex justify-end">
+                <div className={`rules-wizard-step-card border rounded-2xl p-4 w-full max-w-[85%] space-y-4 ${theme.card}`}>
+                  <div className={`text-xs ${theme.textSoft}`}>
+                    Multi-resource rules need at least <strong>Resource B</strong> plus one more resource.
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <label className="rules-wizard-field">
+                      <span className={`text-xs ${theme.textSoft}`}>Resource B source</span>
+                      <select
+                        className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                        value={wizard.scopeBMode}
+                        onChange={(e) => updateWizard({ scopeBMode: e.target.value, resourceBId: "", typeBId: "" })}
+                      >
+                        <option value="type">Any resource of a type</option>
+                        <option value="resource">One specific resource</option>
+                      </select>
+                    </label>
+                    <label className="rules-wizard-field col-span-2">
+                      <span className={`text-xs ${theme.textSoft}`}>Resource B</span>
+                      {wizard.scopeBMode === "type" ? (
+                        <select
+                          className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                          value={wizard.typeBId}
+                          onChange={(e) => updateWizard({ typeBId: e.target.value, resourceBId: "" })}
+                        >
+                          <option value="">Choose type…</option>
+                          {typeOptions.map((type) => (
+                            <option key={type.type_id} value={type.type_id}>
+                              {type.type_name} (id={type.type_id})
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                          value={wizard.resourceBId}
+                          onChange={(e) => updateWizard({ resourceBId: e.target.value })}
+                        >
+                          <option value="">Choose resource…</option>
+                          {resourceOptions.map((resource) => (
+                            <option key={resource.id} value={resource.id}>
+                              {resource.name} (id={resource.id}{resource.type_name ? `, ${resource.type_name}` : ""})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </label>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className={`text-xs ${theme.textSoft}`}>Additional resources</div>
+                    {wizard.extraScopes.map((scope, idx) => {
+                      const selectedResource =
+                        scope.scopeMode === "resource"
+                          ? resources.find((resource) => String(resource.id) === String(scope.resourceId))
+                          : null;
+                      return (
+                        <div key={scope.id} className="grid grid-cols-4 gap-3 items-end">
+                          <label className="rules-wizard-field">
+                            <span className={`text-xs ${theme.textSoft}`}>Source</span>
+                            <select
+                              className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                              value={scope.scopeMode}
+                              onChange={(e) => updateWizardExtraScope(scope.id, { scopeMode: e.target.value })}
+                            >
+                              <option value="type">Any resource of a type</option>
+                              <option value="resource">One specific resource</option>
+                            </select>
+                          </label>
+                          <label className="rules-wizard-field col-span-2">
+                            <span className={`text-xs ${theme.textSoft}`}>Resource {idx + 3}</span>
+                            {scope.scopeMode === "type" ? (
+                              <select
+                                className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                                value={scope.typeId}
+                                onChange={(e) => updateWizardExtraScope(scope.id, { typeId: e.target.value, resourceId: "" })}
+                              >
+                                <option value="">Choose type…</option>
+                                {typeOptions.map((type) => (
+                                  <option key={`${scope.id}-${type.type_id}`} value={type.type_id}>
+                                    {type.type_name} (id={type.type_id})
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <select
+                                className={`w-full p-3 border rounded text-sm ${theme.input}`}
+                                value={scope.resourceId}
+                                onChange={(e) => updateWizardExtraScope(scope.id, { resourceId: e.target.value })}
+                              >
+                                <option value="">Choose resource…</option>
+                                {resourceOptions.map((resource) => (
+                                  <option key={`${scope.id}-${resource.id}`} value={resource.id}>
+                                    {resource.name} (id={resource.id}{resource.type_name ? `, ${resource.type_name}` : ""})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </label>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className={`px-3 py-2 rounded ${theme.buttonGhost}`}
+                              onClick={() => removeWizardExtraScope(scope.id)}
+                              disabled={wizard.extraScopes.length === 1}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          {(scope.typeId || selectedResource?.type_id) && (
+                            <div className={`col-span-4 text-xs ${theme.textSoft}`}>
+                              Selected type: <strong>{schemaTypeById.get(String(scope.typeId || selectedResource?.type_id))?.name || "Unknown type"}</strong>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className={`px-3 py-2 border rounded ${theme.buttonGhost}`}
+                      onClick={addWizardExtraScope}
+                    >
+                      + Add another resource
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {wizardStep === 5 && (
               <div className="space-y-4">
                 <div className="flex justify-end">
@@ -2140,6 +2600,11 @@ export default function Rules() {
                     {wizard.target === "pair" && (
                       <div className={`text-xs ${theme.textSoft}`}>
                         For pair rules, describe both sides explicitly. Example: “Block when classroom capacity is smaller than course students number”.
+                      </div>
+                    )}
+                    {wizard.target === "multi" && (
+                      <div className={`text-xs ${theme.textSoft}`}>
+                        For multi rules, mention each resource clearly. Example: “Block when lecturer department is design, course students count is over 80, and room capacity is smaller than the course size”.
                       </div>
                     )}
                     <textarea
@@ -2198,14 +2663,15 @@ export default function Rules() {
                 <div className="flex">
                   <div className={`px-4 py-3 rounded-2xl text-xs max-w-[75%] ${theme.panelSoft} ${theme.textSoft}`}>
                     <div className={`font-medium mb-1 ${theme.textStrong}`}>Fields I can use</div>
-                    <div>Resource A: {wizardFieldsA.map((f) => f.label).join(", ") || "None selected"}</div>
-                    {wizard.target === "pair" && (
-                      <div>Resource B: {wizardFieldsB.map((f) => f.label).join(", ") || "None selected"}</div>
-                    )}
+                    {wizardSelectedResources.map((resource) => (
+                      <div key={`wizard-fields-${resource.id}`}>
+                        {describeWizardResourceById(resource.id)}: {resource.fields.join(", ") || "None selected"}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                {wizard.target === "pair" && !wizard.typeBId && (
+                {(wizard.target === "pair" || wizard.target === "multi") && !wizard.typeBId && (
                   <div className="flex">
                     <div className="bg-amber-50 border border-amber-200 px-4 py-3 rounded-2xl text-xs text-amber-700 max-w-[75%]">
                       To use Side B, go back and choose a Resource B type in Step 4.
@@ -2220,134 +2686,253 @@ export default function Rules() {
                       Use this only if you want to tweak the generated conditions.
                     </div>
                     {wizard.conditions.map((cond, idx) => {
-                  const sideFields = cond.side === "B" ? wizardFieldsB : wizardFieldsA;
-                  const refFields = cond.side === "B" ? wizardFieldsA : wizardFieldsB;
-                  return (
-                    <div key={cond.id} className="grid grid-cols-7 gap-3 items-end">
-                      <div>
-                        <label className="block text-xs font-medium mb-1">Side</label>
-                        <select
-                          className={`w-full p-2 border rounded ${theme.input}`}
-                          value={cond.side}
-                          onChange={(e) => updateWizardCondition(idx, { side: e.target.value })}
-                          disabled={wizard.target === "single"}
-                        >
-                          <option value="A">A</option>
-                          {wizard.target === "pair" && wizard.typeBId && <option value="B">B</option>}
-                        </select>
-                        <div className="text-[11px] text-gray-500 mt-1">
-                          {cond.side === "B"
-                            ? `B = ${wizard.scopeBMode === "resource"
-                                ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
-                                : schemaTypeById.get(String(wizard.typeBId))?.name || "Resource B"} (the other resource)`
-                            : `A = ${wizard.scopeAMode === "resource"
-                                ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
-                                : schemaTypeById.get(String(wizard.typeAId))?.name || "Resource A"} (main resource)`}
-                        </div>
-                      </div>
+                      if (wizard.target === "multi") {
+                        const fieldOptions = getWizardFieldOptionsByResourceId(cond.resourceId || "A");
+                        const refFieldOptions = getWizardFieldOptionsByResourceId(cond.refResourceId || "");
+                        return (
+                          <div key={cond.id} className="grid grid-cols-8 gap-3 items-end">
+                            <div>
+                              <label className="block text-xs font-medium mb-1">Resource</label>
+                              <select
+                                className={`w-full p-2 border rounded ${theme.input}`}
+                                value={cond.resourceId || "A"}
+                                onChange={(e) => updateWizardCondition(idx, { resourceId: e.target.value, field: "" })}
+                              >
+                                {wizardSelectedResources.map((resource) => (
+                                  <option key={`${cond.id}-${resource.id}`} value={resource.id}>
+                                    {resource.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">Field</label>
+                              <select
+                                className={`w-full p-2 border rounded ${theme.input}`}
+                                value={cond.field}
+                                onChange={(e) => updateWizardCondition(idx, { field: e.target.value })}
+                              >
+                                <option value="">Choose field…</option>
+                                {fieldOptions.map((field) => (
+                                  <option key={`${cond.id}-${cond.resourceId}-${field.value}`} value={field.value}>{field.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">Operator</label>
+                              <select
+                                className={`w-full p-2 border rounded ${theme.input}`}
+                                value={cond.op}
+                                onChange={(e) => updateWizardCondition(idx, { op: e.target.value })}
+                              >
+                                {WIZARD_OP_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">Compare</label>
+                              <select
+                                className={`w-full p-2 border rounded ${theme.input}`}
+                                value={cond.compare}
+                                onChange={(e) =>
+                                  updateWizardCondition(idx, {
+                                    compare: e.target.value,
+                                    refField: "",
+                                    refResourceId: e.target.value === "field" ? cond.refResourceId || "B" : "",
+                                  })
+                                }
+                              >
+                                <option value="value">Value</option>
+                                <option value="field">Field</option>
+                              </select>
+                            </div>
+                            {cond.compare === "field" ? (
+                              <>
+                                <div>
+                                  <label className="block text-xs font-medium mb-1">Ref resource</label>
+                                  <select
+                                    className={`w-full p-2 border rounded ${theme.input}`}
+                                    value={cond.refResourceId || ""}
+                                    onChange={(e) => updateWizardCondition(idx, { refResourceId: e.target.value, refField: "" })}
+                                  >
+                                    <option value="">Choose…</option>
+                                    {wizardSelectedResources
+                                      .filter((resource) => resource.id !== cond.resourceId)
+                                      .map((resource) => (
+                                        <option key={`${cond.id}-ref-${resource.id}`} value={resource.id}>
+                                          {resource.name}
+                                        </option>
+                                      ))}
+                                  </select>
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="block text-xs font-medium mb-1">Ref field</label>
+                                  <select
+                                    className={`w-full p-2 border rounded ${theme.input}`}
+                                    value={cond.refField}
+                                    onChange={(e) => updateWizardCondition(idx, { refField: e.target.value })}
+                                  >
+                                    <option value="">Choose field…</option>
+                                    {refFieldOptions.map((field) => (
+                                      <option key={`${cond.id}-${cond.refResourceId}-${field.value}`} value={field.value}>{field.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="col-span-3">
+                                <label className="block text-xs font-medium mb-1">Value</label>
+                                <input
+                                  type="text"
+                                  className={`w-full p-2 border rounded ${theme.input}`}
+                                  placeholder={cond.op === "in" ? "Example: A,B,C" : "Example: yes / 10 / lab"}
+                                  value={cond.value}
+                                  onChange={(e) => updateWizardCondition(idx, { value: e.target.value })}
+                                />
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => removeWizardCondition(idx)}
+                                className={`px-3 py-2 rounded ${theme.buttonGhost}`}
+                                disabled={wizard.conditions.length === 1}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
 
-                      <div>
-                        <label className="block text-xs font-medium mb-1">Field</label>
-                        <select
-                          className={`w-full p-2 border rounded ${theme.input}`}
-                          value={cond.field}
-                          onChange={(e) => updateWizardCondition(idx, { field: e.target.value })}
-                        >
-                          <option value="">Choose field…</option>
-                          {sideFields.map((f) => (
-                            <option key={f.value} value={f.value}>{f.label}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium mb-1">Operator</label>
-                        <select
-                          className={`w-full p-2 border rounded ${theme.input}`}
-                          value={cond.op}
-                          onChange={(e) => updateWizardCondition(idx, { op: e.target.value })}
-                        >
-                          {WIZARD_OP_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium mb-1">Compare</label>
-                        <select
-                          className={`w-full p-2 border rounded ${theme.input}`}
-                          value={cond.compare}
-                          onChange={(e) => updateWizardCondition(idx, { compare: e.target.value })}
-                          disabled={wizard.target !== "pair"}
-                        >
-                          <option value="value">Value</option>
-                          <option value="field">Field (other side)</option>
-                        </select>
-                      </div>
-
-                      {cond.compare === "field" && wizard.target === "pair" ? (
-                        <div className="col-span-2">
-                          <label className="block text-xs font-medium mb-1">Ref field</label>
-                          <select
-                            className={`w-full p-2 border rounded ${theme.input}`}
-                            value={cond.refField}
-                            onChange={(e) => updateWizardCondition(idx, { refField: e.target.value })}
-                          >
-                            <option value="">Choose field…</option>
-                            {refFields.map((f) => (
-                              <option key={f.value} value={f.value}>{f.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : (
-                        <div className="col-span-2">
-                          <label className="block text-xs font-medium mb-1">Value</label>
-                          <input
-                            type="text"
-                            className={`w-full p-2 border rounded ${theme.input}`}
-                            placeholder={cond.op === "in" ? "Example: A,B,C" : "Example: yes / 10 / lab"}
-                            value={cond.value}
-                            onChange={(e) => updateWizardCondition(idx, { value: e.target.value })}
-                          />
-                          <div className="flex gap-2 mt-2">
-                            <button
-                              type="button"
-                              className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
-                              onClick={() => updateWizardCondition(idx, { value: "true" })}
+                      const sideFields = cond.side === "B" ? wizardFieldsB : wizardFieldsA;
+                      const refFields = cond.side === "B" ? wizardFieldsA : wizardFieldsB;
+                      return (
+                        <div key={cond.id} className="grid grid-cols-7 gap-3 items-end">
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Side</label>
+                            <select
+                              className={`w-full p-2 border rounded ${theme.input}`}
+                              value={cond.side}
+                              onChange={(e) => updateWizardCondition(idx, { side: e.target.value })}
+                              disabled={wizard.target === "single"}
                             >
-                              True
-                            </button>
-                            <button
-                              type="button"
-                              className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
-                              onClick={() => updateWizardCondition(idx, { value: "false" })}
+                              <option value="A">A</option>
+                              {wizard.target === "pair" && wizard.typeBId && <option value="B">B</option>}
+                            </select>
+                            <div className="text-[11px] text-gray-500 mt-1">
+                              {cond.side === "B"
+                                ? `B = ${wizard.scopeBMode === "resource"
+                                    ? resourceNameById.get(String(wizard.resourceBId)) || "Resource B"
+                                    : schemaTypeById.get(String(wizard.typeBId))?.name || "Resource B"} (the other resource)`
+                                : `A = ${wizard.scopeAMode === "resource"
+                                    ? resourceNameById.get(String(wizard.resourceAId)) || "Resource A"
+                                    : schemaTypeById.get(String(wizard.typeAId))?.name || "Resource A"} (main resource)`}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Field</label>
+                            <select
+                              className={`w-full p-2 border rounded ${theme.input}`}
+                              value={cond.field}
+                              onChange={(e) => updateWizardCondition(idx, { field: e.target.value })}
                             >
-                              False
-                            </button>
-                            <button
-                              type="button"
-                              className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
-                              onClick={() => updateWizardCondition(idx, { value: "" })}
+                              <option value="">Choose field…</option>
+                              {sideFields.map((field) => (
+                                <option key={field.value} value={field.value}>{field.label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Operator</label>
+                            <select
+                              className={`w-full p-2 border rounded ${theme.input}`}
+                              value={cond.op}
+                              onChange={(e) => updateWizardCondition(idx, { op: e.target.value })}
                             >
-                              Clear
+                              {WIZARD_OP_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium mb-1">Compare</label>
+                            <select
+                              className={`w-full p-2 border rounded ${theme.input}`}
+                              value={cond.compare}
+                              onChange={(e) => updateWizardCondition(idx, { compare: e.target.value })}
+                              disabled={wizard.target !== "pair"}
+                            >
+                              <option value="value">Value</option>
+                              <option value="field">Field (other side)</option>
+                            </select>
+                          </div>
+
+                          {cond.compare === "field" && wizard.target === "pair" ? (
+                            <div className="col-span-2">
+                              <label className="block text-xs font-medium mb-1">Ref field</label>
+                              <select
+                                className={`w-full p-2 border rounded ${theme.input}`}
+                                value={cond.refField}
+                                onChange={(e) => updateWizardCondition(idx, { refField: e.target.value })}
+                              >
+                                <option value="">Choose field…</option>
+                                {refFields.map((field) => (
+                                  <option key={field.value} value={field.value}>{field.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="col-span-2">
+                              <label className="block text-xs font-medium mb-1">Value</label>
+                              <input
+                                type="text"
+                                className={`w-full p-2 border rounded ${theme.input}`}
+                                placeholder={cond.op === "in" ? "Example: A,B,C" : "Example: yes / 10 / lab"}
+                                value={cond.value}
+                                onChange={(e) => updateWizardCondition(idx, { value: e.target.value })}
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
+                                  onClick={() => updateWizardCondition(idx, { value: "true" })}
+                                >
+                                  True
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
+                                  onClick={() => updateWizardCondition(idx, { value: "false" })}
+                                >
+                                  False
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`px-2 py-1 text-xs border rounded ${theme.buttonGhost}`}
+                                  onClick={() => updateWizardCondition(idx, { value: "" })}
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => removeWizardCondition(idx)}
+                              className={`px-3 py-2 rounded ${theme.buttonGhost}`}
+                              disabled={wizard.conditions.length === 1}
+                            >
+                              Remove
                             </button>
                           </div>
                         </div>
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => removeWizardCondition(idx)}
-                          className={`px-3 py-2 rounded ${theme.buttonGhost}`}
-                          disabled={wizard.conditions.length === 1}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
 
                     <button onClick={addWizardCondition} className={`px-3 py-2 border rounded ${theme.buttonGhost}`}>
                       + Add Condition
