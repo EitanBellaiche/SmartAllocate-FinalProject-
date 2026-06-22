@@ -4,6 +4,7 @@ import { buildFallbackAvailability, getDayAvailabilityWindows } from "./availabi
 import {
   findResourceConflictDetails,
   findUserConflict,
+  findUsersConflict,
   hasExactBooking,
   hasResourceConflict,
   hasUserConflict,
@@ -185,6 +186,7 @@ export async function pickLockedSlot({
   orgId,
   client,
   excludedDayOfWeeks = [],
+  excludedSlotKeys = [],
   preferredTimeWindows = [],
   allowSaturday = true,
   blockedDates = [],
@@ -193,7 +195,25 @@ export async function pickLockedSlot({
   const candidatesMap = new Map();
   let lastFailure = "No available slot found";
   let firstCandidateFailure = null;
+  const candidateUserIds = Array.from(
+    new Set([
+      ...(Array.isArray(userIds) ? userIds : []),
+      ...collectAssignedUserIdsFromResourceRows(resourceRows),
+    ])
+  ).filter((userId) => userId && userId !== responsibleId);
   const excluded = new Set((excludedDayOfWeeks || []).map((d) => Number(d)));
+  const excludedSlots = new Set(excludedSlotKeys || []);
+  const excludedSlotRanges = (excludedSlotKeys || [])
+    .map((key) => {
+      const match = String(key).match(/^(\d+)-(\d{2}:\d{2})-(\d{2}:\d{2})$/);
+      if (!match) return null;
+      return {
+        day_of_week: Number(match[1]),
+        start_time: match[2],
+        end_time: match[3],
+      };
+    })
+    .filter(Boolean);
   const blockedDateSet = normalizeBlockedDateSet(blockedDates);
 
   for (let day = new Date(startDate); day <= endDate; day.setDate(day.getDate() + 1)) {
@@ -211,6 +231,13 @@ export async function pickLockedSlot({
         const endTime = addMinutes("00:00", candidate + durationMinutes);
         if (!isWithinAnyPreferredWindow(preferredTimeWindows, startTime, endTime)) continue;
         const key = `${dayOfWeek}-${startTime}-${endTime}`;
+        if (excludedSlots.has(key)) continue;
+        const overlapsExcludedSlot = excludedSlotRanges.some((slot) => (
+          slot.day_of_week === dayOfWeek &&
+          timeToMinutes(startTime) < timeToMinutes(slot.end_time) &&
+          timeToMinutes(endTime) > timeToMinutes(slot.start_time)
+        ));
+        if (overlapsExcludedSlot) continue;
         candidatesMap.set(key, { day_of_week: dayOfWeek, start_time: startTime, end_time: endTime });
       }
     }
@@ -246,11 +273,17 @@ export async function pickLockedSlot({
         }
       }
 
-      let userConflict = null;
-      for (const userId of userIds) {
-        userConflict = await findUserConflict(client, userId, dayKey, candidate.start_time, candidate.end_time, orgId);
-        if (userConflict) break;
-      }
+      const userConflict =
+        candidateUserIds.length > 0
+          ? await findUsersConflict(
+              client,
+              candidateUserIds,
+              dayKey,
+              candidate.start_time,
+              candidate.end_time,
+              orgId
+            )
+          : null;
       if (userConflict) {
         conflictReason = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
         break;
@@ -462,32 +495,33 @@ export async function diagnoseGroupFailure({
             }
           }
 
-          for (const userId of userIds) {
-            const userConflict = await findUserConflict(client, userId, dayKey, startTime, endTime, orgId);
-            if (userConflict) {
-              const suggestions = await buildAutoScheduleFailureSuggestions({
-                client,
-                orgId,
-                bookingDate: dayKey,
-                startTime,
-                endTime,
-                userId: responsibleId,
-                resources: resourceRows,
-                candidateTypeIds: typeIds,
-                rules: ruleRows,
-                roles: {},
-                pickBestResourceCombination,
-                preferredTimeWindows,
-              });
-              return {
-                group_id: group?.group_id || null,
-                reason: `One of the assigned users is already booked on ${dayKey} ${startTime}-${endTime}.`,
-                failure_type: "user_conflict",
-                failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
-                occupied_by: userConflict,
-                suggestions,
-              };
-            }
+          const userConflict =
+            userIds.length > 0
+              ? await findUsersConflict(client, userIds, dayKey, startTime, endTime, orgId)
+              : null;
+          if (userConflict) {
+            const suggestions = await buildAutoScheduleFailureSuggestions({
+              client,
+              orgId,
+              bookingDate: dayKey,
+              startTime,
+              endTime,
+              userId: responsibleId,
+              resources: resourceRows,
+              candidateTypeIds: typeIds,
+              rules: ruleRows,
+              roles: {},
+              pickBestResourceCombination,
+              preferredTimeWindows,
+            });
+            return {
+              group_id: group?.group_id || null,
+              reason: `One of the assigned users is already booked on ${dayKey} ${startTime}-${endTime}.`,
+              failure_type: "user_conflict",
+              failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
+              occupied_by: userConflict,
+              suggestions,
+            };
           }
 
           if (resourceIds.length > 0) {
@@ -637,7 +671,10 @@ export async function scheduleGroup({
         ruleRows,
         orgId,
         client,
-        excludedDayOfWeeks: lockedSlots.map((slot) => slot.day_of_week),
+        excludedDayOfWeeks: [],
+        excludedSlotKeys: lockedSlots.map(
+          (slot) => `${slot.day_of_week}-${slot.start_time}-${slot.end_time}`
+        ),
         preferredTimeWindows,
         allowSaturday,
         blockedDates,
@@ -673,7 +710,7 @@ export async function scheduleGroup({
 
     for (let pass = 0; pass < 2; pass += 1) {
       const enforceLockedSlots = pass === 0 && lockedSlots.length > 0;
-      if (pass === 1 && (scheduledThisWeekCount > 0 || !enforceLockedSlots)) break;
+      if (pass === 1 && (scheduledThisWeekCount > 0 || lockedSlots.length === 0)) break;
 
       for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
         const dayOfWeek = day.getDay();
@@ -736,13 +773,10 @@ export async function scheduleGroup({
               }
             }
 
-            let userConflict = null;
-            if (uniqueUserIds.length > 0) {
-              for (const userId of uniqueUserIds) {
-                userConflict = await findUserConflict(client, userId, dayKey, startTime, endTime, orgId);
-                if (userConflict) break;
-              }
-            }
+            const userConflict =
+              uniqueUserIds.length > 0
+                ? await findUsersConflict(client, uniqueUserIds, dayKey, startTime, endTime, orgId)
+                : null;
             if (userConflict) {
               weekFailure = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
               userConflicts += 1;

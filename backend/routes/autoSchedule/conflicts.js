@@ -99,6 +99,10 @@ async function findAnyUserConflict(client, userIds, date, startTime, endTime, or
   return rows[0] || null;
 }
 
+export async function findUsersConflict(client, userIds, date, startTime, endTime, orgId) {
+  return findAnyUserConflict(client, userIds, date, startTime, endTime, orgId);
+}
+
 export async function hasUserConflict(client, userIds, date, startTime, endTime, orgId) {
   const conflict = await findAnyUserConflict(client, userIds, date, startTime, endTime, orgId);
   return Boolean(conflict);
