@@ -60,6 +60,32 @@ function formatCountdown(msLeft) {
   return days > 0 ? `${days}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
 }
 
+const DEFAULT_SECTION = "schedule";
+const VALID_SECTIONS = new Set([
+  "schedule",
+  "search",
+  "requests",
+  "availability",
+  "notifications",
+]);
+
+function getSectionFromHash() {
+  if (typeof window === "undefined") return DEFAULT_SECTION;
+  const section = String(window.location.hash || "")
+    .replace(/^#/, "")
+    .trim()
+    .toLowerCase();
+  return VALID_SECTIONS.has(section) ? section : DEFAULT_SECTION;
+}
+
+function isSectionAllowed(section, role, hasUser = true) {
+  if (!hasUser) return VALID_SECTIONS.has(section);
+  if (role === "user" && (section === "requests" || section === "availability")) {
+    return false;
+  }
+  return VALID_SECTIONS.has(section);
+}
+
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bookings, setBookings] = useState([]);
@@ -99,7 +125,7 @@ export default function App() {
   });
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
-  const [section, setSection] = useState("schedule"); // schedule | search | requests | availability | notifications
+  const [section, setSection] = useState(getSectionFromHash); // schedule | search | requests | availability | notifications
   const [deadlineInfo, setDeadlineInfo] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const sessionOrgId = getSessionOrgId(SESSION_KEY);
@@ -242,6 +268,11 @@ export default function App() {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
   const isShenkar = compactOrgId === "shenkar";
+  const canAccessAvailability =
+    role === "manager" ||
+    section === "availability" ||
+    userAvailability.length > 0 ||
+    Boolean(deadlineInfo?.has_deadline);
 
   const cinemaPrimaryButton = {
     border: "none",
@@ -535,10 +566,33 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (role === "user" && (section === "requests" || section === "availability")) {
+    if (hasUser && role === "user" && section === "requests") {
       setSection("schedule");
     }
-  }, [role, section]);
+  }, [hasUser, role, section]);
+
+  useEffect(() => {
+    const nextSection = isSectionAllowed(section, role, hasUser) ? section : DEFAULT_SECTION;
+    const nextHash = nextSection === DEFAULT_SECTION ? "" : `#${nextSection}`;
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+    }
+  }, [hasUser, role, section]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const nextSection = getSectionFromHash();
+      setSection((prev) => {
+        const allowedSection = isSectionAllowed(nextSection, role, hasUser)
+          ? nextSection
+          : DEFAULT_SECTION;
+        return prev === allowedSection ? prev : allowedSection;
+      });
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [hasUser, role]);
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now()), 1000);
@@ -546,7 +600,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hasUser || role !== "manager") {
+    if (!hasUser || (!canAccessAvailability && role !== "manager")) {
       setDeadlineInfo(null);
       return;
     }
@@ -569,11 +623,11 @@ export default function App() {
       active = false;
       clearInterval(interval);
     };
-  }, [hasUser, role, currentUserId]);
+  }, [hasUser, role, currentUserId, canAccessAvailability]);
 
   useEffect(() => {
     if (!deadlineInfo?.scheduling_range) return;
-    if (role !== "manager") return;
+    if (!canAccessAvailability) return;
     const { start_date, end_date } = deadlineInfo.scheduling_range || {};
     if (!start_date || !end_date) return;
     setAvailabilityForm((prev) => {
@@ -583,10 +637,10 @@ export default function App() {
       if (nextStart === prev.start_date && nextEnd === prev.end_date) return prev;
       return { ...prev, start_date: nextStart, end_date: nextEnd };
     });
-  }, [deadlineInfo, role]);
+  }, [deadlineInfo, canAccessAvailability]);
 
   useEffect(() => {
-    if (!hasUser || role !== "manager") return;
+    if (!hasUser || !canAccessAvailability) return;
     const id = currentUserId.trim();
     if (!id) return;
     let active = true;
@@ -601,7 +655,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hasUser, role, currentUserId]);
+  }, [hasUser, canAccessAvailability, currentUserId]);
 
   if (!hasUser) {
     return (
@@ -649,6 +703,7 @@ export default function App() {
         labelsLower={labelsLower}
         currentUserId={currentUserId}
         section={section}
+        canAccessAvailability={canAccessAvailability}
         setSection={setSection}
         unreadNotificationCount={unreadNotificationCount}
         handleLogout={handleLogout}
@@ -672,7 +727,7 @@ export default function App() {
             {currentUserId}
           </div>
         </div>
-        {role === "manager" && hasDeadline && !lockedAvailability && (
+        {canAccessAvailability && hasDeadline && !lockedAvailability && (
           <div
             style={{
               position: "sticky",
@@ -730,7 +785,7 @@ export default function App() {
           </div>
         )}
 
-        {role === "manager" && hasDeadline && mustFillAvailability && section !== "availability" && (
+        {canAccessAvailability && hasDeadline && mustFillAvailability && section !== "availability" && (
           <div
             style={{
               position: "fixed",

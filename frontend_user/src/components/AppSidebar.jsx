@@ -8,6 +8,7 @@ export default function AppSidebar({
   labelsLower,
   currentUserId,
   section,
+  canAccessAvailability = false,
   setSection,
   unreadNotificationCount,
   handleLogout,
@@ -48,7 +49,7 @@ export default function AppSidebar({
       label: "My Availability",
       meta: "Scheduling windows",
       icon: "AV",
-      visible: role === "manager",
+      visible: canAccessAvailability,
     },
   ];
 
@@ -87,7 +88,7 @@ export default function AppSidebar({
       <div className="user-sidebar__identity">
         <span className="user-sidebar__identity-label">{labels.userId}</span>
         <strong>{currentUserId}</strong>
-        <span>{role === "manager" ? labels.manager : labels.user}</span>
+        <span>{canAccessAvailability ? labels.manager : labels.user}</span>
       </div>
 
       <nav className="user-sidebar__nav" aria-label="User workspace navigation">
