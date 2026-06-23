@@ -253,7 +253,23 @@ export function isPrimaryResource(resource) {
 
 export function formatTypeLabel(typeName, labels, fallback) {
   const resolvedFallback = fallback || labels?.resource || "Resource";
-  return typeName || labels?.resource || resolvedFallback;
+  const normalizedType = String(typeName || "").trim().toLowerCase();
+  const hebrewTypeLabels = {
+    courses: "קורס",
+    classroom: "כיתה",
+    lab: "מעבדה",
+    studio: "סטודיו",
+    equipment: "ציוד",
+    "meeting room": "חדר ישיבות",
+    auditorium: "אודיטוריום",
+    exam: "בחינה",
+  };
+  return (
+    hebrewTypeLabels[normalizedType] ||
+    typeName ||
+    labels?.resource ||
+    resolvedFallback
+  );
 }
 
 export function getBookingRoomLine(booking) {
