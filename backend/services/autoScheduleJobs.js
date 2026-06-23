@@ -81,6 +81,98 @@ function getDayOfWeekFromDateString(value) {
   return new Date(year, month - 1, day).getDay();
 }
 
+async function inferAutoScheduleOrgId({ orgId, groups } = {}) {
+  const directOrgId = normalizeOrgId(orgId);
+  if (directOrgId) return directOrgId;
+
+  const normalizedGroups = Array.isArray(groups) ? groups : [];
+  const resourceIds = Array.from(
+    new Set(
+      normalizedGroups
+        .flatMap((group) => (Array.isArray(group?.resource_ids) ? group.resource_ids : []))
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+    )
+  );
+  const typeIds = Array.from(
+    new Set(
+      normalizedGroups
+        .flatMap((group) => (Array.isArray(group?.type_ids) ? group.type_ids : []))
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value))
+    )
+  );
+  const userIds = Array.from(
+    new Set(
+      normalizedGroups
+        .flatMap((group) => [
+          group?.responsible_user_id,
+          ...(Array.isArray(group?.user_ids) ? group.user_ids : []),
+        ])
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  const orgIds = new Set();
+
+  if (resourceIds.length > 0) {
+    const { rows } = await pool.query(
+      `
+      SELECT DISTINCT organization_id
+      FROM resources
+      WHERE id = ANY($1)
+        AND COALESCE(organization_id, '') <> ''
+      `,
+      [resourceIds]
+    );
+    rows.forEach((row) => {
+      const value = normalizeOrgId(row.organization_id);
+      if (value) orgIds.add(value);
+    });
+  }
+
+  if (orgIds.size === 0 && typeIds.length > 0) {
+    const { rows } = await pool.query(
+      `
+      SELECT DISTINCT organization_id
+      FROM resource_types
+      WHERE id = ANY($1)
+        AND COALESCE(organization_id, '') <> ''
+      `,
+      [typeIds]
+    );
+    rows.forEach((row) => {
+      const value = normalizeOrgId(row.organization_id);
+      if (value) orgIds.add(value);
+    });
+  }
+
+  if (orgIds.size === 0 && userIds.length > 0) {
+    const { rows } = await pool.query(
+      `
+      SELECT DISTINCT organization_id
+      FROM users
+      WHERE national_id = ANY($1)
+        AND COALESCE(organization_id, '') <> ''
+      `,
+      [userIds]
+    );
+    rows.forEach((row) => {
+      const value = normalizeOrgId(row.organization_id);
+      if (value) orgIds.add(value);
+    });
+  }
+
+  if (orgIds.size > 1) {
+    const err = new Error("Auto schedule groups span multiple organizations");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return orgIds.values().next().value || null;
+}
+
 async function getAutoScheduleJobOrThrow({ id, orgId }) {
   await ensureAutoScheduleJobsTable();
   const jobId = Number(id);
@@ -333,12 +425,13 @@ export async function createAutoScheduleJob({
 
   // Validate scheduling payload early so jobs don't fail later.
   validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday, blocked_dates });
+  const resolvedOrgId = await inferAutoScheduleOrgId({ orgId, groups });
 
   const payload = serializeAutoSchedulePayload({
     start_date,
     end_date,
     groups,
-    orgId,
+    orgId: resolvedOrgId,
     allow_saturday,
     blocked_dates,
   });
@@ -349,7 +442,7 @@ export async function createAutoScheduleJob({
     RETURNING *
     `,
     [
-      orgId,
+      resolvedOrgId,
       normalizeJobName(name),
       createdBy || null,
       runAt.toISOString(),
@@ -427,12 +520,16 @@ export async function updateAutoScheduleJob({
     allow_saturday: allow_saturday ?? payload.allow_saturday,
     blocked_dates: blocked_dates ?? payload.blocked_dates,
   });
+  const resolvedOrgId = await inferAutoScheduleOrgId({
+    orgId: normalizeOrgId(payload.org_id || job.organization_id),
+    groups: groups ?? payload.groups,
+  });
 
   const nextPayload = serializeAutoSchedulePayload({
     start_date: start_date ?? payload.start_date,
     end_date: end_date ?? payload.end_date,
     groups: groups ?? payload.groups,
-    orgId: normalizeOrgId(payload.org_id || job.organization_id),
+    orgId: resolvedOrgId,
     allow_saturday: allow_saturday ?? payload.allow_saturday,
     blocked_dates: blocked_dates ?? payload.blocked_dates,
   });
@@ -442,7 +539,8 @@ export async function updateAutoScheduleJob({
     UPDATE ${JOBS_TABLE}
     SET name = $2,
         run_at = $3,
-        payload = $4::jsonb
+        organization_id = $4,
+        payload = $5::jsonb
     WHERE id = $1
       AND status = 'scheduled'
     RETURNING *
@@ -451,6 +549,7 @@ export async function updateAutoScheduleJob({
       Number(job.id),
       normalizeJobName(name ?? job.name),
       runAt.toISOString(),
+      resolvedOrgId,
       JSON.stringify(nextPayload),
     ]
   );
@@ -475,12 +574,13 @@ export async function startAutoScheduleRun({
 }) {
   await ensureAutoScheduleJobsTable();
   validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday, blocked_dates });
+  const resolvedOrgId = await inferAutoScheduleOrgId({ orgId, groups });
 
   const payload = serializeAutoSchedulePayload({
     start_date,
     end_date,
     groups,
-    orgId,
+    orgId: resolvedOrgId,
     allow_saturday,
     blocked_dates,
   });
@@ -499,7 +599,7 @@ export async function startAutoScheduleRun({
     RETURNING *
     `,
     [
-      orgId,
+      resolvedOrgId,
       normalizeJobName(name),
       createdBy || null,
       JSON.stringify(payload),
@@ -521,12 +621,13 @@ export async function recordCompletedAutoScheduleRun({
 }) {
   await ensureAutoScheduleJobsTable();
   validateAndNormalizeAutoScheduleInput({ start_date, end_date, groups, allow_saturday, blocked_dates });
+  const resolvedOrgId = await inferAutoScheduleOrgId({ orgId, groups });
 
   const payload = serializeAutoSchedulePayload({
     start_date,
     end_date,
     groups,
-    orgId,
+    orgId: resolvedOrgId,
     allow_saturday,
     blocked_dates,
   });
@@ -547,7 +648,7 @@ export async function recordCompletedAutoScheduleRun({
     RETURNING *
     `,
     [
-      orgId,
+      resolvedOrgId,
       normalizeJobName(name),
       createdBy || null,
       JSON.stringify(payload),
