@@ -39,6 +39,22 @@ function buildAssignedUserIdsArraySql(resourceAlias) {
   )`;
 }
 
+function buildResponsibleUserIdsArraySql(resourceAlias) {
+  return `ARRAY(
+    SELECT responsible_user_id
+    FROM (
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsible_user_id', '') AS responsible_user_id
+      UNION ALL
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsibleUserId', '') AS responsible_user_id
+      UNION ALL
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsible_id', '') AS responsible_user_id
+      UNION ALL
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsibleId', '') AS responsible_user_id
+    ) responsible_user_ids
+    WHERE responsible_user_id <> ''
+  )`;
+}
+
 async function findAnyUserConflict(client, userIds, date, startTime, endTime, orgId) {
   const normalizedUserIds = Array.from(
     new Set(
@@ -60,37 +76,77 @@ async function findAnyUserConflict(client, userIds, date, startTime, endTime, or
 
   const { rows } = await client.query(
     `
-    SELECT DISTINCT b.id, b.user_id, b.date, b.start_time, b.end_time
-    FROM bookings b
-    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
-    LEFT JOIN booking_resources br ON br.booking_id = b.id
-    LEFT JOIN resources r ON r.id = br.resource_id
-    WHERE b.date = $2
-    AND bc.booking_id IS NULL
-    ${orgWhere}
-    AND (
-      ($3 >= b.start_time AND $3 < b.end_time) OR
-      ($4 > b.start_time AND $4 <= b.end_time) OR
-      ($3 <= b.start_time AND $4 >= b.end_time)
-    )
-    AND (
-      b.user_id::text = ANY($1)
-      OR EXISTS (
-        SELECT 1
-        FROM booking_resources br_user
-        JOIN resources r_user ON r_user.id = br_user.resource_id
-        WHERE br_user.booking_id = b.id
-        ${assignedOrgWhere}
-        AND (
-          ${buildAssignedUserIdsArraySql("r_user")} && $1::text[]
-          OR COALESCE(r_user.metadata->>'responsible_user_id', '') = ANY($1)
-          OR COALESCE(r_user.metadata->>'responsibleUserId', '') = ANY($1)
-          OR COALESCE(r_user.metadata->>'responsible_id', '') = ANY($1)
-          OR COALESCE(r_user.metadata->>'responsibleId', '') = ANY($1)
+    WITH conflicting_bookings AS (
+      SELECT DISTINCT b.id, b.user_id::text AS user_id, b.date, b.start_time, b.end_time
+      FROM bookings b
+      LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+      LEFT JOIN booking_resources br ON br.booking_id = b.id
+      LEFT JOIN resources r ON r.id = br.resource_id
+      WHERE b.date = $2
+      AND bc.booking_id IS NULL
+      ${orgWhere}
+      AND (
+        ($3 >= b.start_time AND $3 < b.end_time) OR
+        ($4 > b.start_time AND $4 <= b.end_time) OR
+        ($3 <= b.start_time AND $4 >= b.end_time)
+      )
+      AND (
+        b.user_id::text = ANY($1)
+        OR EXISTS (
+          SELECT 1
+          FROM booking_resources br_user
+          JOIN resources r_user ON r_user.id = br_user.resource_id
+          WHERE br_user.booking_id = b.id
+          ${assignedOrgWhere}
+          AND (
+            ${buildAssignedUserIdsArraySql("r_user")} && $1::text[]
+            OR ${buildResponsibleUserIdsArraySql("r_user")} && $1::text[]
+          )
         )
       )
     )
-    ORDER BY b.date, b.start_time, b.id
+    SELECT
+      cb.id,
+      cb.user_id,
+      cb.date,
+      cb.start_time,
+      cb.end_time,
+      COALESCE(match_info.matched_user_id, cb.user_id) AS matched_user_id,
+      u.full_name AS matched_user_full_name,
+      u.email AS matched_user_email
+    FROM conflicting_bookings cb
+    LEFT JOIN LATERAL (
+      SELECT matched_user_id
+      FROM (
+        SELECT cb.user_id AS matched_user_id
+        WHERE cb.user_id = ANY($1)
+
+        UNION ALL
+
+        SELECT matched.assigned_user_id AS matched_user_id
+        FROM booking_resources br_user
+        JOIN resources r_user ON r_user.id = br_user.resource_id
+        CROSS JOIN LATERAL (
+          SELECT assigned_user_id
+          FROM unnest(${buildAssignedUserIdsArraySql("r_user")}) AS assigned_users(assigned_user_id)
+          WHERE assigned_user_id = ANY($1)
+
+          UNION ALL
+
+          SELECT responsible_user_id AS assigned_user_id
+          FROM unnest(${buildResponsibleUserIdsArraySql("r_user")}) AS responsible_users(responsible_user_id)
+          WHERE responsible_user_id = ANY($1)
+        ) matched
+        WHERE br_user.booking_id = cb.id
+        ${assignedOrgWhere}
+      ) matched_candidates
+      WHERE matched_user_id <> ''
+      LIMIT 1
+    ) match_info ON TRUE
+    LEFT JOIN users u
+      ON u.national_id = COALESCE(match_info.matched_user_id, cb.user_id)
+      OR u.id::text = COALESCE(match_info.matched_user_id, cb.user_id)
+    ORDER BY cb.date, cb.start_time, cb.id
     LIMIT 1
     `,
     params

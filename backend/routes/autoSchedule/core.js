@@ -7,7 +7,6 @@ import {
   findUsersConflict,
   hasExactBooking,
   hasResourceConflict,
-  hasUserConflict,
   weekAlreadyScheduled,
 } from "./conflicts.js";
 import { buildAutoScheduleDecisionExplanation } from "./explain.js";
@@ -170,6 +169,34 @@ function buildDecisionNarrative({
     summary: reasons.join(". ") + ".",
     blockers,
   };
+}
+
+function formatMatchedUserLabel(conflict, fallbackLabel = "User") {
+  const matchedUserId = String(
+    conflict?.matched_user_id || conflict?.user_id || ""
+  ).trim();
+  const matchedUserName = String(conflict?.matched_user_full_name || "").trim();
+
+  if (matchedUserName && matchedUserId) {
+    return `${matchedUserName} (${matchedUserId})`;
+  }
+  if (matchedUserName) {
+    return matchedUserName;
+  }
+  if (matchedUserId) {
+    return `${fallbackLabel} ${matchedUserId}`;
+  }
+  return fallbackLabel;
+}
+
+function buildResponsibleConflictReason(conflict, dayKey, startTime, endTime) {
+  const label = formatMatchedUserLabel(conflict, "Responsible user");
+  return `${label} is already booked on ${dayKey} ${startTime}-${endTime} (booking #${conflict?.id}).`;
+}
+
+function buildAssignedUserConflictReason(conflict, dayKey, startTime, endTime) {
+  const label = formatMatchedUserLabel(conflict, "Assigned user");
+  return `${label} is already booked on ${dayKey} ${startTime}-${endTime} (booking #${conflict?.id}).`;
 }
 
 export async function pickLockedSlot({
@@ -486,7 +513,7 @@ export async function diagnoseGroupFailure({
               });
               return {
                 group_id: group?.group_id || null,
-                reason: `The responsible user is already booked on ${dayKey} ${startTime}-${endTime}.`,
+                reason: buildResponsibleConflictReason(responsibleConflict, dayKey, startTime, endTime),
                 failure_type: "responsible_conflict",
                 failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
                 occupied_by: responsibleConflict,
@@ -516,7 +543,7 @@ export async function diagnoseGroupFailure({
             });
             return {
               group_id: group?.group_id || null,
-              reason: `One of the assigned users is already booked on ${dayKey} ${startTime}-${endTime}.`,
+              reason: buildAssignedUserConflictReason(userConflict, dayKey, startTime, endTime),
               failure_type: "user_conflict",
               failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
               occupied_by: userConflict,
@@ -763,7 +790,12 @@ export async function scheduleGroup({
             if (responsibleId) {
               const responsibleConflict = await findUserConflict(client, responsibleId, dayKey, startTime, endTime, orgId);
               if (responsibleConflict) {
-                weekFailure = `Responsible conflict with booking #${responsibleConflict.id} at ${responsibleConflict.date} ${responsibleConflict.start_time}-${responsibleConflict.end_time}`;
+                weekFailure = buildResponsibleConflictReason(
+                  responsibleConflict,
+                  dayKey,
+                  startTime,
+                  endTime
+                );
                 responsibleConflicts += 1;
                 localResponsibleConflicts += 1;
                 if (!failureContext) {
@@ -778,7 +810,12 @@ export async function scheduleGroup({
                 ? await findUsersConflict(client, uniqueUserIds, dayKey, startTime, endTime, orgId)
                 : null;
             if (userConflict) {
-              weekFailure = `User conflict with booking #${userConflict.id} at ${userConflict.date} ${userConflict.start_time}-${userConflict.end_time}`;
+              weekFailure = buildAssignedUserConflictReason(
+                userConflict,
+                dayKey,
+                startTime,
+                endTime
+              );
               userConflicts += 1;
               localUserConflicts += 1;
               if (!failureContext) {
@@ -852,7 +889,7 @@ export async function scheduleGroup({
               ])
             ).filter((userId) => userId && userId !== responsibleId);
 
-            const assignedUserConflict = await hasUserConflict(
+            const assignedUserConflict = await findUsersConflict(
               client,
               resolvedAssignedUserIds,
               dayKey,
@@ -861,7 +898,12 @@ export async function scheduleGroup({
               orgId
             );
             if (assignedUserConflict) {
-              weekFailure = `One of the assigned users is already booked at ${dayKey} ${startTime}-${endTime}`;
+              weekFailure = buildAssignedUserConflictReason(
+                assignedUserConflict,
+                dayKey,
+                startTime,
+                endTime
+              );
               userConflicts += 1;
               localUserConflicts += 1;
               if (!failureContext) {
@@ -1038,8 +1080,6 @@ export async function scheduleGroup({
     if (availabilityDays === 0) reason = "No availability in range";
     else if (attemptedSlots === 0 && hasPreferredTimeWindow) reason = "No time slot fits inside the preferred time window";
     else if (attemptedSlots === 0) reason = "No time slot fits the required duration";
-    else if (responsibleConflicts === attemptedSlots) reason = "Responsible conflict for all available slots";
-    else if (userConflicts === attemptedSlots) reason = "User conflict for all available slots";
     else if (resourceConflicts === attemptedSlots) reason = "Resource conflict for all available slots";
     else if (ruleConflicts === attemptedSlots) reason = "Rule violations for all available slots";
 

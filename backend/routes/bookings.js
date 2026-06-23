@@ -104,6 +104,122 @@ function buildAssignedUserIdsArraySql(resourceAlias) {
   )`;
 }
 
+function buildResponsibleUserIdsArraySql(resourceAlias) {
+  return `ARRAY(
+    SELECT responsible_user_id
+    FROM (
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsible_user_id', '') AS responsible_user_id
+      UNION ALL
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsibleUserId', '') AS responsible_user_id
+      UNION ALL
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsible_id', '') AS responsible_user_id
+      UNION ALL
+      SELECT COALESCE(${resourceAlias}.metadata->>'responsibleId', '') AS responsible_user_id
+    ) responsible_user_ids
+    WHERE responsible_user_id <> ''
+  )`;
+}
+
+function formatMatchedUserLabel(conflict, fallbackLabel = "User") {
+  const matchedUserId = String(
+    conflict?.matched_user_id || conflict?.user_id || ""
+  ).trim();
+  const matchedUserName = String(conflict?.matched_user_full_name || "").trim();
+
+  if (matchedUserName && matchedUserId) return `${matchedUserName} (${matchedUserId})`;
+  if (matchedUserName) return matchedUserName;
+  if (matchedUserId) return `${fallbackLabel} ${matchedUserId}`;
+  return fallbackLabel;
+}
+
+function buildBookedUserConflictMessage(conflict, fallbackLabel, date, startTime, endTime) {
+  const label = formatMatchedUserLabel(conflict, fallbackLabel);
+  const dateValue = String(conflict?.date || date || "").trim();
+  const startValue = String(conflict?.start_time || startTime || "").trim();
+  const endValue = String(conflict?.end_time || endTime || "").trim();
+  const bookingId = Number(conflict?.id);
+  const bookingSuffix = Number.isFinite(bookingId) ? ` (booking #${bookingId})` : "";
+  return `${label} is already booked on ${dateValue} ${startValue}-${endValue}${bookingSuffix}.`;
+}
+
+function formatResourceConflictSubject(resources = []) {
+  const names = Array.from(
+    new Set(
+      (Array.isArray(resources) ? resources : [])
+        .map((resource) => String(resource?.name || "").trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (names.length === 0) return "A selected resource";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names[0]}, ${names[1]}, and ${names.length - 2} more resources`;
+}
+
+function buildResourceConflictDetail(conflictingBookings, requestedResourceIds, bookingDate, startTime, endTime) {
+  const bookings = Array.isArray(conflictingBookings) ? conflictingBookings : [];
+  const conflict = bookings[0] || null;
+  const fallbackMessage = `A selected resource is already booked on ${bookingDate} ${startTime}-${endTime}.`;
+
+  if (!conflict) {
+    return {
+      message: fallbackMessage,
+      violation: {
+        name: "Resource conflict",
+        description: fallbackMessage,
+        resource_name: null,
+        resource_type: null,
+        resource_id: null,
+      },
+      occupied_by: null,
+      conflicting_booking_id: null,
+    };
+  }
+
+  const requestedIdSet = new Set(uniqueNumericIds(requestedResourceIds));
+  const conflictResources = Array.isArray(conflict.resources) ? conflict.resources : [];
+  const overlappingResources =
+    requestedIdSet.size > 0
+      ? conflictResources.filter((resource) => requestedIdSet.has(Number(resource?.id)))
+      : conflictResources;
+  const relevantResources = overlappingResources.length > 0 ? overlappingResources : conflictResources;
+  const primaryResource = relevantResources[0] || null;
+  const subject = formatResourceConflictSubject(relevantResources);
+  const dateValue = String(conflict?.date || bookingDate || "").trim();
+  const startValue = String(conflict?.start_time || startTime || "").trim();
+  const endValue = String(conflict?.end_time || endTime || "").trim();
+  const bookingId = Number(conflict?.id);
+  const hasUserContext = Boolean(
+    String(conflict?.user_id || "").trim() || String(conflict?.user_full_name || "").trim()
+  );
+  const occupiedBy = hasUserContext
+    ? formatMatchedUserLabel(
+        {
+          matched_user_id: conflict?.user_id,
+          matched_user_full_name: conflict?.user_full_name,
+        },
+        "User"
+      )
+    : null;
+  const bookingSuffix = Number.isFinite(bookingId) ? ` in booking #${bookingId}` : "";
+  const occupiedBySuffix = occupiedBy ? ` by ${occupiedBy}` : "";
+  const message = `${subject} is already booked on ${dateValue} ${startValue}-${endValue}${bookingSuffix}${occupiedBySuffix}.`;
+
+  return {
+    message,
+    violation: {
+      name: "Resource conflict",
+      description: message,
+      resource_name: primaryResource?.name || null,
+      resource_type: primaryResource?.type_name || null,
+      resource_id: Number.isFinite(Number(primaryResource?.id)) ? Number(primaryResource.id) : null,
+    },
+    occupied_by: occupiedBy,
+    conflicting_booking_id: Number.isFinite(bookingId) ? bookingId : null,
+  };
+}
+
 function extractUserIds(meta) {
   if (!meta || typeof meta !== "object") return [];
   const candidates = [meta.user_ids, meta.userIds];
@@ -569,13 +685,29 @@ async function hasResourceConflict(client, resourceIds, date, startTime, endTime
   return rows.length > 0;
 }
 
-async function loadConflictingBookings(client, resourceIds, date, startTime, endTime, orgId) {
+async function loadConflictingBookings(
+  client,
+  resourceIds,
+  date,
+  startTime,
+  endTime,
+  orgId,
+  excludedBookingId = null
+) {
   if (!resourceIds.length) return [];
   const params = [resourceIds, date, startTime, endTime];
   let orgWhere = "";
+  let userJoin = "LEFT JOIN users u ON CAST(u.national_id AS TEXT) = CAST(b.user_id AS TEXT)";
   if (orgId) {
     params.push(orgId);
     orgWhere = `AND r.organization_id = $${params.length}`;
+    params.push(orgId);
+    userJoin = `LEFT JOIN users u ON CAST(u.national_id AS TEXT) = CAST(b.user_id AS TEXT) AND u.organization_id = $${params.length}`;
+  }
+  let excludedWhere = "";
+  if (Number.isFinite(Number(excludedBookingId))) {
+    params.push(Number(excludedBookingId));
+    excludedWhere = `AND b.id <> $${params.length}`;
   }
   const { rows } = await client.query(
     `
@@ -585,6 +717,8 @@ async function loadConflictingBookings(client, resourceIds, date, startTime, end
       b.date,
       b.start_time,
       b.end_time,
+      u.full_name AS booking_user_full_name,
+      u.email AS booking_user_email,
       br.role,
       r.id AS resource_id,
       r.name AS resource_name,
@@ -594,11 +728,13 @@ async function loadConflictingBookings(client, resourceIds, date, startTime, end
     JOIN bookings b ON b.id = br.booking_id
     JOIN resources r ON r.id = br.resource_id
     JOIN resource_types rt ON rt.id = r.type_id
+    ${userJoin}
     LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
     WHERE br.resource_id = ANY($1)
     AND b.date = $2
     AND bc.booking_id IS NULL
     ${orgWhere}
+    ${excludedWhere}
     AND (
       ($3 >= b.start_time AND $3 < b.end_time) OR
       ($4 > b.start_time AND $4 <= b.end_time) OR
@@ -615,6 +751,8 @@ async function loadConflictingBookings(client, resourceIds, date, startTime, end
       grouped.set(row.id, {
         id: Number(row.id),
         user_id: row.user_id ? String(row.user_id) : null,
+        user_full_name: row.booking_user_full_name ? String(row.booking_user_full_name).trim() : null,
+        user_email: row.booking_user_email ? String(row.booking_user_email).trim() : null,
         date: row.date,
         start_time: row.start_time,
         end_time: row.end_time,
@@ -637,6 +775,8 @@ function summarizeBookingForConflict(booking) {
   return {
     id: Number(booking.id),
     user_id: booking.user_id ? String(booking.user_id) : null,
+    user_full_name: booking.user_full_name ? String(booking.user_full_name).trim() : null,
+    user_email: booking.user_email ? String(booking.user_email).trim() : null,
     date: booking.date,
     start_time: booking.start_time,
     end_time: booking.end_time,
@@ -937,38 +1077,78 @@ async function findAnyUserConflict(
 
   const { rows } = await client.query(
     `
-    SELECT DISTINCT b.id, b.user_id, b.date, b.start_time, b.end_time
-    FROM bookings b
-    LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
-    LEFT JOIN booking_resources br ON br.booking_id = b.id
-    LEFT JOIN resources r ON r.id = br.resource_id
-    WHERE b.date = $2
-    AND bc.booking_id IS NULL
-    ${excludeWhere}
-    ${orgWhere}
-    AND (
-      ($3 >= b.start_time AND $3 < b.end_time) OR
-      ($4 > b.start_time AND $4 <= b.end_time) OR
-      ($3 <= b.start_time AND $4 >= b.end_time)
-    )
-    AND (
-      b.user_id::text = ANY($1)
-      OR EXISTS (
-        SELECT 1
-        FROM booking_resources br_user
-        JOIN resources r_user ON r_user.id = br_user.resource_id
-        WHERE br_user.booking_id = b.id
-        ${assignedOrgWhere}
-        AND (
-          ${buildAssignedUserIdsArraySql("r_user")} && $1::text[]
-          OR COALESCE(r_user.metadata->>'responsible_user_id', '') = ANY($1)
-          OR COALESCE(r_user.metadata->>'responsibleUserId', '') = ANY($1)
-          OR COALESCE(r_user.metadata->>'responsible_id', '') = ANY($1)
-          OR COALESCE(r_user.metadata->>'responsibleId', '') = ANY($1)
+    WITH conflicting_bookings AS (
+      SELECT DISTINCT b.id, b.user_id::text AS user_id, b.date, b.start_time, b.end_time
+      FROM bookings b
+      LEFT JOIN booking_cancellations bc ON bc.booking_id = b.id
+      LEFT JOIN booking_resources br ON br.booking_id = b.id
+      LEFT JOIN resources r ON r.id = br.resource_id
+      WHERE b.date = $2
+      AND bc.booking_id IS NULL
+      ${excludeWhere}
+      ${orgWhere}
+      AND (
+        ($3 >= b.start_time AND $3 < b.end_time) OR
+        ($4 > b.start_time AND $4 <= b.end_time) OR
+        ($3 <= b.start_time AND $4 >= b.end_time)
+      )
+      AND (
+        b.user_id::text = ANY($1)
+        OR EXISTS (
+          SELECT 1
+          FROM booking_resources br_user
+          JOIN resources r_user ON r_user.id = br_user.resource_id
+          WHERE br_user.booking_id = b.id
+          ${assignedOrgWhere}
+          AND (
+            ${buildAssignedUserIdsArraySql("r_user")} && $1::text[]
+            OR ${buildResponsibleUserIdsArraySql("r_user")} && $1::text[]
+          )
         )
       )
     )
-    ORDER BY b.date, b.start_time, b.id
+    SELECT
+      cb.id,
+      cb.user_id,
+      cb.date,
+      cb.start_time,
+      cb.end_time,
+      COALESCE(match_info.matched_user_id, cb.user_id) AS matched_user_id,
+      u.full_name AS matched_user_full_name,
+      u.email AS matched_user_email
+    FROM conflicting_bookings cb
+    LEFT JOIN LATERAL (
+      SELECT matched_user_id
+      FROM (
+        SELECT cb.user_id AS matched_user_id
+        WHERE cb.user_id = ANY($1)
+
+        UNION ALL
+
+        SELECT matched.assigned_user_id AS matched_user_id
+        FROM booking_resources br_user
+        JOIN resources r_user ON r_user.id = br_user.resource_id
+        CROSS JOIN LATERAL (
+          SELECT assigned_user_id
+          FROM unnest(${buildAssignedUserIdsArraySql("r_user")}) AS assigned_users(assigned_user_id)
+          WHERE assigned_user_id = ANY($1)
+
+          UNION ALL
+
+          SELECT responsible_user_id AS assigned_user_id
+          FROM unnest(${buildResponsibleUserIdsArraySql("r_user")}) AS responsible_users(responsible_user_id)
+          WHERE responsible_user_id = ANY($1)
+        ) matched
+        WHERE br_user.booking_id = cb.id
+        ${assignedOrgWhere}
+      ) matched_candidates
+      WHERE matched_user_id <> ''
+      LIMIT 1
+    ) match_info ON TRUE
+    LEFT JOIN users u
+      ON u.national_id = COALESCE(match_info.matched_user_id, cb.user_id)
+      OR u.id::text = COALESCE(match_info.matched_user_id, cb.user_id)
+    ORDER BY cb.date, cb.start_time, cb.id
     LIMIT 1
     `,
     params
@@ -1950,8 +2130,31 @@ router.post("/:id/reschedule", async (req, res) => {
     );
 
     if (conflictCheck.rows.length > 0) {
+      const conflictingBookings = await loadConflictingBookings(
+        client,
+        resourceIds,
+        date,
+        startTime,
+        endTime,
+        orgId,
+        id
+      );
+      const resourceConflict = buildResourceConflictDetail(
+        conflictingBookings,
+        resourceIds,
+        date,
+        startTime,
+        endTime
+      );
       await client.query("ROLLBACK");
-      return res.status(409).json({ error: "Resources conflict" });
+      return res.status(409).json({
+        error: resourceConflict.message,
+        date,
+        violation_details: [resourceConflict.violation],
+        conflicts: conflictingBookings.map(summarizeBookingForConflict),
+        occupied_by: resourceConflict.occupied_by,
+        conflicting_booking_id: resourceConflict.conflicting_booking_id,
+      });
     }
 
     const primaryRows = getPrimaryResourceRows(bookingRows);
@@ -2241,10 +2444,18 @@ router.post("/", async (req, res) => {
           userParams
         );
         if (userConflict.rows.length > 0) {
+          const conflict = userConflict.rows[0];
           await client.query("ROLLBACK");
           return res.status(409).json({
-            error: "User is already booked at this time",
+            error: buildBookedUserConflictMessage(
+              conflict,
+              "User",
+              bookingDate,
+              start_time,
+              end_time
+            ),
             date: bookingDate,
+            occupied_by: conflict,
           });
         }
       }
@@ -2279,11 +2490,29 @@ router.post("/", async (req, res) => {
         );
 
         if (conflictCheck.rows.length > 0) {
+          const conflictingBookings = await loadConflictingBookings(
+            client,
+            responsibleResources,
+            bookingDate,
+            start_time,
+            end_time,
+            orgId
+          );
+          const resourceConflict = buildResourceConflictDetail(
+            conflictingBookings,
+            responsibleResources,
+            bookingDate,
+            start_time,
+            end_time
+          );
           await client.query("ROLLBACK");
           return res.status(409).json({
-            error: "Resources conflict",
+            error: resourceConflict.message,
             date: bookingDate,
-            conflicts: conflictCheck.rows
+            violation_details: [resourceConflict.violation],
+            conflicts: conflictingBookings.map(summarizeBookingForConflict),
+            occupied_by: resourceConflict.occupied_by,
+            conflicting_booking_id: resourceConflict.conflicting_booking_id,
           });
         }
       }
@@ -2329,19 +2558,22 @@ router.post("/", async (req, res) => {
         if (
           await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)
         ) {
+        const resourceConflict = buildResourceConflictDetail(
+          conflictResolution?.conflicting_bookings,
+          resolvedResourceIds,
+          bookingDate,
+          start_time,
+          end_time
+        );
         await client.query("ROLLBACK");
         return res.status(409).json({
-          error: "Selected resources conflict with an existing booking",
+          error: resourceConflict.message,
           date: bookingDate,
-          violation_details: [
-            {
-              name: "Resource conflict",
-              description: "At least one of the selected resources is already booked in the selected time slot.",
-              resource_name: null,
-            },
-          ],
+          violation_details: [resourceConflict.violation],
           suggestions: conflictResolution.move_new_suggestions,
           conflict_resolution: conflictResolution,
+          occupied_by: resourceConflict.occupied_by,
+          conflicting_booking_id: resourceConflict.conflicting_booking_id,
         });
         }
       }
@@ -2488,19 +2720,22 @@ router.post("/", async (req, res) => {
           }
 
           if (await hasResourceConflict(client, resolvedResourceIds, bookingDate, start_time, end_time, orgId)) {
+          const resourceConflict = buildResourceConflictDetail(
+            conflictResolution?.conflicting_bookings,
+            resolvedResourceIds,
+            bookingDate,
+            start_time,
+            end_time
+          );
           await client.query("ROLLBACK");
           return res.status(409).json({
-            error: "Selected resources conflict with an existing booking",
+            error: resourceConflict.message,
             date: bookingDate,
-            violation_details: [
-              {
-                name: "Resource conflict",
-                description: "One of the automatically selected resources is already booked in the selected time slot.",
-                resource_name: null,
-              },
-            ],
+            violation_details: [resourceConflict.violation],
             suggestions: conflictResolution.move_new_suggestions,
             conflict_resolution: conflictResolution,
+            occupied_by: resourceConflict.occupied_by,
+            conflicting_booking_id: resourceConflict.conflicting_booking_id,
             resource_evaluation: lastCandidateEvaluation,
           });
           }
@@ -2521,7 +2756,13 @@ router.post("/", async (req, res) => {
       if (assignedUserConflict) {
         await client.query("ROLLBACK");
         return res.status(409).json({
-          error: "One of the assigned users is already booked at this time",
+          error: buildBookedUserConflictMessage(
+            assignedUserConflict,
+            "Assigned user",
+            bookingDate,
+            start_time,
+            end_time
+          ),
           date: bookingDate,
           occupied_by: assignedUserConflict,
         });
@@ -2691,9 +2932,17 @@ router.put("/:id", async (req, res) => {
         userParams
       );
       if (userConflict.rows.length > 0) {
+        const conflict = userConflict.rows[0];
         await client.query("ROLLBACK");
         return res.status(409).json({
-          error: "User is already booked at this time",
+          error: buildBookedUserConflictMessage(
+            conflict,
+            "User",
+            date,
+            start_time,
+            end_time
+          ),
+          occupied_by: conflict,
         });
       }
     }
@@ -2733,10 +2982,30 @@ router.put("/:id", async (req, res) => {
       );
 
       if (conflictCheck.rows.length > 0) {
+        const conflictingBookings = await loadConflictingBookings(
+          client,
+          responsibleResources,
+          date,
+          start_time,
+          end_time,
+          orgId,
+          id
+        );
+        const resourceConflict = buildResourceConflictDetail(
+          conflictingBookings,
+          responsibleResources,
+          date,
+          start_time,
+          end_time
+        );
         await client.query("ROLLBACK");
         return res.status(409).json({
-          error: "Resources conflict",
-          conflicts: conflictCheck.rows
+          error: resourceConflict.message,
+          date,
+          violation_details: [resourceConflict.violation],
+          conflicts: conflictingBookings.map(summarizeBookingForConflict),
+          occupied_by: resourceConflict.occupied_by,
+          conflicting_booking_id: resourceConflict.conflicting_booking_id,
         });
       }
     }
@@ -2777,7 +3046,13 @@ router.put("/:id", async (req, res) => {
     if (assignedUserConflict) {
       await client.query("ROLLBACK");
       return res.status(409).json({
-        error: "One of the assigned users is already booked at this time",
+        error: buildBookedUserConflictMessage(
+          assignedUserConflict,
+          "Assigned user",
+          date,
+          start_time,
+          end_time
+        ),
         occupied_by: assignedUserConflict,
       });
     }
