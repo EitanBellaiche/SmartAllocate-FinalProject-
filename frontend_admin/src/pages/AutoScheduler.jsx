@@ -655,6 +655,15 @@ function formatCountdown(msLeft) {
   return days > 0 ? `${days}d ${hh}:${mm}:${ss}` : `${hh}:${mm}:${ss}`;
 }
 
+function getScheduledJobCountdown(runAt, nowTick) {
+  if (!(runAt instanceof Date) || Number.isNaN(runAt.getTime())) return null;
+  const msLeft = runAt.getTime() - nowTick;
+  return {
+    msLeft,
+    text: msLeft <= 0 ? "Starting..." : formatCountdown(msLeft),
+  };
+}
+
 export default function AutoScheduler({ embedded = false }) {
   const [resources, setResources] = useState([]);
   const [resourceTypes, setResourceTypes] = useState([]);
@@ -1861,6 +1870,8 @@ export default function AutoScheduler({ embedded = false }) {
               const isRenaming = renamingJobId === job.id;
               const canView = scheduled.length > 0 || skipped.length > 0;
               const actionBusy = jobActionState.id === job.id ? jobActionState.action : "";
+              const countdownInfo =
+                statusKey === "scheduled" ? getScheduledJobCountdown(runAt, nowTick) : null;
               return (
                 <div
                   key={job.id}
@@ -1994,6 +2005,16 @@ export default function AutoScheduler({ embedded = false }) {
                   <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                     Run at: {runAtLabel} | Allocations: {allocationCount}
                   </div>
+                  {countdownInfo && (
+                    <div className="auto-job-card__line mt-2 flex flex-wrap items-center gap-2 text-xs leading-6 text-slate-700">
+                      <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                        Countdown
+                      </span>
+                      <span className="font-semibold tabular-nums text-slate-900">
+                        Starts in: {countdownInfo.text}
+                      </span>
+                    </div>
+                  )}
                   <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                     Saturday: {job?.payload?.allow_saturday === false ? "blocked" : "allowed"} | Blocked dates: {Array.isArray(job?.payload?.blocked_dates) ? job.payload.blocked_dates.length : 0}
                   </div>
