@@ -27,6 +27,8 @@ export default function UserBookings() {
   const [userOptions, setUserOptions] = useState([]);
   const [userLoading, setUserLoading] = useState(false);
   const [userError, setUserError] = useState("");
+  const [userActionMessage, setUserActionMessage] = useState("");
+  const [userActionTone, setUserActionTone] = useState("info");
   const [userId, setUserId] = useState("");
   const [userBookings, setUserBookings] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
@@ -37,6 +39,17 @@ export default function UserBookings() {
   const [savingResources, setSavingResources] = useState(false);
   const [resourceMessage, setResourceMessage] = useState("");
   const [resourceSearch, setResourceSearch] = useState("");
+  const [editUserOpen, setEditUserOpen] = useState(false);
+  const [editUserSaving, setEditUserSaving] = useState(false);
+  const [editUserError, setEditUserError] = useState("");
+  const [editUserForm, setEditUserForm] = useState({
+    full_name: "",
+    email: "",
+    role: "",
+    national_id: "",
+    department: "",
+    password: "",
+  });
   const activeBookings = useMemo(
     () => userBookings.filter((booking) => !booking?.cancelled_at),
     [userBookings]
@@ -180,6 +193,67 @@ export default function UserBookings() {
     setUserId(String(user?.national_id || "").trim());
     setUserQuery(user?.full_name || user?.national_id || "");
     setResourceMessage("");
+    setUserActionMessage("");
+  }
+
+  function openEditUser() {
+    if (!selectedUser?.id) return;
+    setEditUserForm({
+      full_name: String(selectedUser.full_name || ""),
+      email: String(selectedUser.email || ""),
+      role: String(selectedUser.role || ""),
+      national_id: String(selectedUser.national_id || ""),
+      department: String(selectedUser.department || ""),
+      password: "",
+    });
+    setEditUserError("");
+    setEditUserOpen(true);
+  }
+
+  function closeEditUser() {
+    if (editUserSaving) return;
+    setEditUserOpen(false);
+    setEditUserError("");
+  }
+
+  async function saveEditedUser() {
+    if (!selectedUser?.id) return;
+    setEditUserSaving(true);
+    setEditUserError("");
+
+    try {
+      const payload = {
+        full_name: editUserForm.full_name,
+        email: editUserForm.email,
+        role: editUserForm.role,
+        national_id: editUserForm.national_id,
+        department: editUserForm.department,
+      };
+      if (String(editUserForm.password || "").trim()) {
+        payload.password = editUserForm.password;
+      }
+
+      const updatedUser = await apiPut(`/users/${selectedUser.id}`, payload);
+
+      setUserOptions((prev) => {
+        const next = Array.isArray(prev) ? [...prev] : [];
+        const idx = next.findIndex((item) => Number(item?.id) === Number(updatedUser?.id));
+        if (idx >= 0) next[idx] = updatedUser;
+        else next.unshift(updatedUser);
+        return next;
+      });
+
+      const nextNationalId = String(updatedUser?.national_id || "").trim();
+      setUserId(nextNationalId);
+      setUserQuery(updatedUser?.full_name || nextNationalId);
+      setUserActionTone("success");
+      setUserActionMessage(`User ${updatedUser?.full_name || nextNationalId || selectedUser.id} updated.`);
+      setEditUserOpen(false);
+    } catch (err) {
+      setEditUserError(err?.message || "Failed to update user.");
+    } finally {
+      setEditUserSaving(false);
+    }
   }
 
   function toggleResource(id) {
@@ -335,7 +409,30 @@ export default function UserBookings() {
                 {formatUserType(selectedUser.role)}
               </div>
             )}
+            {selectedUser && (
+              <button
+                type="button"
+                onClick={openEditUser}
+                className={`inline-flex items-center rounded-full px-4 py-1.5 text-sm font-semibold transition ${theme.buttonPrimary}`}
+              >
+                Edit user
+              </button>
+            )}
           </div>
+
+          {userActionMessage && (
+            <div
+              className={`mt-3 rounded-2xl px-4 py-3 text-sm font-medium ${
+                userActionTone === "error"
+                  ? "border border-red-200 bg-red-50 text-red-700"
+                  : userActionTone === "success"
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border border-blue-200 bg-blue-50 text-blue-700"
+              }`}
+            >
+              {userActionMessage}
+            </div>
+          )}
 
           {userLoading && <div className="mt-3 text-sm text-slate-500">Loading users...</div>}
           {userError && (
@@ -564,6 +661,159 @@ export default function UserBookings() {
             </button>
           </div>
         </section>
+      </div>
+      <UserEditorModal
+        open={editUserOpen}
+        form={editUserForm}
+        saving={editUserSaving}
+        error={editUserError}
+        organizationId={selectedUser?.organization_id || ""}
+        onClose={closeEditUser}
+        onChange={(field, value) =>
+          setEditUserForm((prev) => ({
+            ...prev,
+            [field]: value,
+          }))
+        }
+        onSave={saveEditedUser}
+      />
+    </div>
+  );
+}
+
+function UserEditorModal({
+  open,
+  form,
+  saving,
+  error,
+  organizationId,
+  onClose,
+  onChange,
+  onSave,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <div className="w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.24)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              User profile
+            </div>
+            <h3 className="mt-1 text-2xl font-bold text-slate-900">Edit user</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Update the selected user without leaving the bookings view.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="block">
+            <div className="mb-2 text-sm font-semibold text-slate-700">Full name</div>
+            <input
+              type="text"
+              value={form.full_name}
+              onChange={(e) => onChange("full_name", e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-semibold text-slate-700">Email</div>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(e) => onChange("email", e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-semibold text-slate-700">Role</div>
+            <input
+              type="text"
+              value={form.role}
+              onChange={(e) => onChange("role", e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+              placeholder="student / responsible / admin"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-semibold text-slate-700">National ID</div>
+            <input
+              type="text"
+              value={form.national_id}
+              onChange={(e) => onChange("national_id", e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-semibold text-slate-700">Department</div>
+            <input
+              type="text"
+              value={form.department}
+              onChange={(e) => onChange("department", e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+            />
+          </label>
+
+          <label className="block">
+            <div className="mb-2 text-sm font-semibold text-slate-700">Organization</div>
+            <input
+              type="text"
+              value={organizationId}
+              readOnly
+              className="w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-500 outline-none"
+            />
+          </label>
+        </div>
+
+        <label className="mt-4 block">
+          <div className="mb-2 text-sm font-semibold text-slate-700">Password</div>
+          <input
+            type="text"
+            value={form.password}
+            onChange={(e) => onChange("password", e.target.value)}
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-blue-300"
+            placeholder="Leave blank to keep the current password"
+          />
+        </label>
+
+        {error && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {saving ? "Saving..." : "Save user"}
+          </button>
+        </div>
       </div>
     </div>
   );

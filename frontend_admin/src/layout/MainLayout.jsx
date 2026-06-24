@@ -70,6 +70,13 @@ const NAV_ITEMS = [
     icon: UsersIcon,
   },
   {
+    to: "/user-groups",
+    key: "userGroups",
+    fallback: "User Groups",
+    description: "Shared cohorts",
+    icon: GroupGridIcon,
+  },
+  {
     to: "/requests",
     key: "requests",
     fallback: "Requests",
@@ -303,6 +310,17 @@ function UsersIcon() {
       <circle cx="9.5" cy="7" r="3" />
       <path d="M20 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 4.13a3 3 0 0 1 0 5.74" />
+    </svg>
+  );
+}
+
+function GroupGridIcon() {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M8 7a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" />
+      <path d="M17 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+      <path d="M6 13c-2.2 0-4 1.8-4 4v1h12v-1c0-2.2-1.8-4-4-4H6Z" />
+      <path d="M16 13c2 0 3.5 1.6 3.5 3.5V18H22v-1.5c0-2-1.6-3.5-3.5-3.5H16Z" />
     </svg>
   );
 }

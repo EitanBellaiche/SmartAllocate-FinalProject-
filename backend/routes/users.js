@@ -14,6 +14,17 @@ function getOrgId(req) {
   return trimmed || null;
 }
 
+function normalizeNationalIds(values) {
+  if (!Array.isArray(values)) return [];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => String(value || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 async function ensureUsersTable() {
   if (tableReady) return;
   await pool.query(`
@@ -66,6 +77,51 @@ router.get("/lookup", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
     res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/bulk-lookup", async (req, res) => {
+  const orgId = getOrgId(req);
+  const nationalIds = normalizeNationalIds(req.body?.national_ids);
+
+  if (nationalIds.length === 0) {
+    return res.status(400).json({ error: "national_ids array is required" });
+  }
+
+  try {
+    const params = [nationalIds];
+    let where = "WHERE national_id = ANY($1)";
+    if (orgId) {
+      params.push(orgId);
+      where += ` AND organization_id = $2`;
+    }
+
+    const result = await pool.query(
+      `
+      SELECT id, full_name, email, role, national_id, department, organization_id
+      FROM users
+      ${where}
+      ORDER BY id
+      `,
+      params
+    );
+
+    const matchedUsers = result.rows;
+    const foundIds = new Set(
+      matchedUsers
+        .map((user) => String(user?.national_id || "").trim())
+        .filter(Boolean)
+    );
+    const missingNationalIds = nationalIds.filter((nationalId) => !foundIds.has(nationalId));
+
+    res.json({
+      matched_users: matchedUsers,
+      missing_national_ids: missingNationalIds,
+      requested_count: nationalIds.length,
+      matched_count: matchedUsers.length,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -168,6 +224,88 @@ router.post("/", async (req, res) => {
         password || null,
       ]
     );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// UPDATE existing user
+router.put("/:id", async (req, res) => {
+  const userId = Number(req.params.id);
+  const orgId = getOrgId(req);
+
+  if (!Number.isFinite(userId)) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
+
+  try {
+    const existingParams = [userId];
+    let where = "WHERE id = $1";
+    if (orgId) {
+      existingParams.push(orgId);
+      where += ` AND organization_id = $2`;
+    }
+
+    const existingResult = await pool.query(
+      `
+      SELECT id, full_name, email, role, national_id, department, organization_id, password
+      FROM users
+      ${where}
+      LIMIT 1
+      `,
+      existingParams
+    );
+
+    if (existingResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const existing = existingResult.rows[0];
+    const nextOrganizationId =
+      req.body?.organization_id !== undefined
+        ? String(req.body.organization_id || "").trim() || null
+        : existing.organization_id || null;
+
+    if (orgId && nextOrganizationId && nextOrganizationId !== orgId) {
+      return res.status(400).json({ error: "Cannot move user to a different organization" });
+    }
+
+    const nextPassword =
+      req.body?.password !== undefined && String(req.body.password || "").trim() !== ""
+        ? String(req.body.password)
+        : existing.password;
+
+    const result = await pool.query(
+      `
+      UPDATE users
+      SET
+        full_name = $2,
+        email = $3,
+        role = $4,
+        national_id = $5,
+        department = $6,
+        organization_id = $7,
+        password = $8
+      WHERE id = $1
+      RETURNING id, full_name, email, role, national_id, department, organization_id
+      `,
+      [
+        userId,
+        req.body?.full_name !== undefined ? String(req.body.full_name || "").trim() || null : existing.full_name,
+        req.body?.email !== undefined ? String(req.body.email || "").trim() || null : existing.email,
+        req.body?.role !== undefined ? String(req.body.role || "").trim() || null : existing.role,
+        req.body?.national_id !== undefined
+          ? String(req.body.national_id || "").trim() || null
+          : existing.national_id,
+        req.body?.department !== undefined
+          ? String(req.body.department || "").trim() || null
+          : existing.department,
+        nextOrganizationId,
+        nextPassword,
+      ]
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -14,6 +14,7 @@ import Availability from "./Availability";
 import Rules from "./Rules";  
 import ResourceRequests from "./ResourceRequests";
 import UserBookings from "./UserBookings";
+import UserGroups from "./UserGroups";
 
 const DEFAULT_USER_URL = "http://localhost:4173";
 const RAW_USER_URL = import.meta.env.VITE_USER_URL;
@@ -130,6 +131,7 @@ export default function App() {
           <Route path="rules" element={<Rules />} />  { }
           <Route path="requests" element={<ResourceRequests />} />
           <Route path="user-bookings" element={<UserBookings />} />
+          <Route path="user-groups" element={<UserGroups />} />
         </Route>
       </Routes>
     </BrowserRouter>
