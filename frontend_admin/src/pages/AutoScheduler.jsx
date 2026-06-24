@@ -55,6 +55,76 @@ function extractSuggestionRules(suggestion) {
     : [];
 }
 
+function buildFailureTypeLabel(type) {
+  const map = {
+    no_slot_found: "No slot found",
+    responsible_conflict: "Responsible conflict",
+    user_conflict: "Assigned-user conflict",
+    resource_conflict: "Resource conflict",
+    rule_conflict: "Rule conflict",
+    missing_type_resource: "Missing resource",
+  };
+  return map[String(type || "").trim()] || "Scheduling failure";
+}
+
+function buildSkippedDiagnosisStats(diagnostics) {
+  const stats = diagnostics?.stats || {};
+  const items = [
+    {
+      key: "total_days_in_range",
+      label: "Days in range",
+      value: Number(stats.total_days_in_range || 0),
+    },
+    {
+      key: "days_with_availability",
+      label: "Days with availability",
+      value: Number(stats.days_with_availability || 0),
+    },
+    {
+      key: "days_without_availability",
+      label: "Days without availability",
+      value: Number(stats.days_without_availability || 0),
+    },
+    {
+      key: "blocked_dates_in_range",
+      label: "Blocked dates",
+      value: Number(stats.blocked_dates_in_range || 0),
+    },
+    {
+      key: "saturday_blocked_days",
+      label: "Saturday blocked days",
+      value: Number(stats.saturday_blocked_days || 0),
+    },
+    {
+      key: "candidate_slots_fit_duration",
+      label: "Slots fitting duration",
+      value: Number(stats.candidate_slots_fit_duration || 0),
+    },
+    {
+      key: "candidate_slots_after_preferences",
+      label: "Slots after preferences",
+      value: Number(stats.candidate_slots_after_preferences || 0),
+    },
+  ];
+  return items.filter((item) => item.value > 0 || ["total_days_in_range", "days_with_availability"].includes(item.key));
+}
+
+function formatTimeWindowSummary(window) {
+  const startTime = String(window?.start_time || "").slice(0, 5);
+  const endTime = String(window?.end_time || "").slice(0, 5);
+  if (!startTime || !endTime) return "";
+  return `${startTime}-${endTime}`;
+}
+
+function buildOccupiedByUserLabel(occupiedBy) {
+  const fullName = String(occupiedBy?.matched_user_full_name || occupiedBy?.user_full_name || "").trim();
+  const userId = String(occupiedBy?.matched_user_id || occupiedBy?.user_id || "").trim();
+  if (fullName && userId) return `${fullName} (${userId})`;
+  if (fullName) return fullName;
+  if (userId) return userId;
+  return "";
+}
+
 function normalizeNumericIds(values) {
   return Array.isArray(values)
     ? values.map((value) => Number(value)).filter((value) => Number.isFinite(value))
@@ -163,6 +233,53 @@ function buildDecisionStatsLine(stats) {
   return parts.join(" | ");
 }
 
+function buildDecisionSearchStats(stats) {
+  if (!stats) return [];
+  const values = [
+    {
+      key: "attempted_slots",
+      label: "Slots checked",
+      value: Number(stats.attempted_slots || 0),
+      tone: "slate",
+    },
+    {
+      key: "responsible_conflicts",
+      label: "Responsible conflicts",
+      value: Number(stats.responsible_conflicts || 0),
+      tone: "amber",
+    },
+    {
+      key: "user_conflicts",
+      label: "Assigned-user conflicts",
+      value: Number(stats.user_conflicts || 0),
+      tone: "amber",
+    },
+    {
+      key: "resource_conflicts",
+      label: "Resource conflicts",
+      value: Number(stats.resource_conflicts || 0),
+      tone: "amber",
+    },
+    {
+      key: "rule_conflicts",
+      label: "Rule blocks",
+      value: Number(stats.rule_conflicts || 0),
+      tone: "rose",
+    },
+  ];
+  return values.filter((item) => item.key === "attempted_slots" || item.value > 0);
+}
+
+function formatDecisionAlert(alert) {
+  if (!alert) return "";
+  const resourceName = String(alert.resource_name || "").trim();
+  const ruleName = String(alert.name || "").trim();
+  const description = String(alert.description || "").trim();
+  if (resourceName && ruleName) return `${resourceName}: ${ruleName}${description ? ` - ${description}` : ""}`;
+  if (ruleName) return `${ruleName}${description ? ` - ${description}` : ""}`;
+  return description;
+}
+
 function buildScheduledDecisionSignature(item) {
   const decision = item?.decision_summary || {};
   const selectedResourceIds = (Array.isArray(decision.selected_resources) ? decision.selected_resources : [])
@@ -220,6 +337,13 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
         const candidateGroups = Array.isArray(decision.candidate_groups)
           ? decision.candidate_groups
           : [];
+        const blockerDetails = Array.isArray(decision.blocker_details)
+          ? decision.blocker_details
+          : [];
+        const searchStats = buildDecisionSearchStats(decision.search_stats);
+        const alerts = Array.isArray(decision.alerts)
+          ? decision.alerts.map(formatDecisionAlert).filter(Boolean)
+          : [];
         const statsLine = buildDecisionStatsLine(decision.search_stats);
         const sampleDates = dates.slice(0, 3).map((date) => formatIsraelDate(date)).join(", ");
         return (
@@ -268,6 +392,75 @@ function ScheduledDecisionCards({ scheduled, groupById, resourceTypes, resourceB
             {Array.isArray(decision.blockers) && decision.blockers.length > 0 && (
               <div className="mt-2 text-xs text-amber-700">
                 Before success: {decision.blockers.join(" | ")}
+              </div>
+            )}
+
+            {searchStats.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {searchStats.map((stat) => (
+                  <span
+                    key={`decision-stat-${key}-${stat.key}`}
+                    className={`rounded-full px-3 py-1 text-[11px] font-semibold ${
+                      stat.tone === "rose"
+                        ? "border border-rose-200 bg-rose-50 text-rose-700"
+                        : stat.tone === "amber"
+                          ? "border border-amber-200 bg-amber-50 text-amber-800"
+                          : "border border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    {stat.label}: {stat.value}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {blockerDetails.length > 0 && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {blockerDetails.map((detail) => (
+                  <div
+                    key={`blocker-detail-${key}-${detail.key}`}
+                    className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
+                        {detail.label}
+                      </div>
+                      <div className="rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-900">
+                        {Number(detail.count || 0)}
+                      </div>
+                    </div>
+                    {Array.isArray(detail.examples) && detail.examples.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {detail.examples.map((example, exampleIdx) => (
+                          <div
+                            key={`blocker-detail-example-${key}-${detail.key}-${exampleIdx}`}
+                            className="rounded-xl border border-amber-100 bg-white px-3 py-2 text-xs text-slate-700"
+                          >
+                            {example}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {alerts.length > 0 && (
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                  Decision alerts
+                </div>
+                <div className="mt-3 space-y-2">
+                  {alerts.slice(0, 4).map((alert, alertIdx) => (
+                    <div
+                      key={`decision-alert-${key}-${alertIdx}`}
+                      className="rounded-xl border border-sky-100 bg-white px-3 py-2 text-xs text-slate-700"
+                    >
+                      {alert}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -504,6 +697,20 @@ function SkippedResultCards({
         const suggestions = extractGroupSuggestions(item);
         const failedSlot = item?.failed_slot;
         const occupiedBy = item?.occupied_by;
+        const diagnostics = item?.diagnostics || null;
+        const diagnosticStats = buildSkippedDiagnosisStats(diagnostics);
+        const preferredWindows = Array.isArray(diagnostics?.preferred_windows)
+          ? diagnostics.preferred_windows.map(formatTimeWindowSummary).filter(Boolean)
+          : [];
+        const blockedDates = Array.isArray(diagnostics?.samples?.blocked_dates)
+          ? diagnostics.samples.blocked_dates
+          : [];
+        const noAvailabilityDates = Array.isArray(diagnostics?.samples?.no_availability_dates)
+          ? diagnostics.samples.no_availability_dates
+          : [];
+        const diagnosisNotes = Array.isArray(diagnostics?.notes)
+          ? diagnostics.notes.filter(Boolean)
+          : [];
         return (
           <div
             key={`${item.group_id || idx}`}
@@ -512,10 +719,75 @@ function SkippedResultCards({
             <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               {title}
             </div>
+            {item?.failure_type && (
+              <div className="mb-2">
+                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-red-800">
+                  {buildFailureTypeLabel(item.failure_type)}
+                </span>
+              </div>
+            )}
             <div className="text-sm font-semibold text-red-800">{item.reason}</div>
             {failedSlot?.date && failedSlot?.start_time && failedSlot?.end_time && (
               <div className="mt-1 text-xs text-red-700">
                 Failed slot: {failedSlot.date} {failedSlot.start_time} - {failedSlot.end_time}
+              </div>
+            )}
+            {diagnosisNotes.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {diagnosisNotes.slice(0, 3).map((note, noteIdx) => (
+                  <div
+                    key={`${item.group_id || idx}-note-${noteIdx}`}
+                    className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-800"
+                  >
+                    {note}
+                  </div>
+                ))}
+              </div>
+            )}
+            {diagnosticStats.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {diagnosticStats.map((stat) => (
+                  <span
+                    key={`${item.group_id || idx}-diag-stat-${stat.key}`}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700"
+                  >
+                    {stat.label}: {stat.value}
+                  </span>
+                ))}
+              </div>
+            )}
+            {(preferredWindows.length > 0 || blockedDates.length > 0 || noAvailabilityDates.length > 0) && (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {preferredWindows.length > 0 && (
+                  <div className="rounded-2xl border border-sky-200 bg-sky-50/70 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+                      Preferred windows
+                    </div>
+                    <div className="mt-2 text-xs text-slate-700">
+                      {preferredWindows.join(", ")}
+                    </div>
+                  </div>
+                )}
+                {blockedDates.length > 0 && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-800">
+                      Blocked dates in range
+                    </div>
+                    <div className="mt-2 text-xs text-slate-700">
+                      {blockedDates.map((date) => formatIsraelDate(date)).join(", ")}
+                    </div>
+                  </div>
+                )}
+                {noAvailabilityDates.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 md:col-span-2">
+                    <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+                      Dates without availability
+                    </div>
+                    <div className="mt-2 text-xs text-slate-700">
+                      {noAvailabilityDates.map((date) => formatIsraelDate(date)).join(", ")}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {occupiedBy?.resource_name && (
@@ -529,6 +801,18 @@ function SkippedResultCards({
                   Booking #{occupiedBy.id ?? occupiedBy.booking_id} | {occupiedBy.date} {occupiedBy.start_time}-
                   {occupiedBy.end_time}
                   {occupiedBy.user_id ? ` | User ${occupiedBy.user_id}` : ""}
+                </div>
+              </div>
+            )}
+            {!occupiedBy?.resource_name && buildOccupiedByUserLabel(occupiedBy) && (
+              <div className="mt-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-800">
+                <div className="font-semibold">Blocking booking</div>
+                <div className="mt-1">User: {buildOccupiedByUserLabel(occupiedBy)}</div>
+                <div>
+                  Booking #{occupiedBy.id ?? occupiedBy.booking_id}
+                  {occupiedBy.date && occupiedBy.start_time && occupiedBy.end_time
+                    ? ` | ${occupiedBy.date} ${occupiedBy.start_time}-${occupiedBy.end_time}`
+                    : ""}
                 </div>
               </div>
             )}

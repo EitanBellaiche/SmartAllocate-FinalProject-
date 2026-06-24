@@ -122,6 +122,13 @@ function normalizeBlockedDateSet(values) {
   );
 }
 
+function pushSampleValue(list, value, max = 4) {
+  if (!Array.isArray(list) || !value) return;
+  if (list.includes(value)) return;
+  if (list.length >= max) return;
+  list.push(value);
+}
+
 function buildCandidateSlots(availability, durationMinutes) {
   const candidates = [];
   availability.forEach((slot) => {
@@ -474,6 +481,23 @@ export async function diagnoseGroupFailure({
   }
 
   const blockedDateSet = normalizeBlockedDateSet(blockedDates);
+  const diagnostics = {
+    preferred_windows: preferredTimeWindows,
+    stats: {
+      total_days_in_range: 0,
+      saturday_blocked_days: 0,
+      blocked_dates_in_range: 0,
+      days_with_availability: 0,
+      days_without_availability: 0,
+      candidate_slots_fit_duration: 0,
+      candidate_slots_after_preferences: 0,
+    },
+    samples: {
+      blocked_dates: [],
+      no_availability_dates: [],
+    },
+    notes: [],
+  };
 
   for (const weekStart of getWeekStartsInRange(startDate, endDate)) {
     const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
@@ -483,16 +507,32 @@ export async function diagnoseGroupFailure({
     for (let day = new Date(weekStartBound); day <= weekEndBound; day.setDate(day.getDate() + 1)) {
       const dayKey = formatDate(day);
       const dayOfWeek = day.getDay();
-      if (isSaturdayBlocked(dayOfWeek, allowSaturday)) continue;
-      if (blockedDateSet.has(dayKey)) continue;
+      diagnostics.stats.total_days_in_range += 1;
+      if (isSaturdayBlocked(dayOfWeek, allowSaturday)) {
+        diagnostics.stats.saturday_blocked_days += 1;
+        continue;
+      }
+      if (blockedDateSet.has(dayKey)) {
+        diagnostics.stats.blocked_dates_in_range += 1;
+        pushSampleValue(diagnostics.samples.blocked_dates, dayKey);
+        continue;
+      }
       const windows = getDayAvailabilityWindows(availability, availabilityOverrides, dayKey, dayOfWeek);
+      if (windows.length === 0) {
+        diagnostics.stats.days_without_availability += 1;
+        pushSampleValue(diagnostics.samples.no_availability_dates, dayKey);
+        continue;
+      }
+      diagnostics.stats.days_with_availability += 1;
       for (const window of windows) {
         const slotStartMin = timeToMinutes(window.start_time);
         const slotEndMin = timeToMinutes(window.end_time);
         for (let candidate = slotStartMin; candidate + durationMinutes <= slotEndMin; candidate += 30) {
           const startTime = addMinutes("00:00", candidate);
           const endTime = addMinutes("00:00", candidate + durationMinutes);
+          diagnostics.stats.candidate_slots_fit_duration += 1;
           if (hasPreferredTimeWindow && !isWithinAnyPreferredWindow(preferredTimeWindows, startTime, endTime)) continue;
+          diagnostics.stats.candidate_slots_after_preferences += 1;
 
           if (responsibleId) {
             const responsibleConflict = await findUserConflict(client, responsibleId, dayKey, startTime, endTime, orgId);
@@ -517,6 +557,12 @@ export async function diagnoseGroupFailure({
                 failure_type: "responsible_conflict",
                 failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
                 occupied_by: responsibleConflict,
+                diagnostics: {
+                  ...diagnostics,
+                  notes: [
+                    `First failing slot during diagnosis: ${dayKey} ${startTime}-${endTime}.`,
+                  ],
+                },
                 suggestions,
               };
             }
@@ -547,6 +593,12 @@ export async function diagnoseGroupFailure({
               failure_type: "user_conflict",
               failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
               occupied_by: userConflict,
+              diagnostics: {
+                ...diagnostics,
+                notes: [
+                  `First failing slot during diagnosis: ${dayKey} ${startTime}-${endTime}.`,
+                ],
+              },
               suggestions,
             };
           }
@@ -574,6 +626,12 @@ export async function diagnoseGroupFailure({
                 failure_type: "resource_conflict",
                 failed_slot: { date: dayKey, start_time: startTime, end_time: endTime },
                 occupied_by: { id: resourceConflict.id, booking_id: resourceConflict.id, user_id: resourceConflict.user_id, resource_id: resourceConflict.resource_id, resource_name: resourceConflict.resource_name, resource_type_name: resourceConflict.resource_type_name, date: resourceConflict.date, start_time: resourceConflict.start_time, end_time: resourceConflict.end_time },
+                diagnostics: {
+                  ...diagnostics,
+                  notes: [
+                    `First failing slot during diagnosis: ${dayKey} ${startTime}-${endTime}.`,
+                  ],
+                },
                 suggestions,
               };
             }
@@ -589,6 +647,18 @@ export async function diagnoseGroupFailure({
       ? "No matching slot was found inside the preferred time window in the selected range."
       : "No matching slot was found in the selected range.",
     failure_type: "no_slot_found",
+    diagnostics: {
+      ...diagnostics,
+      notes: [
+        diagnostics.stats.days_with_availability === 0
+          ? "The responsible user has no availability windows in the selected range."
+          : diagnostics.stats.candidate_slots_fit_duration === 0
+            ? `No availability window is long enough for ${Math.round(durationMinutes / 60)} hour(s).`
+            : hasPreferredTimeWindow && diagnostics.stats.candidate_slots_after_preferences === 0
+              ? "Availability exists, but none of the matching slots falls inside the preferred time window."
+              : "Slots exist in the range, but none stayed available after the scheduling constraints were applied.",
+      ],
+    },
     suggestions: [],
   };
 }
@@ -1114,6 +1184,15 @@ export async function scheduleGroup({
       });
       suggestions = Array.isArray(diagnosis?.suggestions) ? diagnosis.suggestions : [];
       if (diagnosis?.reason) reason = diagnosis.reason;
+      if (diagnosis?.failure_type) failureContext = {
+        ...(failureContext || {}),
+        type: diagnosis.failure_type,
+        bookingDate: diagnosis?.failed_slot?.date || failureContext?.bookingDate,
+        startTime: diagnosis?.failed_slot?.start_time || failureContext?.startTime,
+        endTime: diagnosis?.failed_slot?.end_time || failureContext?.endTime,
+        occupiedBy: diagnosis?.occupied_by || failureContext?.occupiedBy || null,
+        diagnostics: diagnosis?.diagnostics || failureContext?.diagnostics || null,
+      };
     }
 
     if (autoSuggestionDepth < 2 && Array.isArray(suggestions) && suggestions.length > 0) {
@@ -1150,6 +1229,7 @@ export async function scheduleGroup({
           ? { date: failureContext.bookingDate, start_time: failureContext.startTime, end_time: failureContext.endTime }
           : null,
         occupied_by: failureContext?.occupiedBy || null,
+        diagnostics: failureContext?.diagnostics || null,
         suggestions,
       },
     };
