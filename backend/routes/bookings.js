@@ -568,12 +568,12 @@ async function buildCandidateEvaluationDetails({
     }
 
     evaluatedCandidates.sort((left, right) => {
-      if (right.final_score !== left.final_score) return right.final_score - left.final_score;
       if (left.is_selected !== right.is_selected) return left.is_selected ? -1 : 1;
       if (left.state !== right.state) {
         const order = { selected: 0, valid: 1, blocked: 2 };
         return (order[left.state] ?? 99) - (order[right.state] ?? 99);
       }
+      if (right.final_score !== left.final_score) return right.final_score - left.final_score;
       return String(left.name || "").localeCompare(String(right.name || ""));
     });
 

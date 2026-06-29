@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import ResourceEvaluationPanel from "../components/ResourceEvaluationPanel";
@@ -24,6 +24,10 @@ function buildBookingResourceSignature(booking) {
     .filter((id) => Number.isFinite(id))
     .sort((a, b) => a - b)
     .join(",");
+}
+
+function idsMatch(left, right) {
+  return String(left ?? "").trim() !== "" && String(left) === String(right);
 }
 
 export default function Booking() {
@@ -80,6 +84,7 @@ export default function Booking() {
   const [conflictResolution, setConflictResolution] = useState(null);
   const [conflictStrategy, setConflictStrategy] = useState("");
   const [mode, setMode] = useState("booking");
+  const resourceSelectionRef = useRef(null);
 
   const weekdayOptions = [
     { label: "Sun", value: 0 },
@@ -128,7 +133,7 @@ export default function Booking() {
         String(resource.type_name || "").toLowerCase().includes(query);
       const matchesType =
         !resourceFilterTypeId || String(resource.type_id) === String(resourceFilterTypeId);
-      const matchesSelected = !showSelectedOnly || selectedResources.includes(resource.id);
+      const matchesSelected = !showSelectedOnly || selectedResources.some((selectedId) => idsMatch(selectedId, resource.id));
       return matchesQuery && matchesType && matchesSelected;
     });
   }, [resources, resourceQuery, resourceFilterTypeId, showSelectedOnly, selectedResources]);
@@ -297,16 +302,16 @@ export default function Booking() {
   }
 
   function toggleResource(id) {
-    if (selectedResources.includes(id)) {
-      setSelectedResources(selectedResources.filter((resourceId) => resourceId !== id));
+    if (selectedResources.some((resourceId) => idsMatch(resourceId, id))) {
+      setSelectedResources(selectedResources.filter((resourceId) => !idsMatch(resourceId, id)));
     } else {
       setSelectedResources([...selectedResources, id]);
     }
   }
 
   function toggleResourceType(id) {
-    if (selectedTypeIds.includes(id)) {
-      setSelectedTypeIds(selectedTypeIds.filter((typeId) => typeId !== id));
+    if (selectedTypeIds.some((typeId) => idsMatch(typeId, id))) {
+      setSelectedTypeIds(selectedTypeIds.filter((typeId) => !idsMatch(typeId, id)));
     } else {
       setSelectedTypeIds([...selectedTypeIds, id]);
     }
@@ -336,6 +341,39 @@ export default function Booking() {
         ...prev,
         [normalizedTypeId]: safeOffset,
       };
+    });
+  }
+
+  function applyPreviewCandidate(candidate, group) {
+    const resourceMatch = resources.find((resource) => Number(resource.id) === Number(candidate?.resource_id));
+    const candidateId = resourceMatch?.id ?? candidate?.resource_id;
+    const typeId = Number(candidate?.type_id ?? group?.type_id);
+    if ((candidateId === null || candidateId === undefined || candidateId === "") || !Number.isFinite(typeId)) return;
+    if (String(candidate?.state || "").toLowerCase() === "blocked") return;
+
+    setSelectedTypeIds((prev) => prev.filter((id) => Number(id) !== typeId));
+    setSelectedResources((prev) => {
+      const next = prev.filter((resourceId) => {
+        const resource = resources.find((item) => Number(item.id) === Number(resourceId));
+        return Number(resource?.type_id) !== typeId;
+      });
+      if (!next.some((resourceId) => idsMatch(resourceId, candidateId))) next.push(candidateId);
+      return next;
+    });
+    setSuggestions([]);
+    setViolationDetails([]);
+    setAlertDetails([]);
+    setConflictResolution(null);
+    setConflictStrategy("");
+    setResourceFilterTypeId(resourceMatch?.type_id ? String(resourceMatch.type_id) : String(typeId));
+    setResourceQuery(String(candidate?.name || ""));
+    setShowSelectedOnly(true);
+    setMessage(`Loaded ${candidate?.name || "resource"} into the booking selection.`);
+    requestAnimationFrame(() => {
+      resourceSelectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     });
   }
 
@@ -418,7 +456,9 @@ export default function Booking() {
   }
 
   async function updateResourceAssignments(responsibleId, userIds) {
-    const targetResources = resources.filter((resource) => selectedResources.includes(resource.id));
+    const targetResources = resources.filter((resource) =>
+      selectedResources.some((selectedId) => idsMatch(selectedId, resource.id))
+    );
     if (targetResources.length === 0) return;
 
     await Promise.all(
@@ -827,6 +867,7 @@ export default function Booking() {
               preview
               loading={resourceEvaluationLoading}
               onPreviewPageChange={changePreviewCandidatePage}
+              onCandidateSelect={applyPreviewCandidate}
             />
 
             {(violationDetails.length > 0 || alertDetails.length > 0) && (
@@ -1214,7 +1255,10 @@ export default function Booking() {
 
             <div className="booking-workspace-grid grid gap-6 xl:grid-cols-[minmax(0,1.18fr)_390px]">
               <div className="space-y-6">
-                <section className={`booking-form-section rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}>
+                <section
+                  ref={resourceSelectionRef}
+                  className={`booking-form-section rounded-[26px] border p-6 shadow-sm sm:p-7 ${theme.card}`}
+                >
                   <div className="flex flex-col gap-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
@@ -1528,7 +1572,7 @@ export default function Booking() {
                             >
                               <input
                                 type="checkbox"
-                                checked={selectedTypeIds.includes(type.id)}
+                                checked={selectedTypeIds.some((typeId) => idsMatch(typeId, type.id))}
                                 onChange={() => toggleResourceType(type.id)}
                                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                               />
@@ -1585,7 +1629,7 @@ export default function Booking() {
                             >
                               <input
                                 type="checkbox"
-                                checked={selectedResources.includes(resource.id)}
+                                checked={selectedResources.some((resourceId) => idsMatch(resourceId, resource.id))}
                                 onChange={() => toggleResource(resource.id)}
                                 className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                               />

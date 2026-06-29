@@ -51,6 +51,7 @@ export default function ResourceEvaluationPanel({
   preview = false,
   loading = false,
   onPreviewPageChange = null,
+  onCandidateSelect = null,
 }) {
   if (!evaluation?.candidate_groups?.length) return null;
 
@@ -169,10 +170,28 @@ export default function ResourceEvaluationPanel({
             <div className={`mt-4 grid gap-4 ${preview ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
               {group.candidates.map((candidate) => {
                 const tone = getCandidateTone(candidate.state);
+                const canSelectCandidate = preview && candidate.state !== "blocked" && typeof onCandidateSelect === "function";
                 return (
                   <article
                     key={`candidate-${candidate.resource_id}`}
-                    className={`rounded-[22px] border p-4 ${tone.card}`}
+                    role={canSelectCandidate ? "button" : undefined}
+                    tabIndex={canSelectCandidate ? 0 : undefined}
+                    onClick={canSelectCandidate ? () => onCandidateSelect(candidate, group) : undefined}
+                    onKeyDown={
+                      canSelectCandidate
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              onCandidateSelect(candidate, group);
+                            }
+                          }
+                        : undefined
+                    }
+                    className={`rounded-[22px] border p-4 ${
+                      canSelectCandidate
+                        ? `${tone.card} cursor-pointer transition hover:-translate-y-0.5 hover:shadow-[0_18px_38px_rgba(15,23,42,0.12)] focus:outline-none focus:ring-2 focus:ring-sky-300`
+                        : tone.card
+                    }`}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
@@ -185,6 +204,11 @@ export default function ResourceEvaluationPanel({
                           </span>
                         </div>
                         <div className="mt-1 text-sm text-slate-500">{candidate.type_name}</div>
+                        {canSelectCandidate && (
+                          <div className="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-sky-700">
+                            Click to use in booking
+                          </div>
+                        )}
                       </div>
                       <div className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-right">
                         <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -196,10 +220,10 @@ export default function ResourceEvaluationPanel({
                       </div>
                     </div>
 
-                    {candidate.blocking_reasons?.length > 0 && !preview && (
+                    {candidate.blocking_reasons?.length > 0 && (
                       <div className="mt-4 rounded-2xl border border-rose-200 bg-white/80 p-3">
                         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">
-                          Blocking reasons
+                          {preview ? "Why blocked" : "Blocking reasons"}
                         </div>
                         <div className="mt-2 space-y-2">
                           {candidate.blocking_reasons.map((reason, index) => (
