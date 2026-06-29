@@ -32,6 +32,8 @@ export default function ScheduleSection({
     isShenkar && role === "manager" && !isCinema && !isClinic
       ? "mobile-calendar--admin"
       : "";
+  const upcomingColor = isShenkar ? "#8ea2aa" : "#2563eb";
+  const pastColor = isShenkar ? "#a59a84" : "#94a3b8";
   const selectedDayLabel = useMemo(() => {
     if (!selectedDay?.date) return "";
     try {
@@ -163,7 +165,7 @@ export default function ScheduleSection({
             <>
               <Section
                 title="Upcoming"
-                color="#2563eb"
+                color={upcomingColor}
                 items={upcoming}
                 role={role}
                 onCancel={openCancelDialog}
@@ -172,7 +174,7 @@ export default function ScheduleSection({
               />
               <Section
                 title="Past"
-                color="#94a3b8"
+                color={pastColor}
                 items={past}
                 role={role}
                 onCancel={openCancelDialog}

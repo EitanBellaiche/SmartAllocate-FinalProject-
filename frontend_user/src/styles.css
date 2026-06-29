@@ -2053,6 +2053,134 @@ select {
   color: #047857;
 }
 
+.user-app-shell--shenkar {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(143, 170, 179, 0.2), transparent 28%),
+    radial-gradient(circle at 86% 10%, rgba(130, 115, 89, 0.15), transparent 30%),
+    linear-gradient(180deg, #f9f7f1 0%, #f2eee4 52%, #edf0ec 100%);
+}
+
+.user-app-shell--shenkar .user-sidebar {
+  background:
+    radial-gradient(circle at 12% 4%, rgba(143, 170, 179, 0.22), transparent 32%),
+    linear-gradient(180deg, #5b5143 0%, #6a604f 44%, #7a6b56 100%);
+  border-right-color: rgba(201, 192, 171, 0.3);
+  box-shadow: 14px 0 36px rgba(73, 66, 55, 0.2);
+}
+
+.user-app-shell--shenkar .user-sidebar__eyebrow,
+.user-app-shell--shenkar .user-sidebar__identity-label,
+.user-app-shell--shenkar .user-sidebar__section-label {
+  color: #d8d1bf;
+}
+
+.user-app-shell--shenkar .user-sidebar__subtitle,
+.user-app-shell--shenkar .user-sidebar__identity span:last-child,
+.user-app-shell--shenkar .user-nav-item__meta,
+.user-app-shell--shenkar .user-sidebar__footer {
+  color: rgba(248, 245, 238, 0.72);
+}
+
+.user-app-shell--shenkar .user-sidebar__status {
+  background: rgba(201, 192, 171, 0.18);
+  border-color: rgba(216, 209, 191, 0.36);
+  color: #fbf9f4;
+}
+
+.user-app-shell--shenkar .user-sidebar__status-dot {
+  background: #90aab3;
+  box-shadow: 0 0 0 6px rgba(144, 170, 179, 0.16);
+}
+
+.user-app-shell--shenkar .user-sidebar__identity {
+  background: linear-gradient(145deg, rgba(201, 192, 171, 0.22), rgba(186, 194, 192, 0.12));
+  border-color: rgba(216, 209, 191, 0.22);
+}
+
+.user-app-shell--shenkar .user-nav-item:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(216, 209, 191, 0.28);
+}
+
+.user-app-shell--shenkar .user-nav-item--active {
+  background: linear-gradient(135deg, rgba(201, 192, 171, 0.26) 0%, rgba(144, 170, 179, 0.18) 100%);
+  border-color: rgba(216, 209, 191, 0.36);
+  box-shadow: 0 14px 24px rgba(91, 81, 67, 0.2);
+}
+
+.user-app-shell--shenkar .user-nav-item__count {
+  background: #b39e82;
+  color: #fff;
+}
+
+.user-app-shell--shenkar .user-sidebar__signout {
+  border-color: rgba(251, 249, 244, 0.32);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fbf9f4;
+}
+
+.user-app-shell--shenkar .mobile-topbar {
+  background: rgba(250, 247, 239, 0.9);
+  border-color: rgba(201, 192, 171, 0.4);
+}
+
+.user-app-shell--shenkar .badge-info {
+  background: rgba(144, 170, 179, 0.16);
+  border-color: rgba(144, 170, 179, 0.34);
+  color: #4f6770;
+}
+
+.user-app-shell--shenkar .glass,
+.user-app-shell--shenkar .panel,
+.user-app-shell--shenkar .section-card,
+.user-app-shell--shenkar .resource-card,
+.user-app-shell--shenkar .booking-card,
+.user-app-shell--shenkar .notification-card {
+  border-color: rgba(201, 192, 171, 0.5);
+  background:
+    radial-gradient(circle at 92% 0%, rgba(144, 170, 179, 0.11), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 246, 238, 0.93));
+}
+
+.user-app-shell--shenkar .btn-primary,
+.user-app-shell--shenkar .btn.btn-primary {
+  border: 0;
+  background: linear-gradient(135deg, #8faab3 0%, #b4c0c0 62%, #c9c0ab 100%);
+  color: #253038;
+  box-shadow: 0 12px 24px rgba(130, 115, 89, 0.22);
+}
+
+.user-app-shell--shenkar .btn-secondary,
+.user-app-shell--shenkar .btn.btn-secondary {
+  border-color: rgba(165, 154, 132, 0.35);
+  background: #f8f5ed;
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .btn-danger,
+.user-app-shell--shenkar .btn.btn-danger {
+  border: 0;
+  background: linear-gradient(135deg, #baa58a 0%, #c8b69f 100%);
+  color: #352c22;
+  box-shadow: 0 10px 20px rgba(130, 115, 89, 0.18);
+}
+
+.user-app-shell--shenkar .mobile-calendar__top {
+  background: linear-gradient(135deg, #8faab3, #b4c0c0);
+}
+
+.user-app-shell--shenkar .mobile-dot {
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .user-page-pill,
+.user-app-shell--shenkar .badge {
+  background: rgba(201, 192, 171, 0.38);
+  border-color: rgba(165, 154, 132, 0.38);
+  color: #5f5649;
+}
+
 @media (max-width: 1180px) {
   .login-card {
     grid-template-columns: 1fr;

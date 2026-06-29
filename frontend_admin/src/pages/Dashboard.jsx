@@ -303,7 +303,13 @@ export default function Dashboard() {
       <section className="dashboard-search dashboard-search--primary">
         <div className="dashboard-search__header">
           <div>
-            <p className="dashboard-search__label">Resource Discovery</p>
+            <p
+              className={`dashboard-search__label ${
+                config.domain === "shenkar" ? "dashboard-search__label--classic" : ""
+              }`}
+            >
+              Resource Discovery
+            </p>
             <h2 className="dashboard-search__title">{config.dashboard.searchTitle}</h2>
             <p className="dashboard-search__subtitle">
               Search the full inventory without crowding the dashboard. The results are optimized for quick operational decisions.
@@ -433,12 +439,14 @@ export default function Dashboard() {
             value={stats.totalResources}
             tone="blue"
             theme={theme}
+            domain={config.domain}
           />
           <StatCard
             title={config.navigation.resourceTypes}
             value={stats.totalResourceTypes}
             tone="sky"
             theme={theme}
+            domain={config.domain}
           />
           <StatCard
             title={
@@ -449,18 +457,21 @@ export default function Dashboard() {
             value={stats.bookingsToday}
             tone="emerald"
             theme={theme}
+            domain={config.domain}
           />
           <StatCard
             title="Pending Approvals"
             value={stats.pending}
             tone="amber"
             theme={theme}
+            domain={config.domain}
           />
           <StatCard
             title={`Active ${config.labels.bookings || "Bookings"}`}
             value={stats.totalBookings}
             tone="violet"
             theme={theme}
+            domain={config.domain}
           />
       </section>
 
@@ -711,21 +722,28 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, tone = "blue", theme }) {
+function StatCard({ title, value, tone = "blue", theme, domain }) {
+  const isClassic = domain === "shenkar";
   const tones = theme.metricCards || {};
-  const toneClass = tones[tone] || theme.card;
+  const toneClass = isClassic ? "dashboard-stat-card--classic" : tones[tone] || theme.card;
 
   return (
     <div className={`dashboard-stat-card dashboard-stat-card--${tone} ${toneClass}`}>
       <div className="dashboard-stat-card__top">
-        <span className="dashboard-stat-card__eyebrow">Live Metric</span>
+        <span
+          className={`dashboard-stat-card__eyebrow ${
+            isClassic ? "dashboard-stat-card__eyebrow--classic" : ""
+          }`}
+        >
+          Live Metric
+        </span>
         <span className="dashboard-stat-card__icon" aria-hidden="true">
           <MetricIcon tone={tone} />
         </span>
       </div>
       <p className="dashboard-stat-card__title">{title}</p>
       <p className="dashboard-stat-card__value">{value}</p>
-      <span className="dashboard-stat-card__bar" aria-hidden="true" />
+      {!isClassic && <span className="dashboard-stat-card__bar" aria-hidden="true" />}
     </div>
   );
 }

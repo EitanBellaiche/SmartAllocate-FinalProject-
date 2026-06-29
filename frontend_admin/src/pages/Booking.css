@@ -113,6 +113,26 @@
   color: #1e293b;
 }
 
+.booking-recurring-toggle {
+  flex-shrink: 0;
+  min-width: 204px;
+}
+
+.booking-recurring-toggle__text {
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.booking-assign-users-toggle {
+  flex-shrink: 0;
+  min-width: 164px;
+}
+
+.booking-assign-users-toggle__text {
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
 .booking-form-section input,
 .booking-form-section select,
 .booking-form-section textarea {
@@ -131,6 +151,29 @@
 .booking-form-section textarea:focus {
   border-color: rgba(14, 165, 233, 0.56) !important;
   box-shadow: 0 0 0 5px rgba(14, 165, 233, 0.11) !important;
+}
+
+.booking-resource-filter-row {
+  align-items: stretch;
+}
+
+.booking-resource-filter-select,
+.booking-resource-filter-toggle {
+  min-height: 44px;
+  border-radius: 12px !important;
+}
+
+.booking-resource-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px !important;
+  white-space: nowrap;
+}
+
+.booking-resource-filter-toggle input {
+  margin: 0;
 }
 
 .booking-live-aside {
@@ -228,6 +271,114 @@
   font-size: 12px;
   line-height: 1.55;
   color: #64748b;
+}
+
+.booking-responsible-availability {
+  margin-top: 4px;
+  border: 1px solid rgba(167, 243, 208, 0.78);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(110, 231, 183, 0.22), transparent 36%),
+    linear-gradient(180deg, rgba(240, 253, 250, 0.96) 0%, rgba(236, 253, 245, 0.9) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  padding: 18px;
+  color: #334155;
+}
+
+.booking-responsible-availability__title {
+  margin-bottom: 12px;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #0f172a;
+}
+
+.booking-responsible-availability__empty {
+  color: #475569;
+  font-size: 13px;
+}
+
+.booking-responsible-availability__slots {
+  display: grid;
+  gap: 10px;
+}
+
+.booking-responsible-availability__slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(167, 243, 208, 0.72);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 253, 250, 0.88) 100%);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #1f2937;
+}
+
+.booking-responsible-availability__day {
+  min-width: 54px;
+  border: 1px solid rgba(134, 239, 172, 0.58);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(220, 252, 231, 0.95) 0%, rgba(187, 247, 208, 0.88) 100%);
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #14532d;
+  text-align: center;
+}
+
+.booking-responsible-availability__time {
+  border: 1px solid rgba(110, 231, 183, 0.72);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(209, 250, 229, 0.96) 0%, rgba(167, 243, 208, 0.9) 100%);
+  padding: 3px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #064e3b;
+}
+
+.booking-responsible-availability__range {
+  margin-left: auto;
+  color: #475569;
+  font-weight: 600;
+}
+
+.booking-responsible-availability__overrides {
+  margin-top: 10px;
+  border-top: 1px solid rgba(167, 243, 208, 0.7);
+  padding-top: 10px;
+}
+
+.booking-responsible-availability__overrides-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #047857;
+}
+
+.booking-responsible-availability__override-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+@media (min-width: 980px) {
+  .booking-responsible-availability__slots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.booking-responsible-availability__override-item span + span::before {
+  content: "|";
+  margin-right: 8px;
+  color: rgba(71, 85, 105, 0.52);
 }
 
 .auto-jobs-panel {
@@ -527,6 +678,377 @@
   box-shadow: 0 14px 26px rgba(124, 58, 237, 0.12) !important;
 }
 
+.admin-shell--shenkar .booking-hero,
+.admin-shell--shenkar .booking-form-section,
+.admin-shell--shenkar .booking-live-panel,
+.admin-shell--shenkar .auto-run-panel,
+.admin-shell--shenkar .auto-windows-panel,
+.admin-shell--shenkar .auto-jobs-panel {
+  border-color: rgba(103, 92, 76, 0.56) !important;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(171, 191, 192, 0.15), transparent 26%),
+    radial-gradient(circle at 0% 100%, rgba(198, 183, 157, 0.14), transparent 24%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 20px 38px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .booking-hero::before,
+.admin-shell--shenkar .booking-form-section::before {
+  background: linear-gradient(180deg, #8f7961 0%, #b39f82 100%);
+}
+
+.admin-shell--shenkar .booking-hero::after {
+  background: radial-gradient(circle, rgba(176, 191, 188, 0.22), transparent 68%);
+}
+
+.admin-shell--shenkar .booking-hero__eyebrow {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #685d4f !important;
+  letter-spacing: 0.16em !important;
+}
+
+.admin-shell--shenkar .booking-hero__copy h1,
+.admin-shell--shenkar .booking-form-section h2,
+.admin-shell--shenkar .booking-live-panel h2 {
+  color: #2f2820 !important;
+}
+
+.admin-shell--shenkar .booking-hero__copy p,
+.admin-shell--shenkar .booking-form-section p,
+.admin-shell--shenkar .booking-live-panel p {
+  color: #5d5446 !important;
+}
+
+.admin-shell--shenkar .booking-mode-toggle {
+  border-color: rgba(116, 104, 85, 0.44) !important;
+  background: linear-gradient(135deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .booking-mode-toggle button {
+  border-radius: 14px !important;
+  color: #5d5142 !important;
+}
+
+.admin-shell--shenkar .booking-mode-toggle button[class*="text-white"] {
+  border: 1px solid rgba(116, 103, 84, 0.56) !important;
+  background: linear-gradient(180deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+  box-shadow: 0 8px 14px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .booking-form-section label {
+  color: #40362b !important;
+}
+
+.admin-shell--shenkar .booking-form-section input,
+.admin-shell--shenkar .booking-form-section select,
+.admin-shell--shenkar .booking-form-section textarea {
+  border-color: rgba(112, 101, 85, 0.48) !important;
+  background: #fffdf8 !important;
+  color: #352d24 !important;
+}
+
+.admin-shell--shenkar .booking-resource-filter-select,
+.admin-shell--shenkar .booking-resource-filter-toggle {
+  border-color: rgba(112, 101, 85, 0.36) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  color: #4b4134 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .booking-resource-filter-toggle:hover {
+  border-color: rgba(104, 91, 73, 0.46) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .booking-resource-filter-toggle input {
+  border-color: rgba(116, 103, 84, 0.56) !important;
+}
+
+.admin-shell--shenkar .booking-form-section input:focus,
+.admin-shell--shenkar .booking-form-section select:focus,
+.admin-shell--shenkar .booking-form-section textarea:focus {
+  border-color: rgba(132, 116, 92, 0.72) !important;
+  box-shadow: 0 0 0 5px rgba(200, 183, 154, 0.24) !important;
+}
+
+.admin-shell--shenkar .booking-responsible-availability {
+  border-color: rgba(139, 159, 148, 0.42);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(177, 196, 188, 0.18), transparent 35%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 12px 24px rgba(98, 88, 73, 0.08);
+}
+
+.admin-shell--shenkar .booking-responsible-availability__title {
+  color: #3d3327;
+}
+
+.admin-shell--shenkar .booking-responsible-availability__slot {
+  border-color: rgba(144, 160, 152, 0.38);
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%);
+  color: #4f4336;
+  box-shadow: 0 8px 16px rgba(98, 88, 73, 0.08);
+}
+
+.admin-shell--shenkar .booking-responsible-availability__day {
+  color: #3f3428;
+}
+
+.admin-shell--shenkar .booking-responsible-availability__time {
+  border-color: rgba(129, 148, 138, 0.44);
+  background: linear-gradient(180deg, #e7efea 0%, #d9e3dd 100%);
+  color: #325046;
+}
+
+.admin-shell--shenkar .booking-responsible-availability__day {
+  border-color: rgba(140, 156, 146, 0.42);
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%);
+  color: #4c4133;
+}
+
+.admin-shell--shenkar .booking-responsible-availability__range,
+.admin-shell--shenkar .booking-responsible-availability__override-item {
+  color: #66594a;
+}
+
+.admin-shell--shenkar .booking-responsible-availability__overrides {
+  border-top-color: rgba(138, 154, 145, 0.34);
+}
+
+.admin-shell--shenkar .booking-responsible-availability__overrides-title {
+  color: #4f665a;
+}
+
+.admin-shell--shenkar .booking-live-card,
+.admin-shell--shenkar .auto-job-card {
+  border-color: rgba(112, 101, 85, 0.42) !important;
+  background:
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%),
+    linear-gradient(90deg, rgba(171, 191, 192, 0.08), transparent 40%) !important;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.1);
+}
+
+.admin-shell--shenkar .booking-live-card:hover,
+.admin-shell--shenkar .auto-job-card--expanded {
+  border-color: rgba(107, 94, 75, 0.58) !important;
+  background:
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%),
+    linear-gradient(90deg, rgba(171, 191, 192, 0.12), transparent 42%) !important;
+}
+
+.admin-shell--shenkar .booking-live-card .rounded-full {
+  border-color: rgba(116, 103, 84, 0.38) !important;
+  background: #f7f2e8 !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .booking-live-card button,
+.admin-shell--shenkar .auto-job-card__actions button,
+.admin-shell--shenkar .auto-jobs-panel__refresh {
+  border-radius: 14px !important;
+}
+
+.admin-shell--shenkar .booking-live-card button:first-of-type,
+.admin-shell--shenkar .auto-job-card__actions button:first-child {
+  border: 1px solid rgba(116, 103, 84, 0.46) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  color: #4a3f32 !important;
+}
+
+.admin-shell--shenkar .booking-live-card button:last-of-type,
+.admin-shell--shenkar .auto-job-card__actions button:last-child,
+.admin-shell--shenkar .auto-jobs-panel__refresh {
+  border: 1px solid rgba(116, 103, 84, 0.58) !important;
+  background: linear-gradient(180deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-windows-panel > .flex > button {
+  border: 1px solid rgba(99, 122, 139, 0.52) !important;
+  background: linear-gradient(180deg, #d9e4eb 0%, #c3d3dd 100%) !important;
+  color: #2f495a !important;
+  box-shadow: 0 8px 16px rgba(75, 103, 123, 0.14) !important;
+}
+
+.admin-shell--shenkar .auto-windows-panel > .flex > button:hover {
+  border-color: rgba(89, 112, 128, 0.62) !important;
+  background: linear-gradient(180deg, #d1dee7 0%, #b7cad6 100%) !important;
+}
+
+.admin-shell--shenkar .auto-window-card__remove button {
+  border: 1px solid rgba(152, 124, 112, 0.46) !important;
+  background: linear-gradient(180deg, #f1e3dc 0%, #e8d4ca 100%) !important;
+  color: #69483d !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-window-card__remove button:hover {
+  border-color: rgba(140, 112, 100, 0.56) !important;
+  background: linear-gradient(180deg, #ecddd5 0%, #e1cdbf 100%) !important;
+}
+
+.admin-shell--shenkar .auto-jobs-panel__refresh {
+  border: 1px solid rgba(95, 117, 133, 0.58) !important;
+  background: linear-gradient(180deg, #cddbe5 0%, #b4c8d5 100%) !important;
+  color: #284355 !important;
+  box-shadow: 0 10px 18px rgba(70, 96, 116, 0.16) !important;
+}
+
+.admin-shell--shenkar .auto-jobs-panel__refresh:hover:not(:disabled) {
+  border-color: rgba(85, 106, 121, 0.64) !important;
+  background: linear-gradient(180deg, #c4d4df 0%, #a9becd 100%) !important;
+}
+
+.admin-shell--shenkar .auto-jobs-panel .auto-jobs-panel__header {
+  border-bottom: 1px solid rgba(124, 111, 92, 0.28) !important;
+  background:
+    radial-gradient(circle at 95% 0%, rgba(168, 186, 193, 0.16), transparent 34%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .auto-jobs-panel .auto-jobs-list,
+.admin-shell--shenkar .auto-jobs-panel .auto-jobs-empty {
+  background: transparent !important;
+}
+
+.admin-shell--shenkar .auto-jobs-panel button.auto-jobs-panel__refresh,
+.admin-shell--shenkar .auto-jobs-panel .auto-jobs-panel__header button.auto-jobs-panel__refresh {
+  border: 1px solid rgba(93, 114, 129, 0.62) !important;
+  background: linear-gradient(180deg, #c9d8e2 0%, #afc4d2 100%) !important;
+  color: #284254 !important;
+  box-shadow: 0 10px 18px rgba(68, 94, 114, 0.16) !important;
+}
+
+.admin-shell--shenkar .auto-jobs-panel .auto-jobs-panel__header button.auto-jobs-panel__refresh:hover:not(:disabled) {
+  border-color: rgba(82, 103, 118, 0.68) !important;
+  background: linear-gradient(180deg, #bfced9 0%, #a4bbca 100%) !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-blue-200"] {
+  border: 1px solid rgba(103, 124, 138, 0.5) !important;
+  background: linear-gradient(180deg, #dce7ee 0%, #c8d7e1 100%) !important;
+  color: #2f4a5d !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-blue-200"]:hover:not(:disabled) {
+  border-color: rgba(92, 113, 128, 0.62) !important;
+  background: linear-gradient(180deg, #d2e0e8 0%, #bcceda 100%) !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-amber-200"] {
+  border: 1px solid rgba(166, 133, 96, 0.46) !important;
+  background: linear-gradient(180deg, #efe2cf 0%, #e6d4bc 100%) !important;
+  color: #66482a !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-amber-200"]:hover:not(:disabled) {
+  border-color: rgba(152, 120, 86, 0.56) !important;
+  background: linear-gradient(180deg, #ebdcc7 0%, #dfccb1 100%) !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-emerald-200"] {
+  border: 1px solid rgba(114, 139, 130, 0.46) !important;
+  background: linear-gradient(180deg, #dce8e3 0%, #c9d9d2 100%) !important;
+  color: #31544a !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-emerald-200"]:hover:not(:disabled) {
+  border-color: rgba(102, 126, 117, 0.56) !important;
+  background: linear-gradient(180deg, #d2dfda 0%, #baccc4 100%) !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-red-200"] {
+  border: 1px solid rgba(155, 121, 110, 0.46) !important;
+  background: linear-gradient(180deg, #f1e2dc 0%, #e6d0c7 100%) !important;
+  color: #6f463b !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-red-200"]:hover:not(:disabled) {
+  border-color: rgba(141, 108, 97, 0.56) !important;
+  background: linear-gradient(180deg, #ecdcd5 0%, #e1c9bf 100%) !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-slate-300"] {
+  border: 1px solid rgba(131, 120, 103, 0.44) !important;
+  background: linear-gradient(180deg, #ebe3d7 0%, #dfd3c2 100%) !important;
+  color: #4c4132 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-job-card__actions button[class*="border-slate-300"]:hover:not(:disabled) {
+  border-color: rgba(118, 107, 91, 0.54) !important;
+  background: linear-gradient(180deg, #e4dbce 0%, #d5c7b5 100%) !important;
+}
+
+.admin-shell--shenkar .auto-run-panel__range > button {
+  border: 1px solid rgba(101, 122, 137, 0.56) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #d7e2e9 0%, #bfced8 100%) !important;
+  color: #2f4757 !important;
+  box-shadow: 0 10px 18px rgba(79, 105, 123, 0.14) !important;
+}
+
+.admin-shell--shenkar .auto-run-panel__range > button:hover:not(:disabled) {
+  border-color: rgba(90, 111, 126, 0.62) !important;
+  background: linear-gradient(180deg, #cedbe3 0%, #b3c5d1 100%) !important;
+}
+
+.admin-shell--shenkar .auto-run-panel__range > button:disabled {
+  border-color: rgba(176, 186, 194, 0.8) !important;
+  background: #e7edf1 !important;
+  color: #9aa8b2 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .auto-run-mode-toggle {
+  border-color: rgba(112, 101, 85, 0.4) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .auto-run-mode-toggle button.bg-blue-600,
+.admin-shell--shenkar .auto-run-mode-toggle button.bg-slate-900 {
+  border: 1px solid rgba(92, 113, 128, 0.58) !important;
+  background: linear-gradient(180deg, #2f5268 0%, #476b81 100%) !important;
+  color: #eef4f8 !important;
+  box-shadow: 0 8px 16px rgba(57, 86, 105, 0.22) !important;
+}
+
+.admin-shell--shenkar .auto-run-mode-toggle button:not(.bg-blue-600):not(.bg-slate-900) {
+  color: #5f5141 !important;
+}
+
+.admin-shell--shenkar .booking-page .scheduling-constraints__add-btn {
+  border: 1px solid rgba(99, 127, 134, 0.5) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #dce9ea 0%, #c7dadd 100%) !important;
+  color: #2f4f56 !important;
+  box-shadow: 0 8px 14px rgba(78, 111, 120, 0.14) !important;
+}
+
+.admin-shell--shenkar .booking-page .scheduling-constraints__add-btn:hover:not(:disabled) {
+  border-color: rgba(88, 117, 124, 0.56) !important;
+  background: linear-gradient(180deg, #d3e2e4 0%, #bdd2d6 100%) !important;
+}
+
+.admin-shell--shenkar .booking-page .scheduling-constraints__add-btn:disabled {
+  border-color: rgba(178, 184, 188, 0.82) !important;
+  background: #eef1f2 !important;
+  color: #9aa2a7 !important;
+  box-shadow: none !important;
+}
+
 .auto-run-panel,
 .auto-windows-panel,
 .auto-availability-panel {
@@ -565,6 +1087,328 @@
 
 .auto-window-card input {
   min-height: 46px;
+}
+
+.auto-people-panel {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(203, 213, 225, 0.82) !important;
+  background:
+    radial-gradient(circle at 96% 4%, rgba(125, 211, 252, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%) !important;
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.055);
+}
+
+.auto-people-panel__header {
+  padding-bottom: 4px;
+}
+
+.auto-people-panel__eyebrow,
+.auto-responsible-availability__eyebrow {
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.auto-people-field {
+  min-width: 0;
+}
+
+.auto-people-field label {
+  color: #1f2937;
+}
+
+.auto-people-field input,
+.auto-people-field select,
+.auto-people-field textarea {
+  min-height: 52px;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.auto-people-field textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+
+.auto-responsible-results {
+  border-color: rgba(14, 165, 233, 0.24) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+}
+
+.auto-responsible-option {
+  display: block;
+  min-height: 48px;
+  border: 1px solid transparent;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  line-height: 1.45;
+}
+
+.auto-responsible-option:hover {
+  border-color: rgba(14, 165, 233, 0.24);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%) !important;
+}
+
+.auto-selected-chip {
+  border-color: rgba(14, 165, 233, 0.24) !important;
+  background: #f0f9ff !important;
+  color: #334155 !important;
+  font-weight: 700;
+}
+
+.auto-responsible-availability {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  overflow: hidden;
+  border-color: rgba(16, 185, 129, 0.26) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(110, 231, 183, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(240, 253, 250, 0.98) 0%, rgba(236, 253, 245, 0.92) 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 14px 26px rgba(6, 95, 70, 0.08);
+}
+
+.auto-responsible-availability__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.auto-responsible-availability__title {
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.auto-responsible-availability__summary {
+  flex: 0 0 auto;
+  border: 1px solid rgba(20, 184, 166, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #0f766e;
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.auto-responsible-availability__empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 12px 14px;
+}
+
+.auto-responsible-availability__empty strong,
+.auto-responsible-availability__empty span:last-child {
+  display: block;
+}
+
+.auto-responsible-availability__empty strong {
+  color: #134e4a;
+  font-size: 0.9rem;
+}
+
+.auto-responsible-availability__empty span:last-child {
+  margin-top: 2px;
+  color: #475569;
+}
+
+.auto-responsible-availability__dot {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #14b8a6;
+  box-shadow: 0 0 0 7px rgba(20, 184, 166, 0.12);
+}
+
+.auto-responsible-availability__content {
+  display: grid;
+  gap: 12px;
+}
+
+.auto-responsible-availability__section {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(20, 184, 166, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 12px;
+}
+
+.auto-responsible-availability__section-title {
+  color: #0f766e;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.auto-responsible-availability__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border-radius: 12px;
+  background: rgba(240, 253, 250, 0.74);
+  padding: 9px 10px;
+}
+
+.auto-responsible-availability__day,
+.auto-responsible-availability__time,
+.auto-responsible-availability__status,
+.auto-responsible-availability__range {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.auto-responsible-availability__day {
+  background: #ccfbf1;
+  color: #134e4a;
+}
+
+.auto-responsible-availability__time,
+.auto-responsible-availability__status {
+  background: #ffffff;
+  color: #0f766e;
+}
+
+.auto-responsible-availability__status--blocked {
+  color: #991b1b;
+}
+
+.auto-responsible-availability__range {
+  background: rgba(255, 255, 255, 0.62);
+  color: #475569;
+}
+
+.auto-people-number-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.auto-people-panel__hint {
+  margin-top: -8px;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.auto-add-allocation-button,
+.auto-allocations-refresh-button {
+  min-height: 52px;
+  border: 0 !important;
+  background: linear-gradient(180deg, #5f756c 0%, #485f55 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 24px rgba(70, 86, 77, 0.18);
+}
+
+.auto-add-allocation-button:hover:not(:disabled),
+.auto-allocations-refresh-button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #566c63 0%, #40564d 100%) !important;
+}
+
+.auto-allocations-refresh-button {
+  min-height: 48px;
+}
+
+.auto-people-selection-summary {
+  background: rgba(255, 255, 255, 0.78) !important;
+}
+
+.admin-shell--shenkar .auto-people-panel {
+  border-color: rgba(103, 92, 76, 0.5) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(171, 191, 192, 0.14), transparent 30%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 14px 26px rgba(95, 86, 73, 0.12);
+}
+
+.admin-shell--shenkar .auto-people-panel__eyebrow {
+  color: #6a604f;
+}
+
+.admin-shell--shenkar .auto-people-field input,
+.admin-shell--shenkar .auto-people-field select,
+.admin-shell--shenkar .auto-people-field textarea {
+  border-color: rgba(112, 101, 85, 0.46) !important;
+  background: #fffdf8 !important;
+  color: #352d24 !important;
+}
+
+.admin-shell--shenkar .auto-selected-chip,
+.admin-shell--shenkar .auto-people-selection-summary {
+  border-color: rgba(116, 103, 84, 0.38) !important;
+  background: #f7f2e8 !important;
+  color: #5a4c3c !important;
+}
+
+.admin-shell--shenkar .auto-responsible-availability {
+  border-color: rgba(111, 154, 133, 0.34) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(177, 196, 188, 0.22), transparent 34%),
+    linear-gradient(180deg, #eefaf4 0%, #e3f5ec 100%) !important;
+}
+
+.admin-shell--shenkar .auto-responsible-availability__empty,
+.admin-shell--shenkar .auto-responsible-availability__section {
+  border-color: rgba(111, 154, 133, 0.28);
+  background: rgba(255, 253, 248, 0.68);
+}
+
+.admin-shell--shenkar .auto-responsible-availability__row {
+  background: rgba(238, 250, 244, 0.72);
+}
+
+.admin-shell--shenkar .auto-responsible-availability__day {
+  background: #d9efe5;
+  color: #31544a;
+}
+
+.admin-shell--shenkar .auto-responsible-availability__time,
+.admin-shell--shenkar .auto-responsible-availability__status,
+.admin-shell--shenkar .auto-responsible-availability__range {
+  border: 1px solid rgba(111, 154, 133, 0.18);
+  background: #fffdf8;
+}
+
+.admin-shell--shenkar .auto-add-allocation-button,
+.admin-shell--shenkar .auto-allocations-refresh-button {
+  border: 1px solid rgba(83, 100, 90, 0.62) !important;
+  background: linear-gradient(180deg, #768a80 0%, #5c7167 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(82, 95, 85, 0.18) !important;
+}
+
+.admin-shell--shenkar .auto-add-allocation-button:hover:not(:disabled),
+.admin-shell--shenkar .auto-allocations-refresh-button:hover:not(:disabled) {
+  border-color: rgba(72, 89, 79, 0.68) !important;
+  background: linear-gradient(180deg, #6c8076 0%, #52675d 100%) !important;
+}
+
+@media (max-width: 760px) {
+  .auto-responsible-availability__header,
+  .auto-people-number-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auto-responsible-availability__header {
+    display: grid;
+  }
 }
 
 .admin-shell--generic .auto-run-panel {
@@ -970,4 +1814,22 @@
   .auto-window-card__grid {
     grid-template-columns: 1fr;
   }
+}
+
+.booking-page button.auto-add-allocation-button,
+.booking-page button.auto-allocations-refresh-button,
+.admin-shell--shenkar .booking-page button.auto-add-allocation-button,
+.admin-shell--shenkar .booking-page button.auto-allocations-refresh-button {
+  border: 1px solid rgba(83, 100, 90, 0.62) !important;
+  background: linear-gradient(180deg, #768a80 0%, #5c7167 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(82, 95, 85, 0.18) !important;
+}
+
+.booking-page button.auto-add-allocation-button:hover:not(:disabled),
+.booking-page button.auto-allocations-refresh-button:hover:not(:disabled),
+.admin-shell--shenkar .booking-page button.auto-add-allocation-button:hover:not(:disabled),
+.admin-shell--shenkar .booking-page button.auto-allocations-refresh-button:hover:not(:disabled) {
+  border-color: rgba(72, 89, 79, 0.68) !important;
+  background: linear-gradient(180deg, #6c8076 0%, #52675d 100%) !important;
 }

@@ -3,7 +3,7 @@ import { getAdminSession } from "./api/api";
 const STORAGE_PREFIX = "smartallocate.presentation.";
 
 const ORG_DOMAIN_OVERRIDES = {
-  shenkar: "generic",
+  shenkar: "shenkar",
   soroka: "clinic",
   soroka_hospital: "clinic",
   "soroka-hospital": "clinic",
@@ -258,6 +258,61 @@ const CINEMA_CONFIG = {
   },
 };
 
+const SHENKAR_CONFIG = {
+  ...DEFAULT_CONFIG,
+  domain: "shenkar",
+  businessName: "Shenkar",
+  productSubtitle: "Calm academic allocation workspace",
+  theme: {
+    ...DEFAULT_CONFIG.theme,
+    sidebarAccent: "text-[#8faab3]",
+    pageBg: "bg-[#edf2f1]",
+    hoverBg: "hover:bg-[#f3ede1]",
+    hoverText: "hover:text-[#6e624f]",
+    navActive: "bg-[#ece4d4] text-[#6e624f] border border-[#d8cfbc]",
+    navIdle: "text-[#5f5649] hover:bg-[#f3ede1] hover:text-[#6e624f]",
+    activeNav: "bg-[#ece4d4] text-[#6e624f] border border-[#d8cfbc]",
+    idleNav: "text-[#5f5649] hover:bg-[#f3ede1] hover:text-[#6e624f]",
+    hero: "from-[#edf2f1] via-[#eef3f2] to-[#f5f0e6]",
+    heroEyebrow: "border-[#d8cfbc] bg-[#f4efe4] text-[#6e624f]",
+    primaryButton:
+      "bg-[#8faab3] hover:bg-[#829ea6] text-[#1f2a2f]",
+    panelBorder: "border-[#d8cfbc]",
+    panelBg: "bg-[#f8fbfb]",
+    tag: "bg-[#f3ede1] text-[#6e624f] border border-[#d8cfbc]",
+    card: "border-[#d8cfbc] bg-[#f8fbfb]",
+    panelSoft: "border-[#d8cfbc] bg-[#f8fbfb]",
+    heroDark: "border-[#d8cfbc] bg-[#edf2f1]",
+    buttonPrimary:
+      "bg-[#8faab3] hover:bg-[#829ea6] text-[#1f2a2f]",
+    buttonSecondary: "border border-[#d8cfbc] text-[#6e624f] bg-[#fffdfa] hover:bg-[#f5efe3] shadow-sm",
+    textStrong: "text-[#2f2b24]",
+    textSoft: "text-[#7a7264]",
+    input:
+      "border-[#d8cfbc] bg-[#f8fbfb] text-[#2f2b24] focus:border-[#8faab3] focus:bg-white focus:ring-4 focus:ring-[#8faab3]/20",
+    modalCard: "border-[#d8cfbc] bg-[#f8fbfb]",
+    modalSurface: "border-[#d8cfbc] bg-[#f8f4eb]",
+    modalMuted: "text-[#7a7264]",
+    buttonDanger:
+      "bg-[#baa58a] hover:bg-[#ac987f] text-[#3b3328]",
+    buttonGhost: "border-[#d8cfbc] bg-[#fffdfa] text-[#6e624f] hover:bg-[#f5efe3]",
+    buttonNeutral:
+      "bg-[#b9c0bd] hover:bg-[#acb4b1] text-[#2f3a41]",
+    tagMuted: "border-[#d8cfbc] bg-[#f8f4eb] text-[#6e624f]",
+    highlightTag: "border border-[#d8cfbc] bg-[#f3ede1] text-[#6e624f]",
+    aisle: "bg-[#d8cfbc]/45",
+    metricCards: {
+      blue: "border-[#c7d7dc] bg-[#f4f8f8] text-[#4f6770] shadow-[#d8cfbc]/40",
+      sky: "border-[#d8cfbc] bg-[#f8f4eb] text-[#6e624f] shadow-[#d8cfbc]/40",
+      emerald:
+        "border-[#c7d7dc] bg-[#f4f8f8] text-[#4f6770] shadow-[#d8cfbc]/40",
+      amber: "border-[#d8cfbc] bg-[#f5f0e6] text-[#7c6f59] shadow-[#d8cfbc]/40",
+      violet:
+        "border-[#c7d7dc] bg-[#eef2f1] text-[#5f747b] shadow-[#d8cfbc]/40",
+    },
+  },
+};
+
 const CLINIC_CONFIG = {
   domain: "clinic",
   businessName: "SmartAllocate Clinic Mode",
@@ -393,11 +448,12 @@ function getForcedDomain() {
   const compactOrgId = orgId.replace(/[^a-z0-9]/g, "");
   if (compactOrgId.includes("soroka")) return "clinic";
   if (compactOrgId.includes("yesplanetramatgan")) return "cinema";
-  if (compactOrgId === "shenkar") return "generic";
+  if (compactOrgId === "shenkar") return "shenkar";
   return ORG_DOMAIN_OVERRIDES[orgId] || ORG_DOMAIN_OVERRIDES[compactOrgId] || null;
 }
 
 function getConfigByDomain(domain) {
+  if (domain === "shenkar") return SHENKAR_CONFIG;
   if (domain === "cinema") return CINEMA_CONFIG;
   if (domain === "clinic") return CLINIC_CONFIG;
   return DEFAULT_CONFIG;
@@ -543,6 +599,9 @@ export function getOrgConfig() {
     }
     if (domain === "clinic") {
       return CLINIC_CONFIG;
+    }
+    if (domain === "shenkar") {
+      return SHENKAR_CONFIG;
     }
 
     return DEFAULT_CONFIG;

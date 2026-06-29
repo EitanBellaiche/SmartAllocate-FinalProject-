@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
 import "./Resources.css";
+
+function ModalPortal({ children }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
 
 function sortResourcesAlphabetically(items) {
   return [...items].sort(
@@ -578,17 +584,32 @@ function splitRowIntoSections(rowItems) {
   };
 }
 
-function SummaryPill({ label, value, tone = "slate" }) {
+function SummaryPill({ label, value, tone = "slate", isClassic = false }) {
   const tones = {
     blue: "border-blue-200 bg-blue-50 text-blue-700",
     slate: "border-slate-200 bg-slate-100 text-slate-700",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
   };
 
+  const classicTones = {
+    blue: "border-stone-300 bg-stone-50 text-stone-700",
+    slate: "border-stone-300 bg-white text-stone-700",
+    emerald: "border-stone-300 bg-stone-50 text-stone-700",
+  };
+
+  const toneClass = isClassic ? (classicTones[tone] || classicTones.slate) : (tones[tone] || tones.slate);
+  const labelClass = isClassic
+    ? "resources-summary-pill__label resources-summary-pill__label--classic text-xs font-semibold uppercase"
+    : "resources-summary-pill__label text-xs font-semibold uppercase tracking-[0.16em]";
+  const isNumericValue = Number.isFinite(Number(value));
+  const valueClass = isNumericValue
+    ? "resources-summary-pill__value resources-summary-pill__value--numeric mt-2 text-2xl font-black"
+    : "resources-summary-pill__value mt-2 text-2xl font-black";
+
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${tones[tone] || tones.slate}`}>
-      <div className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</div>
-      <div className="mt-2 text-2xl font-black">{value}</div>
+    <div className={`resources-summary-pill rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className={labelClass}>{label}</div>
+      <div className={valueClass}>{value}</div>
     </div>
   );
 }
@@ -650,6 +671,7 @@ export default function Resources() {
   const config = getOrgConfig();
   const isCinema = config.domain === "cinema";
   const theme = config.theme;
+  const isShenkar = config.domain === "shenkar";
   const isRestaurant = config.domain === "restaurant";
 
   useEffect(() => {
@@ -1313,12 +1335,18 @@ async function saveHallLayout() {
   }
 
   return (
-    <div className="resources-page space-y-6">
+    <div className={`resources-page ${!isCinema ? "resources-page--classic" : ""} space-y-6`}>
       {!selectedHallId && (
         <section className={`resources-toolbar overflow-visible rounded-[28px] border p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] sm:p-8 ${isCinema ? config.theme.heroDark : `${theme.card} bg-gradient-to-br ${theme.hero}`}`}>
         <div className="resources-toolbar__top flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-2xl">
-            <div className={`resources-eyebrow mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${isCinema ? "border-red-900/40 bg-red-950/50 text-red-200" : config.theme.heroEyebrow}`}>
+            <div
+              className={
+                isCinema
+                  ? "resources-eyebrow mb-3 inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] border-red-900/40 bg-red-950/50 text-red-200"
+                  : "resources-eyebrow resources-eyebrow--classic mb-3 inline-flex items-center text-xs font-semibold uppercase"
+              }
+            >
               {config.resources.eyebrow}
             </div>
             <p className={`resources-toolbar__subtitle mt-3 text-base leading-7 ${isCinema ? "text-slate-300" : theme.textSoft}`}>
@@ -1375,9 +1403,20 @@ async function saveHallLayout() {
               label={config.resources.matchedResults}
               value={isCinema ? (hasActiveFilter ? filteredResources.length : 0) : hasActiveFilter ? nameMatchedResources.length : 0}
               tone="blue"
+              isClassic={!isCinema}
             />
-            <SummaryPill label={config.resources.selectedFilter} value={selectedTypeName} tone="slate" />
-            <SummaryPill label={config.resources.totalResources} value={resources.length} tone="emerald" />
+            <SummaryPill
+              label={config.resources.selectedFilter}
+              value={selectedTypeName}
+              tone="slate"
+              isClassic={!isCinema}
+            />
+            <SummaryPill
+              label={config.resources.totalResources}
+              value={resources.length}
+              tone="emerald"
+              isClassic={!isCinema}
+            />
           </div>
         </div>
         </section>
@@ -1699,7 +1738,7 @@ async function saveHallLayout() {
                         <span>{group.exactMatches} matches</span>
                       )}
                       <span>{group.resources.length} resources</span>
-                      <b>Open group</b>
+                      <b className="resource-result-tile__open-group">Open group</b>
                     </div>
                   </button>
                 );
@@ -1788,31 +1827,43 @@ async function saveHallLayout() {
       </section>
 
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-[600px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
-            <h2 className="mb-4 text-xl font-bold">{config.resources.addTitle}</h2>
+        <ModalPortal>
+        <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
+          <div className={`resources-modal-surface resources-add-modal max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
+            <div className="resources-add-modal__header">
+              <div className="resources-add-modal__eyebrow">Resource setup</div>
+              <h2>{config.resources.addTitle}</h2>
+              <p>Create the resource, connect it to a type, and optionally assign users.</p>
+            </div>
 
-            <label className="mb-2 block font-medium">Select Type</label>
-            <select
-              className={`mb-4 ${theme.input}`}
-              value={form.type_id}
-              onChange={(e) => handleSelectType(e.target.value)}
-            >
-              <option value="">-- Select Type --</option>
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            <div className="resources-add-modal__grid">
+              <div className="resources-add-modal__field">
+                <label>Select Type</label>
+                <select
+                  className={`resources-add-modal__input ${theme.input}`}
+                  value={form.type_id}
+                  onChange={(e) => handleSelectType(e.target.value)}
+                >
+                  <option value="">-- Select Type --</option>
+                  {types.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <input
-              type="text"
-              placeholder={config.resources.namePlaceholder}
-              className={`mb-4 ${theme.input}`}
-              value={form.name}
-              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-            />
+              <div className="resources-add-modal__field">
+                <label>Resource name</label>
+                <input
+                  type="text"
+                  placeholder={config.resources.namePlaceholder}
+                  className={`resources-add-modal__input ${theme.input}`}
+                  value={form.name}
+                  onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+            </div>
 
             <div className="mb-5">
               <AssignedUserIdsEditor
@@ -1885,7 +1936,7 @@ async function saveHallLayout() {
                   <button
                     type="button"
                     onClick={addCustomField}
-                    className="rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-800"
+                    className="resources-add-modal__add-field rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-800"
                   >
                     Add Field
                   </button>
@@ -1908,7 +1959,7 @@ async function saveHallLayout() {
                         <button
                           type="button"
                           onClick={() => removeCustomField(fieldName)}
-                          className="rounded bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
+                          className="resources-add-modal__remove-field rounded bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
                         >
                           Remove
                         </button>
@@ -1943,37 +1994,41 @@ async function saveHallLayout() {
               </>
             )}
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="resources-add-modal__footer mt-6 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowAdd(false);
                   setSelectedType(null);
                   setCustomFieldDraft({ name: "", type: "text" });
                 }}
-                className="rounded border px-4 py-2"
+                className="resources-add-modal__cancel rounded border px-4 py-2"
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveResource}
-                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                className="resources-add-modal__save rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
               >
                 Save Resource
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-[600px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
-            <h2 className="mb-4 text-xl font-bold">Edit Resource</h2>
+        <ModalPortal>
+        <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
+          <div className={`resources-modal-surface resources-edit-modal flex max-h-[90vh] w-full max-w-[600px] flex-col overflow-hidden rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
+            <h2 className="resources-edit-modal__title mb-4 text-xl font-bold">Edit Resource</h2>
+
+            <div className="resources-edit-modal__body">
 
             <label className="mb-2 block font-medium">Select Type</label>
             <select
-              className={`mb-4 ${theme.input}`}
+              className={`resources-edit-modal__input mb-4 ${theme.input}`}
               value={editForm.type_id}
               onChange={(e) => handleEditSelectType(e.target.value)}
             >
@@ -1988,7 +2043,7 @@ async function saveHallLayout() {
             <input
               type="text"
               placeholder={config.resources.namePlaceholder}
-              className={`mb-4 ${theme.input}`}
+              className={`resources-edit-modal__input mb-4 ${theme.input}`}
               value={editForm.name}
               onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
             />
@@ -2004,9 +2059,9 @@ async function saveHallLayout() {
 
             {editSelectedType && Array.isArray(editSelectedType.fields) && (
               <>
-                <h3 className="mb-2 font-semibold">{config.resources.fieldsTitle}</h3>
+                <h3 className="resources-edit-modal__section-title mb-2 font-semibold">{config.resources.fieldsTitle}</h3>
                 {editSelectedType.fields.map((field, index) => (
-                  <div key={index} className="mb-3">
+                  <div key={index} className="resources-edit-modal__field-row mb-3">
                     <label className="mb-1 block text-sm font-medium">
                       {getFieldDisplayName(field)} ({field.type})
                     </label>
@@ -2027,7 +2082,7 @@ async function saveHallLayout() {
                     ) : (
                       <input
                         type={field.type === "number" ? "number" : "text"}
-                        className={theme.input}
+                        className={`resources-edit-modal__input ${theme.input}`}
                         value={editForm.metadata[field.name] ?? ""}
                         readOnly={isAutoUserCountField(field)}
                         disabled={isAutoUserCountField(field)}
@@ -2041,19 +2096,19 @@ async function saveHallLayout() {
 
             {editSelectedType && (
               <>
-                <h3 className="mb-2 mt-6 font-semibold">{config.resources.customFieldsTitle}</h3>
+                <h3 className="resources-edit-modal__section-title mb-2 mt-6 font-semibold">{config.resources.customFieldsTitle}</h3>
                 <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_140px_auto]">
                   <input
                     type="text"
                     placeholder="Field name"
-                    className={theme.input}
+                    className={`resources-edit-modal__input ${theme.input}`}
                     value={editCustomFieldDraft.name}
                     onChange={(e) =>
                       setEditCustomFieldDraft((prev) => ({ ...prev, name: e.target.value }))
                     }
                   />
                   <select
-                    className={theme.input}
+                    className={`resources-edit-modal__input ${theme.input}`}
                     value={editCustomFieldDraft.type}
                     onChange={(e) =>
                       setEditCustomFieldDraft((prev) => ({ ...prev, type: e.target.value }))
@@ -2066,7 +2121,7 @@ async function saveHallLayout() {
                   <button
                     type="button"
                     onClick={addEditCustomField}
-                    className="rounded bg-gray-700 px-4 py-2 text-white hover:bg-gray-800"
+                    className="resources-edit-modal__add-field rounded px-4 py-2 text-white"
                   >
                     Add Field
                   </button>
@@ -2082,7 +2137,7 @@ async function saveHallLayout() {
                         : "text";
 
                     return (
-                      <div key={fieldName} className="mb-3 rounded border p-3">
+                      <div key={fieldName} className="resources-edit-modal__custom-card mb-3 rounded border p-3">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <label className="text-sm font-medium">
                             {fieldName} ({fieldType})
@@ -2090,7 +2145,7 @@ async function saveHallLayout() {
                           <button
                             type="button"
                             onClick={() => removeEditCustomField(fieldName)}
-                            className="rounded bg-red-600 px-2 py-1 text-sm text-white hover:bg-red-700"
+                            className="resources-edit-modal__remove rounded px-2 py-1 text-sm text-white"
                           >
                             Remove
                           </button>
@@ -2107,7 +2162,7 @@ async function saveHallLayout() {
                         ) : (
                           <input
                             type={fieldType === "number" ? "number" : "text"}
-                            className={theme.input}
+                            className={`resources-edit-modal__input ${theme.input}`}
                             value={fieldValue ?? ""}
                             onChange={(e) =>
                               handleEditMetadataChange(
@@ -2127,33 +2182,36 @@ async function saveHallLayout() {
                 )}
               </>
             )}
+            </div>
 
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="resources-edit-modal__footer mt-6 flex justify-end gap-2">
               <button
                 onClick={() => {
                   setShowEdit(false);
                   setEditSelectedType(null);
                   setEditCustomFieldDraft({ name: "", type: "text" });
                 }}
-                className="rounded border px-4 py-2"
+                className="resources-edit-modal__cancel rounded border px-4 py-2"
               >
                 Cancel
               </button>
 
               <button
                 onClick={saveEdit}
-                className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                className="resources-edit-modal__save rounded px-4 py-2 text-white"
               >
                 Save Changes
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {layoutModal.open && layoutModal.hall && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-[560px] rounded-2xl bg-white p-5 shadow-xl">
+        <ModalPortal>
+        <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
+          <div className={`resources-modal-surface w-full max-w-[560px] rounded-2xl bg-white p-5 shadow-xl ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Edit Hall Layout</h2>
@@ -2314,10 +2372,12 @@ async function saveHallLayout() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
       {detailsModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-[500px] overflow-y-auto rounded-[28px] border border-purple-900/20 bg-[linear-gradient(180deg,#fff_0%,#faf7ff_100%)] p-5 shadow-[0_18px_45px_rgba(88,28,135,0.12)] sm:p-6">
+        <ModalPortal>
+        <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
+          <div className={`resources-modal-surface resources-details-modal flex max-h-[90vh] w-full max-w-[500px] flex-col overflow-hidden rounded-[28px] border border-purple-900/20 bg-[linear-gradient(180deg,#fff_0%,#faf7ff_100%)] p-5 shadow-[0_18px_45px_rgba(88,28,135,0.12)] sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
             <h2 className="mb-4 text-xl font-bold">
               Details - {detailsModal.item?.name}
             </h2>
@@ -2330,6 +2390,7 @@ async function saveHallLayout() {
               {isCinema && detailsModal.item?.type_name === "Seat" ? "Seat Details" : "Fields"}
             </h3>
 
+            <div className="resources-details-modal__body">
             {isCinema && detailsModal.item?.type_name === "Seat" ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3 text-sm">
@@ -2437,17 +2498,19 @@ async function saveHallLayout() {
                 {JSON.stringify(detailsModal.item?.metadata || {}, null, 2)}
               </pre>
             )}
+            </div>
 
-            <div className="mt-6 flex justify-end">
+            <div className="resources-details-modal__footer">
               <button
                 onClick={() => setDetailsModal({ open: false, item: null })}
-                className="rounded-xl border border-purple-900/20 bg-white px-5 py-2.5 text-sm font-semibold text-purple-950 hover:bg-purple-50"
+                className="resources-details-modal__close rounded-xl border border-purple-900/20 bg-white px-5 py-2.5 text-sm font-semibold text-purple-950 hover:bg-purple-50"
               >
                 Close
               </button>
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </div>
   );

@@ -284,6 +284,129 @@
   font-weight: 800;
 }
 
+.admin-shell--shenkar .resource-type-card__actions button,
+.resource-types-modal-backdrop--shenkar .resource-types-modal button {
+  border: 1px solid rgba(122, 114, 100, 0.34) !important;
+}
+
+.admin-shell--shenkar .resource-types-hero {
+  border-color: rgba(104, 95, 80, 0.52) !important;
+  background: linear-gradient(140deg, #edf3f2 0%, #e8efee 54%, #ece4d6 100%) !important;
+  box-shadow: 0 14px 28px rgba(95, 86, 73, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+.admin-shell--shenkar .resource-types-hero::before {
+  background: linear-gradient(180deg, #95adb5 0%, #c6bca5 100%) !important;
+}
+
+.admin-shell--shenkar .resource-types-eyebrow {
+  border-color: rgba(122, 114, 100, 0.44) !important;
+  background: #f7f2e8 !important;
+  color: #655b4c !important;
+}
+
+.admin-shell--shenkar .resource-types-toolbar__subtitle {
+  color: #585043 !important;
+}
+
+.admin-shell--shenkar .resource-types-add-button {
+  border: 1px solid rgba(106, 95, 79, 0.38) !important;
+  background: linear-gradient(135deg, #89a4ad 0%, #7f9aa3 100%) !important;
+  color: #1f2a2f !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.16) !important;
+}
+
+.admin-shell--shenkar .resource-types-metric {
+  border-color: rgba(102, 91, 74, 0.54) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 10px 18px rgba(95, 86, 73, 0.12) !important;
+}
+
+.admin-shell--shenkar .resource-types-metric::after {
+  opacity: 0.42;
+}
+
+.admin-shell--shenkar .resource-types-metric__label {
+  color: #6a604f !important;
+}
+
+.admin-shell--shenkar .resource-types-metric__value {
+  color: #7a5a3f !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--blue {
+  color: #4e625d !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--slate {
+  color: #4e625d !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--amber {
+  color: #4e625d !important;
+}
+
+.admin-shell--shenkar .resource-types-metric--blue,
+.admin-shell--shenkar .resource-types-metric--slate,
+.admin-shell--shenkar .resource-types-metric--amber {
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .resource-types-list {
+  border-color: rgba(101, 92, 77, 0.56) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .resource-type-card {
+  border-color: rgba(101, 92, 77, 0.58) !important;
+  background: linear-gradient(180deg, #eef3f1 0%, #e4ebe8 100%) !important;
+  box-shadow: 0 12px 22px rgba(95, 86, 73, 0.13) !important;
+}
+
+.admin-shell--shenkar .resource-type-card:hover {
+  border-color: rgba(98, 88, 72, 0.68) !important;
+  box-shadow: 0 18px 32px rgba(95, 86, 73, 0.18) !important;
+}
+
+.admin-shell--shenkar .resource-type-card::before {
+  background: linear-gradient(90deg, #8d7558 0%, #b79f82 100%) !important;
+}
+
+.admin-shell--shenkar .resource-type-card:hover::before {
+  opacity: 0.95 !important;
+}
+
+.admin-shell--shenkar .resource-type-card h2 {
+  color: #2b241c !important;
+}
+
+.admin-shell--shenkar .resource-type-card p {
+  color: #544b3e !important;
+}
+
+.admin-shell--shenkar .resource-type-card .rounded-2xl.border.p-4 {
+  border-color: rgba(112, 101, 85, 0.5) !important;
+  background: linear-gradient(180deg, #edf3f1 0%, #e1e9e5 100%) !important;
+}
+
+.admin-shell--shenkar .resource-type-card > div > div:first-child > div:nth-child(3) > div::before {
+  background: linear-gradient(180deg, #9eb4bb 0%, #c5baa3 100%) !important;
+}
+
+.admin-shell--shenkar .resource-type-card > div > div:first-child > div:nth-child(3) > div span {
+  border-color: rgba(122, 114, 100, 0.42) !important;
+  background: #f7f2e8 !important;
+  color: #5f5547 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .resource-type-card__actions button:first-child {
+  border: 1px solid rgba(122, 114, 100, 0.46) !important;
+  background: linear-gradient(180deg, #fffdfa 0%, #eef3f2 100%) !important;
+  color: #3d5660 !important;
+}
+
 .resource-type-card__actions button:first-child {
   border: 1px solid rgba(125, 211, 252, 0.5) !important;
   background: #ffffff !important;
@@ -297,8 +420,34 @@
   box-shadow: 0 14px 24px rgba(220, 38, 38, 0.16) !important;
 }
 
+.admin-shell--shenkar .resource-type-card__actions button:last-child,
+.resource-types-modal-backdrop--shenkar .resource-types-modal button[class*="bg-red-700"],
+.resource-types-modal-backdrop--shenkar .resource-types-modal .hover\:bg-red-800,
+.resource-types-modal-backdrop--shenkar .resource-types-modal .hover\:bg-red-700 {
+  border: 1px solid #b88f8f !important;
+  background: linear-gradient(135deg, #cfa4a4 0%, #bf8f8f 100%) !important;
+  color: #3f2f2f !important;
+  box-shadow: 0 10px 18px rgba(122, 114, 100, 0.16) !important;
+}
+
+.resource-types-modal-backdrop--shenkar .resource-types-modal button[class*="bg-red-700"]:hover,
+.admin-shell--shenkar .resource-type-card__actions button:last-child:hover {
+  background: linear-gradient(135deg, #c49797 0%, #b68383 100%) !important;
+  border-color: #a97c7c !important;
+}
+
+.resource-types-modal-backdrop--shenkar .resource-types-modal .bg-red-900\/40,
+.resource-types-modal-backdrop--shenkar .resource-types-modal .hover\:bg-red-900\/60 {
+  border: 1px solid #b88f8f !important;
+  background: rgba(207, 164, 164, 0.22) !important;
+  color: #5f4444 !important;
+}
+
 .resource-types-modal-backdrop {
-  background: rgba(15, 23, 42, 0.48) !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2000 !important;
+  background: rgba(255, 255, 255, 0.82) !important;
   backdrop-filter: blur(12px);
 }
 
@@ -341,6 +490,7 @@
 }
 
 .resource-types-modal table {
+  table-layout: auto;
   overflow: hidden;
   border-radius: 14px;
 }
@@ -349,13 +499,67 @@
   background: linear-gradient(135deg, #0f172a 0%, #075985 100%) !important;
 }
 
+.resource-types-modal-backdrop--shenkar .resource-types-modal thead {
+  background: linear-gradient(135deg, #3f3a33 0%, #5a5247 100%) !important;
+}
+
 .resource-types-modal td,
 .resource-types-modal th {
   border-color: rgba(226, 232, 240, 0.9) !important;
 }
 
+.resource-types-modal th:nth-child(1),
+.resource-types-modal td:nth-child(1) {
+  width: 27%;
+}
+
+.resource-types-modal th:nth-child(2),
+.resource-types-modal td:nth-child(2) {
+  width: 24%;
+  min-width: 150px;
+}
+
+.resource-types-modal th:nth-child(3),
+.resource-types-modal td:nth-child(3) {
+  width: 12%;
+}
+
+.resource-types-modal th:nth-child(4),
+.resource-types-modal td:nth-child(4) {
+  width: 22%;
+}
+
+.resource-types-modal th:nth-child(5),
+.resource-types-modal td:nth-child(5) {
+  width: 15%;
+  min-width: 110px;
+}
+
 .resource-types-modal tbody tr {
   background: #ffffff !important;
+}
+
+.resource-types-modal tbody td {
+  vertical-align: middle;
+}
+
+.resource-types-modal tbody td select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 2.35rem !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23655b4c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.72rem center !important;
+  background-size: 14px 14px !important;
+}
+
+.resource-types-modal tbody td button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  white-space: nowrap;
 }
 
 .resource-types-modal button {

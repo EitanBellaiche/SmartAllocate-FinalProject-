@@ -22,6 +22,33 @@ const EMPTY_DAY_MODAL = {
   date: "",
 };
 
+const SHENKAR_EVENT_PALETTE = [
+  {
+    bg: "linear-gradient(135deg, #e7ddd0 0%, #d7c7b1 100%)",
+    fg: "#3f3327",
+    border: "rgba(122, 107, 86, 0.45)",
+    shadow: "0 8px 16px rgba(95, 86, 73, 0.14)",
+  },
+  {
+    bg: "linear-gradient(135deg, #dfe9e6 0%, #c7d8d2 100%)",
+    fg: "#2f4a45",
+    border: "rgba(102, 124, 117, 0.44)",
+    shadow: "0 8px 16px rgba(81, 105, 97, 0.14)",
+  },
+  {
+    bg: "linear-gradient(135deg, #e8d7d7 0%, #d8bfc0 100%)",
+    fg: "#523b3c",
+    border: "rgba(138, 105, 107, 0.42)",
+    shadow: "0 8px 16px rgba(117, 84, 86, 0.14)",
+  },
+  {
+    bg: "linear-gradient(135deg, #e7e1d2 0%, #d8cfb8 100%)",
+    fg: "#4e442f",
+    border: "rgba(131, 119, 90, 0.42)",
+    shadow: "0 8px 16px rgba(111, 99, 70, 0.14)",
+  },
+];
+
 function normalizeResourceMetadata(raw) {
   if (!raw) return {};
   if (typeof raw === "object") return raw;
@@ -87,6 +114,7 @@ export default function Availability() {
 
   const config = getOrgConfig();
   const isCinema = config.domain === "cinema";
+  const isShenkar = config.domain === "shenkar";
   const theme = config.theme;
   const [movieAssignments, setMovieAssignments] = useState(() => {
     const raw = localStorage.getItem(getMovieStorageKey());
@@ -531,20 +559,46 @@ useEffect(() => {
   const calendarEventStyle = {
     background: isCinema
       ? "linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)"
-      : "linear-gradient(135deg, #2563eb 0%, #0f766e 100%)",
-    color: "#ffffff",
+      : isShenkar
+        ? "linear-gradient(135deg, #d8cec0 0%, #c6b59e 100%)"
+        : "linear-gradient(135deg, #2563eb 0%, #0f766e 100%)",
+    color: isShenkar ? "#3b3025" : "#ffffff",
     borderRadius: "10px",
     padding: "4px 8px",
     border: isCinema
       ? "1px solid rgba(167, 139, 250, 0.42)"
-      : "1px solid rgba(37, 99, 235, 0.2)",
+      : isShenkar
+        ? "1px solid rgba(118, 104, 83, 0.42)"
+        : "1px solid rgba(37, 99, 235, 0.2)",
     boxShadow: isCinema
       ? "0 8px 20px rgba(124, 58, 237, 0.14)"
-      : "0 8px 20px rgba(37, 99, 235, 0.2)",
+      : isShenkar
+        ? "0 8px 18px rgba(95, 86, 73, 0.14)"
+        : "0 8px 20px rgba(37, 99, 235, 0.2)",
     fontWeight: 600,
   };
+
+  function getShenkarEventStyle(event) {
+    const seed = Number(event?.booking_id || event?.id || 0);
+    const safeSeed = Number.isFinite(seed) ? Math.abs(seed) : 0;
+    const swatch = SHENKAR_EVENT_PALETTE[safeSeed % SHENKAR_EVENT_PALETTE.length];
+    return {
+      background: swatch.bg,
+      color: swatch.fg,
+      borderRadius: "10px",
+      padding: "4px 8px",
+      border: `1px solid ${swatch.border}`,
+      boxShadow: swatch.shadow,
+      fontWeight: 600,
+      "--availability-event-bg": swatch.bg,
+      "--availability-event-fg": swatch.fg,
+      "--availability-event-border": swatch.border,
+      "--availability-event-shadow": swatch.shadow,
+    };
+  }
+
   return (
-    <div className={`availability-page ${isCinema ? "availability-page--cinema" : ""}`}>
+    <div className={`availability-page ${isCinema ? "availability-page--cinema" : ""} ${isShenkar ? "availability-page--shenkar" : ""}`}>
       {isCinema && (
         <style>{`
           .rbc-calendar {
@@ -739,7 +793,7 @@ useEffect(() => {
               popup
               selectable
               components={calendarComponents}
-              eventPropGetter={() => ({
+              eventPropGetter={(event) => ({
                 style: isCinema
                   ? {
                       backgroundColor: "#7c3aed",
@@ -748,7 +802,9 @@ useEffect(() => {
                       padding: "4px",
                       border: "none",
                     }
-                  : calendarEventStyle,
+                  : isShenkar
+                    ? getShenkarEventStyle(event)
+                    : calendarEventStyle,
               })}
             />
           </div>
@@ -756,23 +812,23 @@ useEffect(() => {
       </section>
 
       {dayModal.open && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div className="relative z-40 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl sm:p-7">
+        <div className={`availability-day-modal__backdrop fixed inset-0 z-40 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm ${isShenkar ? "availability-day-modal__backdrop--shenkar" : ""}`}>
+          <div className={`availability-day-modal relative z-40 max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-5 shadow-2xl sm:p-7 ${isShenkar ? "availability-day-modal--shenkar" : ""}`}>
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
                   Daily Schedule
                 </div>
-                <h3 className="mt-3 text-2xl font-semibold text-slate-900">
+                <h3 className="availability-day-modal__title mt-3 text-2xl font-semibold text-slate-900">
                   {moment(dayModal.date).format("DD.MM.YYYY")}
                 </h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="availability-day-modal__subtitle mt-1 text-sm text-slate-500">
                   All bookings for the selected date, sorted by start time.
                 </p>
               </div>
               <button
                 onClick={closeDayModal}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-slate-700"
+                className="availability-day-modal__close rounded-xl border border-slate-200 px-4 py-2 text-slate-700"
               >
                 Close
               </button>
@@ -790,21 +846,21 @@ useEffect(() => {
                         booking_id: booking.id,
                       })
                     }
-                    className="block w-full rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
+                    className={`availability-day-modal__booking block w-full rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-left shadow-sm transition ${isShenkar ? "availability-day-modal__booking--shenkar" : "hover:border-blue-300 hover:bg-blue-50"}`}
                   >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <div className="text-lg font-semibold text-slate-900">
+                        <div className="availability-day-modal__time text-lg font-semibold text-slate-900">
                           {String(booking.start_time || "").slice(0, 5)} - {String(booking.end_time || "").slice(0, 5)}
                         </div>
-                        <div className="mt-1 text-sm text-slate-600">
+                        <div className="availability-day-modal__user mt-1 text-sm text-slate-600">
                           User: {booking.user_id || "Not assigned"}
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {dayResources.map((resource) => (
                             <span
                               key={`${booking.id}-${resource.id}`}
-                              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                              className="availability-day-modal__chip rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
                             >
                               {resource.name}
                               {resource.type_name ? ` • ${resource.type_name}` : ""}
@@ -812,7 +868,7 @@ useEffect(() => {
                           ))}
                         </div>
                       </div>
-                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      <div className="availability-day-modal__booking-id text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
                         Booking #{booking.id}
                       </div>
                     </div>
@@ -831,8 +887,8 @@ useEffect(() => {
       )}
 
       {editModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
-          <div className={`relative z-50 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[24px] border p-4 shadow-2xl sm:p-6 ${theme.modalCard}`}>
+        <div className={`availability-edit-modal__backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 ${isShenkar ? "availability-edit-modal__backdrop--shenkar" : ""}`}>
+          <div className={`availability-edit-modal relative z-50 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[24px] border p-4 shadow-2xl sm:p-6 ${theme.modalCard} ${isShenkar ? "availability-edit-modal--shenkar" : ""}`}>
             <h3 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Edit Screening" : "Edit Booking"}</h3>
 
             {modalMessage && (
@@ -908,7 +964,7 @@ useEffect(() => {
                   />
                   <button
                     type="button"
-                    className="mt-2 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-800"
+                    className="availability-edit-modal__custom-title mt-2 rounded bg-slate-700 px-3 py-2 text-sm text-white hover:bg-slate-800"
                     onClick={() => {
                       if (!movieDraft.trim()) return;
                       setEditModal((p) => ({ ...p, movie: movieDraft.trim() }));
@@ -968,7 +1024,7 @@ useEffect(() => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 onClick={deleteBooking}
-                className={`rounded px-4 py-2 ${theme.buttonDanger}`}
+                className={`availability-edit-modal__delete rounded px-4 py-2 ${theme.buttonDanger}`}
               >
                 Delete
               </button>
@@ -988,13 +1044,13 @@ useEffect(() => {
                       movie: DEFAULT_MOVIES[0],
                     })
                   }
-                  className={`rounded border px-4 py-2 ${theme.buttonGhost}`}
+                  className={`availability-edit-modal__cancel rounded border px-4 py-2 ${theme.buttonGhost}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveEdit}
-                  className={`rounded px-4 py-2 ${theme.buttonPrimary}`}
+                  className={`availability-edit-modal__save rounded px-4 py-2 ${theme.buttonPrimary}`}
                 >
                   Save Changes
                 </button>
@@ -1005,8 +1061,8 @@ useEffect(() => {
       )}
 
       {createModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4">
-          <div className={`relative z-50 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[24px] border p-4 shadow-2xl sm:p-6 ${theme.modalCard}`}>
+        <div className={`availability-create-modal__backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-4 ${isShenkar ? "availability-create-modal__backdrop--shenkar" : ""}`}>
+          <div className={`availability-create-modal relative z-50 max-h-[90vh] w-full max-w-[680px] overflow-y-auto rounded-[24px] border p-4 shadow-2xl sm:p-6 ${theme.modalCard} ${isShenkar ? "availability-create-modal--shenkar" : ""}`}>
             <h3 className={`mb-4 text-xl font-semibold ${theme.textStrong}`}>{isCinema ? "Create Screening" : "Create Booking"}</h3>
 
             {modalMessage && (
@@ -1110,12 +1166,12 @@ useEffect(() => {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <button onClick={closeCreateModal} className={`rounded border px-4 py-2 ${theme.buttonGhost}`}>
+              <button onClick={closeCreateModal} className={`availability-create-modal__cancel rounded border px-4 py-2 ${theme.buttonGhost}`}>
                 Cancel
               </button>
               <button
                 onClick={createScreening}
-                className={`rounded px-4 py-2 ${theme.buttonPrimary}`}
+                className={`availability-create-modal__save rounded px-4 py-2 ${theme.buttonPrimary}`}
               >
                 {isCinema ? "Create Screening" : "Create Booking"}
               </button>

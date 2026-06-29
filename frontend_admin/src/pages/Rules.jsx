@@ -3060,35 +3060,64 @@ export default function Rules() {
       )}
 
       {detailsModal.open && detailsModal.rule && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-lg w-[700px] shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">Rule Details</h2>
-
-            <div className="space-y-2 text-sm">
-              <div><strong>ID:</strong> {detailsModal.rule.id}</div>
-              <div><strong>Name:</strong> {detailsModal.rule.name}</div>
-              <div><strong>Description:</strong> {detailsModal.rule.description || "-"}</div>
-              <div><strong>Target:</strong> {detailsModal.rule.target_type}</div>
-              <div><strong>Active:</strong> {detailsModal.rule.is_active ? "Yes" : "No"}</div>
-              <div><strong>Hard:</strong> {detailsModal.rule.is_hard ? "Yes" : "No"}</div>
-              <div><strong>Weight:</strong> {detailsModal.rule.weight}</div>
-              <div><strong>Sort Order:</strong> {detailsModal.rule.sort_order}</div>
+        <div className="rules-details-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="rules-details-modal max-h-[90vh] w-[760px] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+            <div className="rules-details-modal__header">
+              <div>
+                <div className="rules-details-modal__eyebrow">Rule snapshot</div>
+                <h2>Rule Details</h2>
+              </div>
+              <div className={detailsModal.rule.is_active ? "rules-details-modal__status rules-details-modal__status--active" : "rules-details-modal__status"}>
+                {detailsModal.rule.is_active ? "Active" : "Disabled"}
+              </div>
             </div>
 
-            <h3 className="font-semibold mt-4 mb-2">Condition (JSON)</h3>
-            <pre className="bg-gray-100 p-3 rounded text-xs border overflow-x-auto">
-              {JSON.stringify(detailsModal.rule.condition || {}, null, 2)}
-            </pre>
+            <div className="rules-details-modal__summary">
+              <div className="rules-details-modal__summary-main">
+                <span>Rule #{detailsModal.rule.id}</span>
+                <h3>{detailsModal.rule.name}</h3>
+                <p>{detailsModal.rule.description || "No description provided."}</p>
+              </div>
+              <div className="rules-details-modal__facts">
+                <div>
+                  <span>Target</span>
+                  <strong>{detailsModal.rule.target_type}</strong>
+                </div>
+                <div>
+                  <span>Hard</span>
+                  <strong>{detailsModal.rule.is_hard ? "Yes" : "No"}</strong>
+                </div>
+                <div>
+                  <span>Weight</span>
+                  <strong>{detailsModal.rule.weight}</strong>
+                </div>
+                <div>
+                  <span>Sort Order</span>
+                  <strong>{detailsModal.rule.sort_order}</strong>
+                </div>
+              </div>
+            </div>
 
-            <h3 className="font-semibold mt-4 mb-2">Action (JSON)</h3>
-            <pre className="bg-gray-100 p-3 rounded text-xs border overflow-x-auto">
-              {JSON.stringify(detailsModal.rule.action || {}, null, 2)}
-            </pre>
+            <div className="rules-details-modal__json-grid">
+              <section className="rules-details-modal__json-card">
+                <div className="rules-details-modal__section-title">Condition JSON</div>
+                <pre>
+                  {JSON.stringify(detailsModal.rule.condition || {}, null, 2)}
+                </pre>
+              </section>
 
-            <div className="flex justify-end mt-4">
+              <section className="rules-details-modal__json-card">
+                <div className="rules-details-modal__section-title">Action JSON</div>
+                <pre>
+                  {JSON.stringify(detailsModal.rule.action || {}, null, 2)}
+                </pre>
+              </section>
+            </div>
+
+            <div className="rules-details-modal__footer">
               <button
                 onClick={() => setDetailsModal({ open: false, rule: null })}
-                className="px-4 py-2 border rounded"
+                className="rules-details-modal__close px-4 py-2 border rounded"
               >
                 Close
               </button>

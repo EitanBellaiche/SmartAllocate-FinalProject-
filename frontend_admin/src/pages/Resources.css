@@ -705,6 +705,101 @@
   font-size: 0.88rem;
 }
 
+.resources-add-modal {
+  border-radius: 24px !important;
+}
+
+.resources-add-modal__header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.62);
+}
+
+.resources-add-modal__eyebrow {
+  margin-bottom: 8px;
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.resources-add-modal__header h2 {
+  margin: 0;
+  color: var(--res-ink);
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  font-weight: 900;
+  letter-spacing: -0.045em;
+}
+
+.resources-add-modal__header p {
+  margin: 8px 0 0;
+  max-width: 48ch;
+  color: #64748b;
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.resources-add-modal__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.resources-add-modal__field {
+  min-width: 0;
+}
+
+.resources-add-modal__field label {
+  display: block;
+  margin-bottom: 8px;
+  color: #1f2937;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.resources-add-modal__input {
+  display: block !important;
+  width: 100% !important;
+  min-height: 50px;
+  border-radius: 16px !important;
+  padding: 0 14px !important;
+}
+
+.resources-add-modal__footer {
+  align-items: center;
+  padding-top: 18px;
+  border-top: 1px solid rgba(203, 213, 225, 0.62);
+}
+
+.resources-add-modal__cancel,
+.resources-add-modal__save,
+.resources-add-modal__add-field,
+.resources-add-modal__remove-field {
+  border-radius: 14px !important;
+  font-weight: 800;
+}
+
+.resources-add-modal__cancel {
+  min-height: 46px;
+  border: 1px solid rgba(148, 163, 184, 0.5) !important;
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+.resources-add-modal__save {
+  min-height: 46px;
+  border: 1px solid rgba(78, 96, 86, 0.52) !important;
+  background: linear-gradient(180deg, #6f8379 0%, #53685e 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(82, 95, 85, 0.18);
+}
+
+.resources-add-modal__save:hover {
+  background: linear-gradient(180deg, #657970 0%, #4a5f55 100%) !important;
+}
+
 .resource-result-group__eyebrow {
   display: inline-flex;
   width: fit-content;
@@ -767,6 +862,573 @@
   padding: 14px;
   border-top: 1px solid rgba(226, 232, 240, 0.88);
   background: rgba(248, 250, 252, 0.72);
+}
+
+.admin-shell--shenkar .resources-toolbar::before,
+.admin-shell--shenkar .resource-card::before,
+.admin-shell--shenkar .resource-result-tile::before {
+  display: none !important;
+}
+
+.admin-shell--shenkar .resources-eyebrow {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #5e5548 !important;
+  letter-spacing: 0.16em !important;
+}
+
+.admin-shell--shenkar .resources-eyebrow--classic {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #5e5548 !important;
+  letter-spacing: 0.16em !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div {
+  background: #fbfcfc !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.05) !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div::after {
+  display: none !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div > div:first-child {
+  background: transparent !important;
+  color: #5e5548 !important;
+  letter-spacing: 0.12em !important;
+}
+
+.admin-shell--shenkar .resources-summary-pill {
+  border-color: rgba(122, 114, 100, 0.34) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%) !important;
+  color: #4e4539 !important;
+}
+
+.admin-shell--shenkar .resources-summary-pill__label {
+  background: transparent !important;
+  color: #665c4e !important;
+}
+
+.admin-shell--shenkar .resource-result-group__eyebrow {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #6a604f !important;
+  font-size: 0.68rem;
+}
+
+.admin-shell--shenkar .resource-result-tile__footer b {
+  border: 1px solid rgba(116, 103, 84, 0.56) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .resource-result-tile__open-group {
+  border: 1px solid rgba(116, 103, 84, 0.56) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .resource-result-tile:hover .resource-result-tile__footer b {
+  background: linear-gradient(180deg, #d1c4b2 0%, #bda98c 100%) !important;
+  border-color: rgba(108, 95, 76, 0.62) !important;
+}
+
+.admin-shell--shenkar .resource-result-tile:hover .resource-result-tile__open-group {
+  background: linear-gradient(180deg, #d1c4b2 0%, #bda98c 100%) !important;
+  border-color: rgba(108, 95, 76, 0.62) !important;
+}
+
+.admin-shell--shenkar .resources-toolbar {
+  border-color: rgba(101, 92, 77, 0.56) !important;
+  background: linear-gradient(140deg, #eaf0ef 0%, #e4ecea 55%, #ece4d6 100%) !important;
+  box-shadow: 0 14px 28px rgba(95, 86, 73, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.55) !important;
+}
+
+.admin-shell--shenkar .resources-toolbar__subtitle {
+  color: #544b3e !important;
+}
+
+.admin-shell--shenkar .resources-add-button {
+  border: 1px solid rgba(106, 95, 79, 0.36) !important;
+  background: linear-gradient(135deg, #d8cec0 0%, #cbbca8 100%) !important;
+  color: #3f352b !important;
+  box-shadow: 0 10px 20px rgba(95, 86, 73, 0.16) !important;
+}
+
+.admin-shell--shenkar .resources-modal-backdrop {
+  background: rgba(255, 255, 255, 0.62) !important;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.admin-shell--shenkar .resources-modal-surface {
+  border: 1px solid rgba(110, 98, 79, 0.36) !important;
+  background: linear-gradient(180deg, #faf5ec 0%, #f0e7d9 100%) !important;
+  box-shadow: 0 26px 44px rgba(95, 86, 73, 0.2) !important;
+}
+
+.admin-shell--shenkar .resources-modal-surface h2,
+.admin-shell--shenkar .resources-modal-surface h3,
+.admin-shell--shenkar .resources-modal-surface label,
+.admin-shell--shenkar .resources-modal-surface strong {
+  color: #3b3328 !important;
+}
+
+.admin-shell--shenkar .resources-modal-surface input,
+.admin-shell--shenkar .resources-modal-surface select,
+.admin-shell--shenkar .resources-modal-surface textarea,
+.admin-shell--shenkar .resources-modal-surface pre {
+  border-color: rgba(112, 101, 85, 0.45) !important;
+  background: #fffdf8 !important;
+  color: #3f362a !important;
+}
+
+.admin-shell--shenkar .resources-modal-surface button.bg-blue-600,
+.admin-shell--shenkar .resources-modal-surface button.hover\:bg-blue-700,
+.admin-shell--shenkar .resources-modal-surface button[class*="bg-blue-600"] {
+  border: 1px solid rgba(118, 105, 86, 0.5) !important;
+  background: linear-gradient(135deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .resources-details-modal__close {
+  border-color: rgba(108, 92, 72, 0.66) !important;
+  background: linear-gradient(180deg, #e3d7c8 0%, #d5c4ae 100%) !important;
+  color: #352a20 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.2) !important;
+}
+
+.admin-shell--shenkar .resources-details-modal__close:hover {
+  background: linear-gradient(180deg, #ddcfbe 0%, #ccb89f 100%) !important;
+}
+
+.resources-details-modal__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.resources-details-modal__footer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(120, 109, 92, 0.26);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.resources-details-modal pre {
+  max-height: 52vh;
+  overflow: auto;
+}
+
+/* Portal modals are mounted under body, so use explicit portal classes for Shenkar styling. */
+.resources-modal-backdrop--shenkar {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.resources-modal-surface--shenkar {
+  border: 1px solid rgba(110, 98, 79, 0.34) !important;
+  background: linear-gradient(180deg, #faf6ee 0%, #f1e9dc 100%) !important;
+  box-shadow: 0 30px 52px rgba(95, 86, 73, 0.22) !important;
+}
+
+.resources-modal-surface--shenkar h2,
+.resources-modal-surface--shenkar h3,
+.resources-modal-surface--shenkar label,
+.resources-modal-surface--shenkar strong,
+.resources-modal-surface--shenkar .text-purple-950 {
+  color: #3f362b !important;
+}
+
+.resources-modal-surface--shenkar input,
+.resources-modal-surface--shenkar select,
+.resources-modal-surface--shenkar textarea,
+.resources-modal-surface--shenkar pre {
+  border-color: rgba(112, 101, 85, 0.45) !important;
+  background: #fffdf8 !important;
+  color: #3f362a !important;
+}
+
+.resources-modal-surface--shenkar.resources-add-modal {
+  max-width: 720px !important;
+  border-radius: 28px !important;
+  border-color: rgba(103, 92, 76, 0.42) !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(171, 191, 192, 0.18), transparent 32%),
+    linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__header {
+  border-bottom-color: rgba(116, 103, 84, 0.26);
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__eyebrow {
+  color: #6a604f;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__header p {
+  color: #6a604f;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__input {
+  border-color: rgba(112, 101, 85, 0.48) !important;
+  background: #fffdf8 !important;
+  color: #352d24 !important;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__input:focus,
+.resources-modal-surface--shenkar .resources-assigned-users__textarea:focus {
+  border-color: rgba(143, 170, 179, 0.72) !important;
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.18) !important;
+}
+
+.resources-modal-surface--shenkar .resources-assigned-users {
+  border-color: rgba(111, 154, 133, 0.34);
+  background:
+    radial-gradient(circle at 96% 0%, rgba(177, 196, 188, 0.18), transparent 36%),
+    linear-gradient(180deg, #eefaf4 0%, #e3f5ec 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.resources-modal-surface--shenkar .resources-assigned-users__header h3 {
+  color: #2f2b24 !important;
+}
+
+.resources-modal-surface--shenkar .resources-assigned-users__header p,
+.resources-modal-surface--shenkar .resources-assigned-users__hint {
+  color: #52675d;
+}
+
+.resources-modal-surface--shenkar .resources-assigned-users__count {
+  border-color: rgba(111, 154, 133, 0.28);
+  background: #fffdf8;
+  color: #31544a;
+}
+
+.resources-modal-surface--shenkar .resources-assigned-users__hint code,
+.resources-modal-surface--shenkar .resources-assigned-users__chip {
+  border: 1px solid rgba(111, 154, 133, 0.18);
+  background: #fffdf8;
+  color: #31544a;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__cancel {
+  border-color: rgba(116, 103, 84, 0.38) !important;
+  background: #fffdf8 !important;
+  color: #5a4c3c !important;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__save {
+  border-color: rgba(83, 100, 90, 0.62) !important;
+  background: linear-gradient(180deg, #768a80 0%, #5c7167 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 22px rgba(82, 95, 85, 0.18) !important;
+}
+
+.resources-modal-surface--shenkar .resources-add-modal__save:hover {
+  background: linear-gradient(180deg, #6c8076 0%, #52675d 100%) !important;
+}
+
+.resources-modal-surface--shenkar .resources-details-modal__close {
+  border-color: rgba(118, 106, 88, 0.58) !important;
+  background: linear-gradient(180deg, #f4ede1 0%, #e8ddcb 100%) !important;
+  color: #4d4235 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.15) !important;
+}
+
+.resources-modal-surface--shenkar .resources-details-modal__close:hover {
+  background: linear-gradient(180deg, #ede3d2 0%, #dfd0b8 100%) !important;
+  border-color: rgba(110, 97, 78, 0.64) !important;
+}
+
+.resources-edit-modal__title {
+  letter-spacing: -0.02em;
+}
+
+.resources-edit-modal__body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.resources-edit-modal__section-title {
+  letter-spacing: 0.02em;
+}
+
+.resources-edit-modal__field-row {
+  border: 1px solid rgba(122, 114, 100, 0.2);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.resources-edit-modal__field-row input[type="number"],
+.resources-edit-modal__custom-card input[type="number"] {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.resources-edit-modal__field-row input,
+.resources-edit-modal__custom-card input {
+  text-align: left;
+  padding-left: 14px !important;
+  padding-right: 10px !important;
+}
+
+.resources-edit-modal__field-row input[type="number"]::-webkit-outer-spin-button,
+.resources-edit-modal__field-row input[type="number"]::-webkit-inner-spin-button,
+.resources-edit-modal__custom-card input[type="number"]::-webkit-outer-spin-button,
+.resources-edit-modal__custom-card input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.resources-edit-modal__field-row input[type="number"],
+.resources-edit-modal__custom-card input[type="number"] {
+  appearance: textfield;
+}
+
+.resources-edit-modal__custom-card {
+  border-color: rgba(122, 114, 100, 0.32) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, #fcf9f3 0%, #f3ecdf 100%) !important;
+}
+
+.resources-edit-modal__footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(120, 109, 92, 0.26);
+  background: linear-gradient(180deg, rgba(250, 246, 238, 0) 0%, rgba(250, 246, 238, 0.96) 42%);
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 42px;
+  padding-left: 14px !important;
+  padding-right: 12px !important;
+  border-color: rgba(112, 101, 85, 0.46) !important;
+  background: #fffdf8 !important;
+  color: #3f362a !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__input:focus {
+  border-color: rgba(132, 116, 92, 0.7) !important;
+  box-shadow: 0 0 0 4px rgba(200, 183, 154, 0.25) !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal select.resources-edit-modal__input {
+  padding-right: 34px !important;
+  background-position: calc(100% - 14px) center !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__add-field {
+  border: 1px solid rgba(110, 98, 79, 0.5) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #f5ede0 0%, #e6dac8 100%) !important;
+  color: #4a3f33 !important;
+  box-shadow: none !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__add-field:hover {
+  background: linear-gradient(180deg, #eee3d1 0%, #ddceb8 100%) !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__remove {
+  border: 1px solid #b88f8f !important;
+  border-radius: 12px !important;
+  background: linear-gradient(135deg, #cfa4a4 0%, #bf8f8f 100%) !important;
+  color: #3f2f2f !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__remove:hover {
+  background: linear-gradient(135deg, #c49797 0%, #b68383 100%) !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__cancel {
+  border-color: rgba(118, 106, 88, 0.56) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #f6f0e4 0%, #e8ddcb 100%) !important;
+  color: #4c4134 !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__save {
+  border: 1px solid rgba(116, 103, 84, 0.58) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #d8cec0 0%, #c8b89f 100%) !important;
+  color: #3c3228 !important;
+}
+
+.resources-modal-surface--shenkar.resources-edit-modal .resources-edit-modal__save:hover {
+  background: linear-gradient(180deg, #d1c4b2 0%, #bda98c 100%) !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel {
+  border-color: rgba(102, 91, 74, 0.5) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 12px 22px rgba(95, 86, 73, 0.1) !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel label {
+  color: #4d4438 !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel select,
+.admin-shell--shenkar .resources-filter-panel input {
+  border-color: rgba(110, 98, 79, 0.5) !important;
+  background: #fffdf9 !important;
+  color: #2f2a23 !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel select:focus,
+.admin-shell--shenkar .resources-filter-panel input:focus {
+  border-color: rgba(128, 157, 168, 0.72) !important;
+  box-shadow: 0 0 0 5px rgba(143, 170, 179, 0.2) !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div {
+  border-color: rgba(112, 101, 85, 0.46) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.08) !important;
+}
+
+.admin-shell--shenkar .resources-filter-panel .mt-4.grid > div > div:first-child {
+  color: #6a604f !important;
+}
+
+.admin-shell--shenkar .resources-list {
+  border-color: rgba(101, 92, 77, 0.56) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.14) !important;
+}
+
+.admin-shell--shenkar .resources-cinema-empty {
+  border-color: rgba(122, 114, 100, 0.38) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+}
+
+.admin-shell--shenkar .resources-cinema-empty div:first-child {
+  color: #2e2820 !important;
+}
+
+.admin-shell--shenkar .resources-cinema-empty div:last-child {
+  color: #5a5042 !important;
+}
+
+.admin-shell--shenkar .resource-card {
+  border-color: rgba(101, 92, 77, 0.52) !important;
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  box-shadow: 0 12px 24px rgba(95, 86, 73, 0.11) !important;
+}
+
+.admin-shell--shenkar .resource-card:hover {
+  border-color: rgba(95, 85, 69, 0.66) !important;
+  box-shadow: 0 18px 30px rgba(95, 86, 73, 0.16) !important;
+}
+
+.admin-shell--shenkar .resource-card h3 {
+  color: #2e2720 !important;
+}
+
+.admin-shell--shenkar .resource-card p,
+.admin-shell--shenkar .resource-card .text-sm {
+  color: #584f41 !important;
+}
+
+.admin-shell--shenkar .resource-card .whitespace-nowrap button,
+.admin-shell--shenkar .resource-card--cinema-grid__actions button {
+  border: 1px solid rgba(112, 101, 85, 0.42) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--shenkar .resource-card .whitespace-nowrap button:nth-child(1),
+.admin-shell--shenkar .resource-card--cinema-grid__actions button:nth-child(1) {
+  background: linear-gradient(180deg, #e4efed 0%, #d5e3e0 100%) !important;
+  color: #36555e !important;
+  border-color: rgba(96, 127, 136, 0.5) !important;
+}
+
+.admin-shell--shenkar .resource-card .whitespace-nowrap button:nth-child(2),
+.admin-shell--shenkar .resource-card--cinema-grid__actions button:nth-child(2) {
+  background: linear-gradient(180deg, #f7f2e8 0%, #ece4d6 100%) !important;
+  color: #625747 !important;
+  border-color: rgba(122, 114, 100, 0.46) !important;
+}
+
+.admin-shell--shenkar .resource-card .whitespace-nowrap button:nth-child(3),
+.admin-shell--shenkar .resource-card--cinema-grid__actions button:nth-child(3) {
+  background: linear-gradient(180deg, #e9c7c7 0%, #dcb2b2 100%) !important;
+  color: #5e3d3d !important;
+  border-color: rgba(168, 122, 122, 0.56) !important;
+}
+
+.admin-shell--shenkar .resource-card .whitespace-nowrap button:hover,
+.admin-shell--shenkar .resource-card--cinema-grid__actions button:hover {
+  filter: brightness(0.98);
+}
+
+.resources-page--classic .resources-toolbar::before,
+.resources-page--classic .resource-card::before,
+.resources-page--classic .resource-result-tile::before {
+  display: none !important;
+}
+
+.resources-page--classic .resources-eyebrow,
+.resources-page--classic .resources-eyebrow--classic {
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #5f5649 !important;
+  letter-spacing: 0.14em !important;
+}
+
+.resources-page--classic .resources-summary-pill {
+  border-color: rgba(148, 139, 126, 0.34) !important;
+  background: #fbfaf8 !important;
+  box-shadow: 0 8px 16px rgba(95, 86, 73, 0.05) !important;
+}
+
+.resources-page--classic .resources-summary-pill__label {
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #6a604f !important;
+  letter-spacing: 0.11em !important;
+}
+
+.resources-page--classic .resources-summary-pill__label--classic {
+  background: transparent !important;
+}
+
+.admin-shell--shenkar .resources-summary-pill__value--numeric {
+  color: #6f5d48 !important;
+}
+
+.resources-page--classic .resources-filter-panel .mt-4.grid > div::after {
+  display: none !important;
 }
 
 @media (max-width: 760px) {
@@ -948,5 +1610,19 @@
 
   .resource-card--cinema-grid__actions button {
     flex: 1 1 120px;
+  }
+}
+
+@media (max-width: 640px) {
+  .resources-add-modal__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .resources-add-modal__footer {
+    flex-direction: column-reverse;
+  }
+
+  .resources-add-modal__footer button {
+    width: 100%;
   }
 }
