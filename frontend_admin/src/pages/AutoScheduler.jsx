@@ -958,15 +958,10 @@ export default function AutoScheduler({ embedded = false }) {
   }
 
   function addTimeWindow() {
-    const suffix = timeWindows.length + 1;
+    const id = `win_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     setTimeWindows((prev) => [
       ...prev,
-      {
-        id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        label: `Custom ${suffix}`,
-        start_time: "08:00",
-        end_time: "10:00",
-      },
+      { id, label: "Custom window", start_time: "08:00", end_time: "12:00" },
     ]);
   }
 
