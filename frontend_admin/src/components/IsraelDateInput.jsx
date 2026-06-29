@@ -7,27 +7,43 @@ function formatDisplayValue(value) {
   return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
-function parseInputValue(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-  const match = text.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
-  if (!match) return null;
-
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
+function isValidDateParts(day, month, year) {
   const parsed = new Date(year, month - 1, day);
-  if (
+  return !(
     Number.isNaN(parsed.getTime()) ||
     parsed.getFullYear() !== year ||
     parsed.getMonth() !== month - 1 ||
     parsed.getDate() !== day
-  ) {
-    return null;
+  );
+}
+
+function parseInputValue(value) {
+  const text = String(value || "").trim();
+  if (!text) return { parsed: "", error: "" };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return { parsed: text, error: "" };
+  const match = text.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);
+  if (!match) return { parsed: null, error: "" };
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  if (!isValidDateParts(day, month, year)) {
+    if (isValidDateParts(month, day, year)) {
+      return {
+        parsed: null,
+        error: `Use dd/mm/yyyy. For this date enter ${String(month).padStart(2, "0")}/${String(day).padStart(2, "0")}/${year}.`,
+      };
+    }
+    return {
+      parsed: null,
+      error: "Enter a valid date in dd/mm/yyyy format.",
+    };
   }
 
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return {
+    parsed: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+    error: "",
+  };
 }
 
 export default function IsraelDateInput({
@@ -40,11 +56,13 @@ export default function IsraelDateInput({
   ...props
 }) {
   const [text, setText] = useState(formatDisplayValue(value));
+  const [error, setError] = useState("");
   const [preferNativePicker, setPreferNativePicker] = useState(false);
   const pickerRef = useRef(null);
 
   useEffect(() => {
     setText(formatDisplayValue(value));
+    setError("");
   }, [value]);
 
   useEffect(() => {
@@ -73,21 +91,25 @@ export default function IsraelDateInput({
     const nextValue = String(rawValue || "").trim();
     if (!nextValue) {
       setText("");
+      setError("");
       onChange?.("");
       return;
     }
 
-    const parsed = parseInputValue(nextValue);
+    const { parsed, error: parseError } = parseInputValue(nextValue);
     if (!parsed) {
       setText(nextValue);
+      setError(parseError || "Enter a valid date in dd/mm/yyyy format.");
       return;
     }
     if ((min && parsed < min) || (max && parsed > max)) {
       setText(formatDisplayValue(value));
+      setError("Selected date is outside the allowed range.");
       return;
     }
 
     setText(formatDisplayValue(parsed));
+    setError("");
     onChange?.(parsed);
   }
 
@@ -114,9 +136,24 @@ export default function IsraelDateInput({
         inputMode="numeric"
         dir="ltr"
         placeholder={placeholder}
-        className={className}
+        className={`${className}${error ? " border-rose-400 focus:border-rose-500" : ""}`}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        aria-invalid={error ? "true" : "false"}
+        onChange={(e) => {
+          const nextValue = e.target.value;
+          setText(nextValue);
+          const trimmed = String(nextValue || "").trim();
+          if (!trimmed) {
+            setError("");
+            return;
+          }
+          const { parsed, error: parseError } = parseInputValue(trimmed);
+          setError(
+            parsed || (!parseError && trimmed.length < 8)
+              ? ""
+              : parseError || "Enter a valid date in dd/mm/yyyy format."
+          );
+        }}
         onBlur={(e) => commit(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") commit(e.currentTarget.value);
@@ -146,7 +183,7 @@ export default function IsraelDateInput({
           pickerRef.current?.focus();
           pickerRef.current?.click();
         }}
-      >
+        >
         <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M8 2v4" />
           <path d="M16 2v4" />
@@ -154,6 +191,11 @@ export default function IsraelDateInput({
           <path d="M3 10h18" />
         </svg>
       </button>
+      {error && (
+        <div className="mt-2 text-sm text-rose-600">
+          {error}
+        </div>
+      )}
     </div>
   );
 }
