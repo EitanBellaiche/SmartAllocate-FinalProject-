@@ -104,6 +104,11 @@ function MobileMonthAgenda({
                     <span key={idx} className="mobile-dot" />
                   ))}
                 </div>
+                {hasAny ? (
+                  <div className="mobile-day__count">
+                    {Number(dotCountRaw) > 9 ? "9+" : Number(dotCountRaw)}
+                  </div>
+                ) : null}
               </div>
             );
           })}

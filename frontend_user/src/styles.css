@@ -335,6 +335,20 @@ select {
   background: rgba(37, 99, 235, 0.95);
 }
 
+.mobile-day__count {
+  min-width: 22px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .mobile-agenda {
   margin-top: 12px;
   display: grid;
@@ -2181,6 +2195,419 @@ select {
   color: #5f5649;
 }
 
+.user-app-shell--shenkar .app-main {
+  max-width: 1540px;
+  width: 100%;
+  padding: 26px 24px 34px;
+}
+
+.schedule-page--shenkar-schedule {
+  display: grid;
+  gap: 24px;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule {
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  min-height: 128px;
+  margin-bottom: 0;
+  padding: 26px 30px;
+  border-color: rgba(216, 209, 191, 0.62);
+  border-radius: 30px;
+  background: linear-gradient(100deg, #fffdfa 0%, #fffdfa 62%, #edf5f5 100%);
+  box-shadow: 0 22px 56px rgba(95, 86, 73, 0.11);
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-title {
+  color: #171d2d;
+  font-size: clamp(2.35rem, 4.1vw, 3.75rem);
+  line-height: 1.04;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-subtitle {
+  max-width: 720px;
+  color: #596b70;
+  font-size: 1.02rem;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-pill {
+  min-height: 46px;
+  padding: 0 18px;
+  border-color: rgba(165, 154, 132, 0.34);
+  background: #eee8dc;
+  color: #5f5649;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar {
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 340px) auto;
+  gap: 18px !important;
+  padding: 24px 26px !important;
+  border-color: rgba(216, 209, 191, 0.6);
+  border-radius: 30px !important;
+  background:
+    radial-gradient(circle at 96% 12%, rgba(143, 170, 179, 0.13), transparent 22%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 246, 238, 0.95) 100%);
+  box-shadow: 0 24px 60px rgba(95, 86, 73, 0.12);
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-control-panel__copy h3 {
+  color: #171d2d;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-control-panel__copy p {
+  color: #607078;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-search-input {
+  min-height: 56px;
+  border-color: rgba(216, 209, 191, 0.7) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: #252a34 !important;
+  font-weight: 700;
+  box-shadow: 0 16px 34px rgba(95, 86, 73, 0.08);
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-search-input:focus {
+  border-color: rgba(143, 170, 179, 0.78) !important;
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.2), 0 18px 34px rgba(95, 86, 73, 0.1);
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-view-toggle {
+  min-height: 56px;
+  border-color: rgba(216, 209, 191, 0.72) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-view-toggle button {
+  min-width: 82px;
+  min-height: 56px;
+  color: #6a604f !important;
+}
+
+.user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-view-toggle button.active {
+  background: linear-gradient(180deg, #e4f0f3 0%, #d7e8ed 100%) !important;
+  color: #1f5f7a !important;
+}
+
+.user-app-shell--shenkar .schedule-content {
+  margin-top: 0;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule {
+  overflow: hidden;
+  border-color: rgba(216, 209, 191, 0.66);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(168, 216, 224, 0.28), transparent 22%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 247, 239, 0.96) 100%);
+  box-shadow: 0 28px 76px rgba(95, 86, 73, 0.16);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__top {
+  padding: 18px 18px 12px;
+  border-bottom-color: rgba(216, 209, 191, 0.7);
+  background:
+    linear-gradient(90deg, rgba(239, 247, 249, 0.94) 0%, rgba(232, 243, 246, 0.96) 52%, rgba(250, 247, 239, 0.94) 100%);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__top-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__month {
+  justify-self: center;
+  color: #171d2d;
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
+  font-weight: 800;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .badge-soft {
+  border-color: rgba(216, 209, 191, 0.42) !important;
+  background: rgba(255, 255, 255, 0.48) !important;
+  color: #4f6770 !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__nav button {
+  width: 42px;
+  height: 42px;
+  border-color: rgba(216, 209, 191, 0.72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #4f6770;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__nav button:hover {
+  border-color: rgba(143, 170, 179, 0.7);
+  background: #f8fbfb;
+  color: #1f5f7a;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__weekdays {
+  margin-top: 14px;
+  color: #596b70;
+  font-size: 0.76rem;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__body {
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(250, 247, 239, 0.42) 100%);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__grid {
+  gap: 8px;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day {
+  position: relative;
+  min-height: 76px;
+  align-content: start;
+  justify-items: start;
+  padding: 13px 14px;
+  border-color: rgba(216, 209, 191, 0.66);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 24px rgba(95, 86, 73, 0.07);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day:hover {
+  transform: translateY(-2px);
+  border-color: rgba(143, 170, 179, 0.72);
+  background: linear-gradient(180deg, #ffffff 0%, #f2f8f8 100%);
+  box-shadow: 0 18px 34px rgba(95, 86, 73, 0.12);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day[aria-disabled="true"] {
+  opacity: 0.42;
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day__num {
+  width: 32px;
+  height: 32px;
+  color: #171d2d;
+  font-size: 1.1rem;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day.selected {
+  border-color: rgba(143, 170, 179, 0.84);
+  background:
+    radial-gradient(circle at 88% 18%, rgba(143, 170, 179, 0.24), transparent 32%),
+    linear-gradient(180deg, #f8fbfb 0%, #e8f2f3 100%);
+  box-shadow: 0 20px 44px rgba(79, 103, 112, 0.16);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day.selected .mobile-day__num {
+  border-color: rgba(143, 170, 179, 0.52);
+  background: #ffffff;
+  color: #1f5f7a;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day__dots {
+  position: absolute;
+  left: 16px;
+  bottom: 14px;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-dot {
+  width: 7px;
+  height: 7px;
+  background: #1f9cbb;
+  box-shadow: 0 0 0 4px rgba(31, 156, 187, 0.11);
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day__count {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  min-width: 28px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 170, 179, 0.34);
+  background: rgba(232, 242, 243, 0.86);
+  color: #4f6770;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-agenda {
+  margin-top: 14px;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-agenda__header {
+  min-height: 58px;
+  padding: 13px 16px;
+  border-color: rgba(216, 209, 191, 0.58);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.92) 0%, rgba(239, 247, 249, 0.86) 100%);
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-agenda__header .badge-soft {
+  background: rgba(232, 242, 243, 0.9) !important;
+  color: #253038 !important;
+}
+
+.user-app-shell--shenkar .mobile-agenda__item--shenkar {
+  padding: 15px 16px;
+  border-color: rgba(216, 209, 191, 0.56);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 247, 239, 0.74) 100%);
+  box-shadow: 0 14px 28px rgba(95, 86, 73, 0.08);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.user-app-shell--shenkar .mobile-agenda__item--shenkar:hover {
+  transform: translateY(-1px);
+  border-color: rgba(143, 170, 179, 0.72);
+  box-shadow: 0 20px 40px rgba(95, 86, 73, 0.13);
+}
+
+.user-app-shell--shenkar .mobile-agenda__item--shenkar .mobile-agenda__title {
+  color: #171d2d;
+  font-size: 0.98rem;
+}
+
+.user-app-shell--shenkar .mobile-agenda__item--shenkar .mobile-agenda__sub {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .mobile-agenda__item--shenkar .mobile-agenda__time {
+  min-width: max-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 170, 179, 0.34);
+  background: rgba(232, 242, 243, 0.88);
+  color: #1f5f7a;
+  font-size: 0.83rem;
+}
+
+@media (max-width: 900px) {
+  .user-app-shell--shenkar .schedule-control-panel--shenkar {
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-view-toggle {
+    width: 100%;
+  }
+
+  .user-app-shell--shenkar .schedule-control-panel--shenkar .schedule-view-toggle button {
+    flex: 1 1 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .user-app-shell--shenkar .app-main {
+    padding: 14px;
+  }
+
+  .schedule-page--shenkar-schedule {
+    gap: 16px;
+  }
+
+  .user-app-shell--shenkar .user-page-header--shenkar-schedule {
+    min-height: auto;
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-title {
+    font-size: 2.35rem;
+  }
+
+  .user-app-shell--shenkar .schedule-control-panel--shenkar {
+    padding: 18px !important;
+    border-radius: 24px !important;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule {
+    border-radius: 24px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__top {
+    padding: 14px 12px 10px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__top-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__month {
+    justify-self: start;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__body {
+    padding: 10px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-calendar__grid {
+    gap: 6px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day {
+    min-height: 58px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day__num {
+    width: 26px;
+    height: 26px;
+    font-size: 0.94rem;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day__dots {
+    left: 10px;
+    bottom: 10px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar--shenkar-schedule .mobile-day__count {
+    right: 7px;
+    bottom: 6px;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 0.68rem;
+  }
+
+  .user-app-shell--shenkar .mobile-agenda__item--shenkar {
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .mobile-agenda__item--shenkar .mobile-agenda__time {
+    width: fit-content;
+  }
+}
+
 @media (max-width: 1180px) {
   .login-card {
     grid-template-columns: 1fr;
@@ -3150,6 +3577,171 @@ select {
   gap: 16px;
 }
 
+.schedule-list-view {
+  display: grid;
+  gap: 18px;
+}
+
+.schedule-list-empty {
+  margin-top: 0;
+}
+
+.schedule-period-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border-radius: 28px;
+}
+
+.schedule-period-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.schedule-period-header__eyebrow {
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.schedule-period-header h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.35rem;
+}
+
+.schedule-period-header p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.schedule-period-header__nav {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.schedule-period-header__nav button {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.schedule-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.schedule-week-day {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.schedule-week-day__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  background: #f8fafc;
+}
+
+.schedule-week-day__header span {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.schedule-week-day__header strong {
+  color: #0f172a;
+  font-size: 1.05rem;
+}
+
+.schedule-week-day__body,
+.schedule-day-list {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.schedule-week-day__body {
+  min-height: 150px;
+  padding: 10px;
+}
+
+.schedule-day-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.schedule-period-booking {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  padding: 13px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.schedule-period-booking__time {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.schedule-period-booking__title {
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.schedule-period-booking__location {
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.schedule-period-empty {
+  display: grid;
+  place-items: center;
+  min-height: 58px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.42);
+  background: rgba(248, 250, 252, 0.74);
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .mobile-calendar {
   border-radius: 28px;
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -3456,5 +4048,1248 @@ select {
   .notifications-panel {
     padding: 16px !important;
     border-radius: 22px !important;
+  }
+}
+
+/* Final Shenkar schedule overrides. Kept at the end so they win over shared calendar rules. */
+.user-app-shell--shenkar .schedule-page {
+  display: grid;
+  gap: 24px;
+}
+
+.user-app-shell--shenkar .user-page-header {
+  margin-bottom: 0;
+  border-color: rgba(216, 209, 191, 0.62);
+  background:
+    radial-gradient(circle at 92% 18%, rgba(143, 170, 179, 0.18), transparent 24%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 247, 239, 0.95) 58%, rgba(237, 242, 241, 0.94) 100%);
+  box-shadow: 0 26px 70px rgba(95, 86, 73, 0.14);
+}
+
+.user-app-shell--shenkar .schedule-control-panel {
+  margin-bottom: 0;
+  border-color: rgba(216, 209, 191, 0.62) !important;
+  background:
+    radial-gradient(circle at 96% 12%, rgba(143, 170, 179, 0.13), transparent 22%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(249, 246, 238, 0.95) 100%) !important;
+  box-shadow: 0 24px 60px rgba(95, 86, 73, 0.12) !important;
+}
+
+.user-app-shell--shenkar .schedule-search-input {
+  border-color: rgba(216, 209, 191, 0.72) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 16px 34px rgba(95, 86, 73, 0.08) !important;
+}
+
+.user-app-shell--shenkar .schedule-view-toggle button.active {
+  background: linear-gradient(180deg, #e4f0f3 0%, #d7e8ed 100%) !important;
+  color: #1f5f7a !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar {
+  overflow: hidden;
+  border-color: rgba(216, 209, 191, 0.7) !important;
+  border-radius: 30px !important;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(168, 216, 224, 0.28), transparent 22%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 247, 239, 0.96) 100%) !important;
+  box-shadow: 0 28px 76px rgba(95, 86, 73, 0.16) !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__top {
+  padding: 18px 18px 12px !important;
+  border-bottom: 1px solid rgba(216, 209, 191, 0.72) !important;
+  background:
+    linear-gradient(90deg, rgba(239, 247, 249, 0.96) 0%, rgba(232, 243, 246, 0.98) 52%, rgba(250, 247, 239, 0.96) 100%) !important;
+  color: #171d2d !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__top-row {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__month {
+  justify-self: center;
+  color: #171d2d !important;
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem) !important;
+  font-weight: 900 !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__nav button {
+  width: 42px !important;
+  height: 42px !important;
+  border-color: rgba(216, 209, 191, 0.72) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #4f6770 !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .badge-soft {
+  border-color: rgba(216, 209, 191, 0.42) !important;
+  background: rgba(255, 255, 255, 0.58) !important;
+  color: #4f6770 !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__weekdays {
+  color: #596b70 !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__body {
+  padding: 16px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0%, rgba(250, 247, 239, 0.46) 100%) !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-calendar__grid {
+  gap: 8px !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-day {
+  position: relative !important;
+  min-height: 76px !important;
+  align-content: start !important;
+  justify-items: start !important;
+  padding: 13px 14px !important;
+  border-color: rgba(216, 209, 191, 0.66) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 10px 24px rgba(95, 86, 73, 0.07) !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-day:hover {
+  transform: translateY(-2px);
+  border-color: rgba(143, 170, 179, 0.72) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f2f8f8 100%) !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-day__num {
+  width: 32px !important;
+  height: 32px !important;
+  color: #171d2d !important;
+  font-size: 1.1rem !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-day__dots {
+  position: absolute !important;
+  left: 16px !important;
+  bottom: 14px !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-dot {
+  width: 7px !important;
+  height: 7px !important;
+  background: #1f9cbb !important;
+  box-shadow: 0 0 0 4px rgba(31, 156, 187, 0.11) !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-day__count {
+  position: absolute !important;
+  right: 12px !important;
+  bottom: 10px !important;
+  min-width: 28px !important;
+  height: 24px !important;
+  display: grid !important;
+  place-items: center !important;
+  padding: 0 8px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(143, 170, 179, 0.34) !important;
+  background: rgba(232, 242, 243, 0.9) !important;
+  color: #4f6770 !important;
+  font-size: 0.76rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.user-app-shell--shenkar .mobile-calendar .mobile-agenda__header {
+  border-color: rgba(216, 209, 191, 0.58) !important;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.94) 0%, rgba(239, 247, 249, 0.88) 100%) !important;
+}
+
+.user-app-shell--shenkar .schedule-period-panel {
+  border-color: rgba(216, 209, 191, 0.7) !important;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(143, 170, 179, 0.13), transparent 26%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 247, 239, 0.96) 100%) !important;
+  box-shadow: 0 28px 76px rgba(95, 86, 73, 0.14) !important;
+}
+
+.user-app-shell--shenkar .schedule-period-header__eyebrow {
+  background: rgba(232, 242, 243, 0.92);
+  color: #1f5f7a;
+}
+
+.user-app-shell--shenkar .schedule-period-header h3 {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .schedule-period-header p {
+  color: #596b70;
+}
+
+.user-app-shell--shenkar .schedule-period-header__nav button {
+  border-color: rgba(216, 209, 191, 0.72);
+  background: #ffffff;
+  color: #4f6770;
+}
+
+.user-app-shell--shenkar .schedule-period-header__nav button:hover {
+  border-color: rgba(143, 170, 179, 0.72);
+  background: #f8fbfb;
+}
+
+.user-app-shell--shenkar .schedule-week-day {
+  border-color: rgba(216, 209, 191, 0.66);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 26px rgba(95, 86, 73, 0.07);
+}
+
+.user-app-shell--shenkar .schedule-week-day--has-bookings {
+  border-color: rgba(143, 170, 179, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 247, 248, 0.9) 100%);
+  box-shadow: 0 18px 38px rgba(79, 103, 112, 0.13);
+}
+
+.user-app-shell--shenkar .schedule-week-day__header {
+  border-bottom-color: rgba(216, 209, 191, 0.62);
+  background: linear-gradient(90deg, rgba(248, 251, 251, 0.96), rgba(248, 245, 237, 0.9));
+}
+
+.user-app-shell--shenkar .schedule-week-day--has-bookings .schedule-week-day__header {
+  background: linear-gradient(90deg, rgba(232, 242, 243, 0.98), rgba(248, 245, 237, 0.94));
+}
+
+.user-app-shell--shenkar .schedule-week-day__header span {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .schedule-week-day__header strong {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .schedule-period-booking {
+  border-color: rgba(216, 209, 191, 0.7);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 24px rgba(95, 86, 73, 0.08);
+}
+
+.user-app-shell--shenkar .schedule-period-booking:hover {
+  border-color: rgba(143, 170, 179, 0.72);
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .schedule-period-booking__time {
+  background: rgba(232, 242, 243, 0.92);
+  color: #1f5f7a;
+}
+
+.user-app-shell--shenkar .schedule-period-booking__title {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .schedule-period-booking__location {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .schedule-period-empty {
+  border-color: rgba(216, 209, 191, 0.7);
+  background: rgba(255, 255, 255, 0.72);
+  color: #6a604f;
+}
+
+@media (max-width: 640px) {
+  .user-app-shell--shenkar .mobile-calendar .mobile-calendar__top-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar .mobile-calendar__month {
+    justify-self: start;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar .mobile-day {
+    min-height: 58px !important;
+    padding: 8px !important;
+  }
+
+  .user-app-shell--shenkar .mobile-calendar .mobile-day__count {
+    right: 7px !important;
+    bottom: 6px !important;
+    min-width: 22px !important;
+    height: 20px !important;
+    font-size: 0.68rem !important;
+  }
+
+  .schedule-period-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .schedule-week-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-week-day__body {
+    min-height: auto;
+  }
+}
+
+.booking-details-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background:
+    linear-gradient(180deg, rgba(250, 251, 252, 0.76), rgba(246, 248, 247, 0.82)),
+    rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(3px);
+}
+
+.booking-details-modal__card {
+  width: min(640px, 94vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+}
+
+.booking-details-modal__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.booking-details-modal__heading {
+  min-width: 0;
+}
+
+.booking-details-modal__title {
+  color: #0f172a;
+  font-size: 1.24rem;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.booking-details-modal__time {
+  margin-top: 6px;
+  color: #475569;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.booking-details-modal__close {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.booking-details-modal__location {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: linear-gradient(180deg, #f8fafc 0%, #f3f7f8 100%);
+  color: #0f172a;
+}
+
+.booking-details-modal__location-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.booking-details-modal__location-label {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.booking-details-modal__location-title {
+  color: #0f172a;
+  font-size: 1.12rem;
+  font-weight: 950;
+  line-height: 1.24;
+  overflow-wrap: anywhere;
+}
+
+.booking-details-modal__location-subtitle {
+  color: #64748b;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.booking-details-modal__location-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.booking-details-modal__location-chip {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.booking-details-modal__location-chip span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.booking-details-modal__location-chip strong {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.booking-details-modal__resources {
+  display: grid;
+  gap: 12px;
+}
+
+.booking-details-modal__resource {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+}
+
+.booking-details-modal__resource-title {
+  color: #0f172a;
+  font-size: 1.06rem;
+  font-weight: 900;
+}
+
+.booking-details-modal__resource-type {
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.booking-details-modal__metadata {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.booking-details-modal__meta-row {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  background: #f8fafc;
+}
+
+.booking-details-modal__meta-key {
+  color: #0f172a;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.booking-details-modal__meta-value {
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.38;
+  overflow-wrap: anywhere;
+}
+
+.user-app-shell--shenkar .booking-details-modal {
+  background:
+    linear-gradient(180deg, rgba(253, 253, 251, 0.76), rgba(248, 248, 244, 0.84)),
+    rgba(95, 86, 73, 0.14);
+  backdrop-filter: blur(2px);
+}
+
+.user-app-shell--shenkar .booking-details-modal__card {
+  width: min(670px, 94vw);
+  border-color: rgba(216, 209, 191, 0.74);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(143, 170, 179, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(250, 247, 239, 0.98) 100%);
+  box-shadow: 0 30px 90px rgba(95, 86, 73, 0.24);
+}
+
+.user-app-shell--shenkar .booking-details-modal__title {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .booking-details-modal__time {
+  color: #596b70;
+}
+
+.user-app-shell--shenkar .booking-details-modal__close {
+  border-color: rgba(216, 209, 191, 0.72);
+  background: #ffffff;
+  color: #253038;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.08);
+}
+
+.user-app-shell--shenkar .booking-details-modal__close:hover {
+  border-color: rgba(143, 170, 179, 0.72);
+  background: #f8fbfb;
+}
+
+.user-app-shell--shenkar .booking-details-modal__location {
+  border-color: rgba(216, 209, 191, 0.7);
+  background:
+    linear-gradient(135deg, rgba(248, 251, 251, 0.98), rgba(241, 247, 248, 0.98));
+  color: #253038;
+}
+
+.user-app-shell--shenkar .booking-details-modal__location-label {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .booking-details-modal__location-title {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .booking-details-modal__location-subtitle {
+  color: #52636a;
+}
+
+.user-app-shell--shenkar .booking-details-modal__location-chip {
+  border-color: rgba(216, 209, 191, 0.62);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.user-app-shell--shenkar .booking-details-modal__location-chip span {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .booking-details-modal__location-chip strong {
+  color: #253038;
+}
+
+.user-app-shell--shenkar .booking-details-modal__resource {
+  border-color: rgba(216, 209, 191, 0.72);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(95, 86, 73, 0.08);
+}
+
+.user-app-shell--shenkar .booking-details-modal__resource-title {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .booking-details-modal__resource-type {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .booking-details-modal__meta-row {
+  border-color: rgba(216, 209, 191, 0.62);
+  background: linear-gradient(180deg, #fbfdfd 0%, #f8f5ed 100%);
+}
+
+.user-app-shell--shenkar .booking-details-modal__meta-key {
+  color: #253038;
+}
+
+.user-app-shell--shenkar .booking-details-modal__meta-value {
+  color: #52636a;
+}
+
+@media (max-width: 640px) {
+  .booking-details-modal {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .booking-details-modal__card {
+    width: 100%;
+    max-height: 88vh;
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .booking-details-modal__header {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-details-modal__close {
+    width: fit-content;
+  }
+
+  .booking-details-modal__metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-details-modal__location-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Shenkar resource lookup */
+.user-app-shell--shenkar .search-section__header {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  min-height: 116px;
+  padding: 24px 26px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-radius: 28px;
+  background: #fffdfa;
+  box-shadow: 0 18px 44px rgba(95, 86, 73, 0.1);
+}
+
+.user-app-shell--shenkar .search-section__header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .search-section__header::after {
+  content: "Live allocation view";
+  justify-self: end;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 170, 179, 0.36);
+  background: #e8f2f3;
+  color: #1f5f7a;
+  font-size: 0.86rem;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.user-app-shell--shenkar .search-section__title {
+  margin: 0;
+  color: #171d2d;
+  font-size: clamp(2rem, 3.6vw, 3.15rem);
+  line-height: 1.02;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .search-section__subtitle {
+  margin: 10px 0 0;
+  max-width: 720px;
+  color: #596b70;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+.user-app-shell--shenkar .search-section__panel {
+  position: relative;
+  overflow: visible;
+  padding: 26px;
+  border: 1px solid rgba(216, 209, 191, 0.64);
+  border-radius: 30px;
+  background: #fffdfa !important;
+  box-shadow: 0 20px 52px rgba(95, 86, 73, 0.12);
+}
+
+.user-app-shell--shenkar .search-section__toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.user-app-shell--shenkar .search-section__input {
+  width: 100%;
+  min-height: 58px;
+  padding: 0 18px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #252a34;
+  font-size: 0.98rem;
+  font-weight: 500;
+  box-shadow: 0 16px 34px rgba(95, 86, 73, 0.08);
+}
+
+.user-app-shell--shenkar .search-section__input::placeholder {
+  color: #8a8170;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .search-section__input:focus {
+  outline: none;
+  border-color: rgba(143, 170, 179, 0.78);
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.2), 0 18px 34px rgba(95, 86, 73, 0.1);
+}
+
+.user-app-shell--shenkar .search-section__search-button {
+  min-width: 96px;
+  min-height: 58px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 18px;
+  background: #8faab3;
+  color: #1f2a2f;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: 0 16px 30px rgba(95, 86, 73, 0.16);
+}
+
+.user-app-shell--shenkar .search-section__search-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #829ea6;
+  box-shadow: 0 20px 38px rgba(95, 86, 73, 0.2);
+}
+
+.user-app-shell--shenkar .search-section__search-button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+  transform: none;
+}
+
+.user-app-shell--shenkar .search-section__empty-hint {
+  margin-top: 18px;
+  padding: 18px 20px;
+  border: 1px dashed rgba(216, 209, 191, 0.76);
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(248, 245, 237, 0.78));
+  color: #6a604f;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .search-section__results-list {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.user-app-shell--shenkar .search-section__result-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 128px;
+  padding: 18px;
+  border: 1px solid rgba(216, 209, 191, 0.68);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 92% 8%, rgba(143, 170, 179, 0.14), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 34px rgba(95, 86, 73, 0.09);
+  cursor: pointer;
+}
+
+.user-app-shell--shenkar .search-section__result-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(143, 170, 179, 0.76);
+  box-shadow: 0 24px 48px rgba(95, 86, 73, 0.15);
+}
+
+.user-app-shell--shenkar .search-section__result-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, #8faab3, #d8cfbc);
+}
+
+.user-app-shell--shenkar .search-section__result-name {
+  color: #171d2d;
+  font-size: 1.1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.user-app-shell--shenkar .search-section__result-meta {
+  margin-top: 8px;
+  color: #6a604f;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .search-section__selected-wrap {
+  display: grid;
+  gap: 14px;
+}
+
+.user-app-shell--shenkar .search-section__back-button {
+  width: fit-content;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #253038;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.user-app-shell--shenkar .search-section__details-card {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  border: 1px solid rgba(216, 209, 191, 0.7);
+  border-radius: 28px;
+  background: #fffdfa !important;
+  box-shadow: 0 22px 54px rgba(95, 86, 73, 0.12);
+}
+
+.user-app-shell--shenkar .search-section__details-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .search-section__details-head {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+  padding: 4px 4px 22px 18px;
+  border-bottom: 1px solid rgba(216, 209, 191, 0.56);
+}
+
+.user-app-shell--shenkar .search-section__eyebrow {
+  width: fit-content;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(143, 170, 179, 0.28);
+  background: #eef6f7;
+  color: #1f5f7a;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.user-app-shell--shenkar .search-section__resource-name {
+  color: #171d2d;
+  max-width: 980px;
+  font-size: clamp(1.55rem, 2.5vw, 2.15rem);
+  line-height: 1.15;
+  font-weight: 500;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.user-app-shell--shenkar .search-section__type-badge,
+.user-app-shell--shenkar .search-section__meta-chip {
+  border-color: rgba(216, 209, 191, 0.62);
+  background: rgba(255, 255, 255, 0.86);
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .search-section__type-badge {
+  position: relative;
+  z-index: 1;
+  min-width: 64px;
+  min-height: 42px;
+  display: inline-flex;
+  justify-self: end;
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(95, 86, 73, 0.06);
+  font-size: 0.86rem;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.user-app-shell--shenkar .search-section__meta-list {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  padding: 18px 4px 0 18px;
+}
+
+.user-app-shell--shenkar .search-section__meta-chip {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.06);
+  overflow-wrap: anywhere;
+}
+
+.user-app-shell--shenkar .search-section__meta-chip::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #8faab3;
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.12);
+}
+
+.user-app-shell--shenkar .search-section__assignments {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(216, 209, 191, 0.64);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.user-app-shell--shenkar .search-section__assignments-title {
+  color: #171d2d;
+}
+
+.user-app-shell--shenkar .search-section__assignments-count {
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .search-section__month-group {
+  border-color: rgba(216, 209, 191, 0.66);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.user-app-shell--shenkar .search-section__month-summary {
+  background: linear-gradient(90deg, rgba(248, 251, 251, 0.96), rgba(248, 245, 237, 0.92));
+}
+
+.user-app-shell--shenkar .search-section__day-pill--active,
+.user-app-shell--shenkar .search-section__day-detail-header {
+  border-color: rgba(143, 170, 179, 0.72);
+  background: rgba(232, 242, 243, 0.9);
+  color: #1f5f7a;
+}
+
+.user-app-shell--shenkar .search-section__assignment-row {
+  border-color: rgba(216, 209, 191, 0.62);
+  background: #ffffff;
+}
+
+.user-app-shell--shenkar .search-section__assignment-time {
+  background: rgba(232, 242, 243, 0.9);
+  border-color: rgba(143, 170, 179, 0.34);
+  color: #1f5f7a;
+}
+
+.user-app-shell--shenkar .search-section__header,
+.user-app-shell--shenkar .search-section__panel,
+.user-app-shell--shenkar .search-section__details-card {
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .search-section__title,
+.user-app-shell--shenkar .search-section__resource-name,
+.user-app-shell--shenkar .search-section__result-name,
+.user-app-shell--shenkar .search-section__assignments-title {
+  font-weight: 700;
+}
+
+.user-app-shell--shenkar .search-section__subtitle,
+.user-app-shell--shenkar .search-section__result-meta,
+.user-app-shell--shenkar .search-section__assignments-count,
+.user-app-shell--shenkar .search-section__month-summary,
+.user-app-shell--shenkar .search-section__day-pill,
+.user-app-shell--shenkar .search-section__assignment-row {
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .search-section__title {
+  font-weight: 600 !important;
+}
+
+.user-app-shell--shenkar .search-section__subtitle,
+.user-app-shell--shenkar .search-section__header::after,
+.user-app-shell--shenkar .search-section__input,
+.user-app-shell--shenkar .search-section__input::placeholder,
+.user-app-shell--shenkar .search-section__result-meta,
+.user-app-shell--shenkar .search-section__assignments-count,
+.user-app-shell--shenkar .search-section__month-summary,
+.user-app-shell--shenkar .search-section__day-pill,
+.user-app-shell--shenkar .search-section__assignment-row,
+.user-app-shell--shenkar .search-section__meta-chip,
+.user-app-shell--shenkar .search-section__type-badge {
+  font-weight: 400 !important;
+}
+
+.user-app-shell--shenkar .search-section__search-button,
+.user-app-shell--shenkar .search-section__back-button,
+.user-app-shell--shenkar .search-section__eyebrow,
+.user-app-shell--shenkar .search-section__result-name,
+.user-app-shell--shenkar .search-section__assignments-title {
+  font-weight: 600 !important;
+}
+
+.user-app-shell--shenkar .search-section__resource-name {
+  font-weight: 500 !important;
+}
+
+@media (max-width: 760px) {
+  .user-app-shell--shenkar .search-section__header {
+    grid-template-columns: 1fr;
+    padding: 22px;
+  }
+
+  .user-app-shell--shenkar .search-section__header::after {
+    justify-self: start;
+  }
+
+  .user-app-shell--shenkar .search-section__toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .search-section__search-button {
+    width: 100%;
+  }
+
+  .user-app-shell--shenkar .search-section__details-head {
+    grid-template-columns: 1fr;
+    padding-right: 4px;
+  }
+
+  .user-app-shell--shenkar .search-section__meta-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Shenkar request updates */
+.user-app-shell--shenkar .notifications-page-header {
+  position: relative;
+  overflow: hidden;
+  min-height: 132px;
+  padding: 28px 32px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-top: 5px solid #8faab3;
+  border-radius: 28px;
+  background: #fffdfa !important;
+  box-shadow: 0 22px 54px rgba(95, 86, 73, 0.11);
+}
+
+.user-app-shell--shenkar .notifications-page-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 100%;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 253, 250, 0) 0%, rgba(232, 242, 243, 0.44) 100%);
+}
+
+.user-app-shell--shenkar .notifications-page-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.user-app-shell--shenkar .notifications-page-header .user-page-title {
+  color: #171d2d;
+  font-size: clamp(2.15rem, 4vw, 3.35rem);
+  line-height: 1.02;
+  font-weight: 600 !important;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .notifications-page-header .user-page-subtitle {
+  max-width: 560px;
+  color: #596b70;
+  font-size: 1.02rem;
+  font-weight: 400 !important;
+}
+
+.user-app-shell--shenkar .notifications-page-header .user-page-pill {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(197, 187, 163, 0.86);
+  border-radius: 999px;
+  background: #eee8dc;
+  color: #6a604f;
+  box-shadow: 0 10px 26px rgba(95, 86, 73, 0.08);
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .notifications-tabs {
+  margin: 16px 0 14px !important;
+}
+
+.user-app-shell--shenkar .notifications-tab {
+  min-height: 44px;
+  padding: 0 18px !important;
+  border: 1px solid rgba(216, 209, 191, 0.72) !important;
+  border-radius: 999px !important;
+  background: #fffdfa !important;
+  color: #6a604f !important;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.07);
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .notifications-tab.active {
+  border-color: rgba(143, 170, 179, 0.58) !important;
+  background: #e8f2f3 !important;
+  color: #1f5f7a !important;
+  font-weight: 600 !important;
+}
+
+.user-app-shell--shenkar .notifications-panel {
+  padding: 26px 28px !important;
+  border: 1px solid rgba(216, 209, 191, 0.66) !important;
+  border-radius: 28px !important;
+  background: #fffdfa !important;
+  box-shadow: 0 24px 58px rgba(95, 86, 73, 0.12) !important;
+}
+
+.user-app-shell--shenkar .notifications-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px !important;
+  align-items: center !important;
+  margin-bottom: 18px !important;
+}
+
+.user-app-shell--shenkar .notifications-search-input {
+  min-height: 54px;
+  padding: 0 18px !important;
+  border: 1px solid rgba(216, 209, 191, 0.72) !important;
+  border-radius: 17px !important;
+  background: #ffffff !important;
+  color: #253038 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  font-size: 0.96rem;
+  font-weight: 400 !important;
+}
+
+.user-app-shell--shenkar .notifications-search-input::placeholder {
+  color: #8a8171;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .notifications-search-input:focus {
+  border-color: rgba(143, 170, 179, 0.88) !important;
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.16);
+}
+
+.user-app-shell--shenkar .notifications-refresh-button {
+  min-height: 54px;
+  padding: 0 22px !important;
+  border: 1px solid rgba(143, 170, 179, 0.5) !important;
+  border-radius: 17px !important;
+  background: #8faab3 !important;
+  color: #1f2a2f !important;
+  box-shadow: 0 16px 34px rgba(95, 86, 73, 0.14) !important;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .notifications-refresh-button:hover:not(:disabled) {
+  background: #829ea6 !important;
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .notifications-panel .bg-white {
+  overflow: visible;
+  border-radius: 24px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.user-app-shell--shenkar .notifications-resource-card,
+.user-app-shell--shenkar .notification-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(216, 209, 191, 0.7) !important;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  box-shadow: 0 14px 34px rgba(95, 86, 73, 0.1) !important;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.user-app-shell--shenkar .notifications-resource-card::before,
+.user-app-shell--shenkar .notification-card::before {
+  content: "";
+  width: 7px;
+  align-self: stretch;
+  border-radius: 999px;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .notifications-resource-card:hover,
+.user-app-shell--shenkar .notification-card:hover {
+  border-color: rgba(143, 170, 179, 0.74) !important;
+  box-shadow: 0 18px 42px rgba(95, 86, 73, 0.13) !important;
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .notification-card--unread {
+  background: linear-gradient(90deg, #ffffff, #f4fbfc) !important;
+}
+
+.user-app-shell--shenkar .notification-card--selected {
+  border-color: rgba(143, 170, 179, 0.82) !important;
+}
+
+.user-app-shell--shenkar .notifications-panel,
+.user-app-shell--shenkar .notifications-panel div,
+.user-app-shell--shenkar .notifications-panel button,
+.user-app-shell--shenkar .notifications-panel input,
+.user-app-shell--shenkar .notifications-panel textarea {
+  font-weight: 400 !important;
+}
+
+.user-app-shell--shenkar .notifications-resource-card > div:first-of-type > div:first-child,
+.user-app-shell--shenkar .notification-card > div:first-child > div,
+.user-app-shell--shenkar .notifications-panel strong {
+  color: #171d2d !important;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .notifications-resource-card span,
+.user-app-shell--shenkar .notifications-panel [style*="text-transform: capitalize"] {
+  font-weight: 600 !important;
+}
+
+@media (max-width: 760px) {
+  .user-app-shell--shenkar .notifications-page-header {
+    align-items: flex-start;
+    padding: 24px;
+  }
+
+  .user-app-shell--shenkar .notifications-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .notifications-refresh-button {
+    width: 100%;
   }
 }

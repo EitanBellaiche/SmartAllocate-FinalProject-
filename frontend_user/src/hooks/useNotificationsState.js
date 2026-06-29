@@ -11,6 +11,8 @@ export default function useNotificationsState({
   currentUserId,
   labels,
 }) {
+  const isUserRole = role === "user";
+  const isRequestManagerRole = !isUserRole;
   const [userRequests, setUserRequests] = useState([]);
   const [userRequestsLoading, setUserRequestsLoading] = useState(false);
   const [userRequestsError, setUserRequestsError] = useState("");
@@ -37,12 +39,12 @@ export default function useNotificationsState({
 
   async function loadUserRequests() {
     const userId = currentUserId.trim();
-    if (role === "user" && !userId) return;
+    if (isUserRole && !userId) return;
     setUserRequestsError("");
     setUserRequestsLoading(true);
     try {
       const data =
-        role === "manager"
+        isRequestManagerRole
           ? await getResourceRequests()
           : await getResourceRequests({ userId });
       setUserRequests(Array.isArray(data) ? data : []);
@@ -56,12 +58,12 @@ export default function useNotificationsState({
 
   async function loadAnnouncements() {
     const userId = currentUserId.trim();
-    if (role === "user" && !userId) return;
+    if (isUserRole && !userId) return;
     setAnnouncementsError("");
     setAnnouncementsLoading(true);
     try {
       const data = await getAnnouncements({
-        userId: role === "user" ? userId : undefined,
+        userId: isUserRole ? userId : undefined,
       });
       setAnnouncements(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -117,7 +119,7 @@ export default function useNotificationsState({
   }
 
   function markAnnouncementSeen(announcementId) {
-    if (role !== "user") return;
+    if (!isUserRole) return;
     const userId = currentUserId.trim();
     if (!userId) return;
     const key = `smartallocate_seen_announcements_${userId}`;
@@ -188,9 +190,9 @@ export default function useNotificationsState({
   }, [userRequests, seenRequestSet]);
 
   const unreadAnnouncementCount = useMemo(() => {
-    if (role !== "user") return 0;
+    if (!isUserRole) return 0;
     return announcements.filter((a) => !seenAnnouncementSet.has(Number(a.id))).length;
-  }, [announcements, role, seenAnnouncementSet]);
+  }, [announcements, isUserRole, seenAnnouncementSet]);
 
   const unreadNotificationCount = unreadRequestCount + unreadAnnouncementCount;
 
@@ -282,27 +284,27 @@ export default function useNotificationsState({
   }, [userRequestsQuery]);
 
   useEffect(() => {
-    if (role === "manager") {
+    if (isRequestManagerRole) {
       setNotificationTab("requests");
-    } else if (role === "user") {
+    } else if (isUserRole) {
       setNotificationTab("announcements");
       setUserRequests([]);
     }
-  }, [role]);
+  }, [isRequestManagerRole, isUserRole]);
 
   useEffect(() => {
     if (section !== "notifications") return;
-    if (role === "manager") {
+    if (isRequestManagerRole) {
       loadUserRequests();
     }
-    if (role === "user") {
+    if (isUserRole) {
       loadAnnouncements();
     }
   }, [section, currentUserId, role]);
 
   useEffect(() => {
     if (section !== "notifications") return;
-    if (role !== "user" || !currentUserId.trim()) return;
+    if (!isUserRole || !currentUserId.trim()) return;
     let active = true;
 
     async function refreshAnnouncements() {
@@ -323,7 +325,7 @@ export default function useNotificationsState({
       active = false;
       clearInterval(timer);
     };
-  }, [section, currentUserId, role]);
+  }, [section, currentUserId, isUserRole]);
 
   return {
     userRequests,

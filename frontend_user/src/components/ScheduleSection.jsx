@@ -1,6 +1,67 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { MobileMonthAgenda, MonthGrid, Section } from "./BookingViews";
-import { formatTime, getBookingShortLocation, isPastBooking } from "../utils/appHelpers";
+import { MobileMonthAgenda } from "./BookingViews";
+import {
+  formatTime,
+  getBookingShortLocation,
+  toDateKey,
+  toDateKeyFromDate,
+} from "../utils/appHelpers";
+
+function parseBookingDate(value) {
+  const [year, month, day] = String(value || "")
+    .split("-")
+    .map((part) => Number(part));
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date, days) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function getWeekDays(anchorDate) {
+  const start = addDays(anchorDate, -anchorDate.getDay());
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+function getBookingTitle(booking) {
+  return (
+    (booking.resources || [])
+      .map((resource) => resource.name)
+      .filter(Boolean)
+      .join(" / ") || "Booking"
+  );
+}
+
+function getFirstBookingDate(bookings) {
+  const dates = (Array.isArray(bookings) ? bookings : [])
+    .map((booking) => parseBookingDate(toDateKey(booking?.date)))
+    .filter(Boolean)
+    .sort((a, b) => a.getTime() - b.getTime());
+  return dates[0] || null;
+}
+
+function hasBookingsInWeek(bookingsByDate, anchorDate) {
+  return getWeekDays(anchorDate).some((day) => {
+    const key = toDateKeyFromDate(day);
+    return (bookingsByDate[key] || []).length > 0;
+  });
+}
+
+function ScheduleBookingButton({ booking, onOpen }) {
+  const shortLocation = getBookingShortLocation(booking);
+  return (
+    <button type="button" className="schedule-period-booking" onClick={() => onOpen(booking)}>
+      <div className="schedule-period-booking__time">
+        {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+      </div>
+      <div className="schedule-period-booking__title">{getBookingTitle(booking)}</div>
+      {shortLocation ? (
+        <div className="schedule-period-booking__location">{shortLocation}</div>
+      ) : null}
+    </button>
+  );
+}
 
 export default function ScheduleSection({
   isCinema,
@@ -13,27 +74,68 @@ export default function ScheduleSection({
   viewMode,
   setViewMode,
   scheduleBookings,
+  filteredBookings,
   loading,
   error,
   monthLabel,
+  monthDate,
   setMonthDate,
   monthDays,
   setSelectedScheduleBooking,
   role,
   openCancelDialog,
-  upcoming,
-  past,
 }) {
   const [selectedDay, setSelectedDay] = useState(null);
   const [mobileMonthKey, setMobileMonthKey] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const selectedDayKey = selectedDay?.key || "";
+  const isShenkarSchedule = isShenkar && !isCinema && !isClinic;
   const calendarClassName =
-    isShenkar && role === "manager" && !isCinema && !isClinic
-      ? "mobile-calendar--admin"
+    isShenkarSchedule
+      ? "mobile-calendar--admin mobile-calendar--shenkar-schedule"
       : "";
-  const upcomingColor = isShenkar ? "#8ea2aa" : "#2563eb";
-  const pastColor = isShenkar ? "#a59a84" : "#94a3b8";
+  const schedulePageClassName = isShenkarSchedule
+    ? "schedule-page schedule-page--shenkar-schedule"
+    : "schedule-page";
+  const visibleBookings = Array.isArray(filteredBookings) ? filteredBookings : scheduleBookings;
+  const activeDate = monthDate instanceof Date ? monthDate : new Date();
+  const bookingsByDate = useMemo(() => {
+    return visibleBookings.reduce((acc, booking) => {
+      const key = toDateKey(booking.date);
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(booking);
+      return acc;
+    }, {});
+  }, [visibleBookings]);
+  const firstBookingDate = useMemo(() => getFirstBookingDate(visibleBookings), [visibleBookings]);
+  const effectiveDate = useMemo(() => {
+    if (!firstBookingDate) return activeDate;
+    if (viewMode === "day" && (bookingsByDate[toDateKeyFromDate(activeDate)] || []).length === 0) {
+      return firstBookingDate;
+    }
+    if (viewMode === "week" && !hasBookingsInWeek(bookingsByDate, activeDate)) {
+      return firstBookingDate;
+    }
+    return activeDate;
+  }, [activeDate, bookingsByDate, firstBookingDate, viewMode]);
+  const effectiveDateKey = toDateKeyFromDate(effectiveDate);
+  const dayBookings = useMemo(
+    () => visibleBookings.filter((booking) => toDateKey(booking.date) === effectiveDateKey),
+    [visibleBookings, effectiveDateKey]
+  );
+  const weekDays = useMemo(() => getWeekDays(effectiveDate), [effectiveDateKey]);
+  const weekLabel = useMemo(() => {
+    const first = weekDays[0];
+    const last = weekDays[6];
+    return `${first.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    })} - ${last.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    })}`;
+  }, [weekDays]);
   const selectedDayLabel = useMemo(() => {
     if (!selectedDay?.date) return "";
     try {
@@ -66,9 +168,42 @@ export default function ScheduleSection({
     }
   }, [monthDays, mobileMonthKey]);
 
+  function shiftSchedule(direction) {
+    const amount = direction === "next" ? 1 : -1;
+    if (viewMode === "day") {
+      setMonthDate(addDays(effectiveDate, amount));
+      return;
+    }
+    if (viewMode === "week") {
+      setMonthDate(addDays(effectiveDate, amount * 7));
+      return;
+    }
+    setMonthDate((date) => new Date(date.getFullYear(), date.getMonth() + amount, 1));
+  }
+
+  function renderPeriodHeader(title, subtitle) {
+    return (
+      <div className="schedule-period-header">
+        <div>
+          <div className="schedule-period-header__eyebrow">{viewMode}</div>
+          <h3>{title}</h3>
+          {subtitle ? <p>{subtitle}</p> : null}
+        </div>
+        <div className="schedule-period-header__nav">
+          <button type="button" onClick={() => shiftSchedule("prev")} aria-label="Previous">
+            {"<"}
+          </button>
+          <button type="button" onClick={() => shiftSchedule("next")} aria-label="Next">
+            {">"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <>
-      <header className="user-page-header">
+    <div className={schedulePageClassName}>
+      <header className={`user-page-header ${isShenkarSchedule ? "user-page-header--shenkar-schedule" : ""}`}>
         <div>
           <h1 className="user-page-title">
             {isCinema ? "My Screenings" : "My Schedule"}
@@ -82,11 +217,11 @@ export default function ScheduleSection({
         <div className="user-page-pill">Live schedule</div>
       </header>
 
-      <div className="glass schedule-control-panel">
+      <div className={`glass schedule-control-panel ${isShenkarSchedule ? "schedule-control-panel--shenkar" : ""}`}>
         <div className="schedule-control-panel__copy">
           <h3>My {labels.resources}</h3>
           <p>
-            Search by {labelsLower.resource} or tag. Switch between month grid and list.
+            Search by {labelsLower.resource} or tag. Switch between day, week, and month.
           </p>
         </div>
         <input
@@ -97,8 +232,9 @@ export default function ScheduleSection({
         />
         <div className="schedule-view-toggle" role="group" aria-label="Schedule view">
           {[
+            { key: "day", label: "Day" },
+            { key: "week", label: "Week" },
             { key: "month", label: "Month" },
-            { key: "list", label: "List" },
           ].map((opt) => (
             <button
               type="button"
@@ -143,7 +279,7 @@ export default function ScheduleSection({
                 return (
                   <button
                     type="button"
-                    className="mobile-agenda__item"
+                    className={`mobile-agenda__item ${isShenkarSchedule ? "mobile-agenda__item--shenkar" : ""}`}
                     onClick={() => setSelectedScheduleBooking(b)}
                     style={{ cursor: "pointer" }}
                   >
@@ -161,27 +297,71 @@ export default function ScheduleSection({
                 );
               }}
             />
+          ) : viewMode === "week" ? (
+            <section className="glass schedule-period-panel schedule-week-panel">
+              {renderPeriodHeader("Weekly schedule", weekLabel)}
+              <div className="schedule-week-grid">
+                {weekDays.map((day) => {
+                  const key = toDateKeyFromDate(day);
+                  const items = bookingsByDate[key] || [];
+                  return (
+                    <div
+                      className={`schedule-week-day ${
+                        items.length > 0 ? "schedule-week-day--has-bookings" : ""
+                      }`}
+                      key={key}
+                    >
+                      <div className="schedule-week-day__header">
+                        <span>
+                          {day.toLocaleDateString("en-US", { weekday: "short" })}
+                        </span>
+                        <strong>{day.getDate()}</strong>
+                      </div>
+                      <div className="schedule-week-day__body">
+                        {items.length > 0 ? (
+                          items.map((booking) => (
+                            <ScheduleBookingButton
+                              key={booking.id}
+                              booking={booking}
+                              onOpen={setSelectedScheduleBooking}
+                            />
+                          ))
+                        ) : (
+                          <div className="schedule-period-empty">No bookings</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           ) : (
-            <>
-              <Section
-                title="Upcoming"
-                color={upcomingColor}
-                items={upcoming}
-                role={role}
-                onCancel={openCancelDialog}
-                labels={labels}
-                labelsLower={labelsLower}
-              />
-              <Section
-                title="Past"
-                color={pastColor}
-                items={past}
-                role={role}
-                onCancel={openCancelDialog}
-                labels={labels}
-                labelsLower={labelsLower}
-              />
-            </>
+            <section className="glass schedule-period-panel schedule-day-panel">
+              {renderPeriodHeader(
+                "Daily schedule",
+                effectiveDate.toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              )}
+              <div className="schedule-day-list">
+                {dayBookings.length > 0 ? (
+                  dayBookings.map((booking) => (
+                    <ScheduleBookingButton
+                      key={booking.id}
+                      booking={booking}
+                      onOpen={setSelectedScheduleBooking}
+                    />
+                  ))
+                ) : (
+                  <div className="schedule-period-empty">
+                    No bookings for this day.
+                  </div>
+                )}
+              </div>
+            </section>
           )}
         </div>
       )}
@@ -243,6 +423,6 @@ export default function ScheduleSection({
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -92,7 +92,7 @@ export default function App() {
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingsError, setBookingsError] = useState("");
   const [filter, setFilter] = useState("");
-  const [viewMode, setViewMode] = useState("month"); // month | list
+  const [viewMode, setViewMode] = useState("month"); // day | week | month
   const [monthDate, setMonthDate] = useState(new Date());
 
   const [requestQuery, setRequestQuery] = useState("");
@@ -860,9 +860,11 @@ export default function App() {
             viewMode={viewMode}
             setViewMode={setViewMode}
             scheduleBookings={scheduleBookings}
+            filteredBookings={filteredBookings}
             loading={loading || bookingsLoading}
             error={bookingsError}
             monthLabel={monthLabel}
+            monthDate={monthDate}
             setMonthDate={setMonthDate}
             monthDays={monthDays}
             setSelectedScheduleBooking={setSelectedScheduleBooking}

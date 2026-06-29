@@ -39,15 +39,18 @@ export default function NotificationsSection({
   setSelectedAnnouncementId,
   markAnnouncementSeen,
 }) {
+  const isUserRole = role === "user";
+  const isRequestManagerRole = !isUserRole;
+
   return (
     <>
       <header className="user-page-header notifications-page-header">
         <div>
           <h1 className="user-page-title">
-            {role === "user" ? "Notifications" : "Request Updates"}
+            {isUserRole ? "Notifications" : "Request Updates"}
           </h1>
           <p className="user-page-subtitle">
-            {role === "user"
+            {isUserRole
               ? `Stay current with messages from ${labelsLower.managers} about schedule changes.`
               : "Track the status of allocation requests."}
           </p>
@@ -64,7 +67,7 @@ export default function NotificationsSection({
           marginBottom: 12,
         }}
       >
-        {role === "manager" && (
+        {isRequestManagerRole && (
           <button
             type="button"
             onClick={() => setNotificationTab("requests")}
@@ -95,7 +98,7 @@ export default function NotificationsSection({
             Request Updates
           </button>
         )}
-        {role === "user" && (
+        {isUserRole && (
           <button
             type="button"
             onClick={() => setNotificationTab("announcements")}
@@ -133,7 +136,7 @@ export default function NotificationsSection({
         style={{
           padding: 16,
           borderRadius: 18,
-          display: role === "manager" && notificationTab === "requests" ? "block" : "none",
+          display: isRequestManagerRole && notificationTab === "requests" ? "block" : "none",
         }}
       >
         <div
@@ -338,7 +341,7 @@ export default function NotificationsSection({
         style={{
           padding: 16,
           borderRadius: 18,
-          display: role === "user" && notificationTab === "announcements" ? "block" : "none",
+          display: isUserRole && notificationTab === "announcements" ? "block" : "none",
         }}
       >
         <div
@@ -400,7 +403,7 @@ export default function NotificationsSection({
           <div style={{ color: "#b91c1c", marginBottom: 12 }}>{announcementsError}</div>
         )}
 
-        {role === "manager" && (
+        {isRequestManagerRole && (
           <div
             className="glass"
             style={{
@@ -528,7 +531,7 @@ export default function NotificationsSection({
           <div style={{ display: "grid", gap: 12 }}>
             {filteredAnnouncements.map((announcement) => {
               const isUnread =
-                role === "user" && !seenAnnouncementSet.has(Number(announcement.id));
+                isUserRole && !seenAnnouncementSet.has(Number(announcement.id));
               const isSelected = selectedAnnouncementId === announcement.id;
               return (
                 <button
