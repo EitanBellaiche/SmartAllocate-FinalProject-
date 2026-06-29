@@ -223,9 +223,6 @@ export default function UserBookings() {
 
           meta.user_ids = nextList;
           delete meta.users;
-          if (Object.prototype.hasOwnProperty.call(meta, "students_number")) {
-            meta.students_number = nextList.length;
-          }
 
           await apiPut(`/resources/${resource.id}`, {
             name: resource.name,
@@ -263,9 +260,6 @@ export default function UserBookings() {
       const nextList = currentList.filter((v) => v !== id);
       meta.user_ids = nextList;
       delete meta.users;
-      if (Object.prototype.hasOwnProperty.call(meta, "students_number")) {
-        meta.students_number = nextList.length;
-      }
 
       await apiPut(`/resources/${resource.id}`, {
         name: resource.name,

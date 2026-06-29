@@ -24,6 +24,7 @@ import {
   rerunAutoScheduleJob,
   startAutoScheduleRun,
   revertAutoScheduleJob,
+  updateAutoScheduleJob,
 } from "../services/autoScheduleJobs.js";
 
 const router = express.Router();
@@ -113,6 +114,7 @@ router.post("/", async (req, res) => {
   try {
     const orgId = normalizeOrgId(getOrgId(req));
     runJob = await startAutoScheduleRun({
+      name: req.body?.name,
       start_date: req.body?.start_date,
       end_date: req.body?.end_date,
       groups: req.body?.groups,
@@ -164,6 +166,7 @@ router.post("/jobs", async (req, res) => {
     const orgId = normalizeOrgId(getOrgId(req));
     const createdBy = getCreatedBy(req);
     const job = await createAutoScheduleJob({
+      name: req.body?.name,
       run_at: req.body?.run_at,
       start_date: req.body?.start_date,
       end_date: req.body?.end_date,
@@ -178,6 +181,28 @@ router.post("/jobs", async (req, res) => {
     console.error("Failed to create auto schedule job:", err);
     const code = Number(err?.statusCode) || 500;
     res.status(code).json({ error: err?.message || "Failed to create job" });
+  }
+});
+
+router.put("/jobs/:id", async (req, res) => {
+  try {
+    const orgId = normalizeOrgId(getOrgId(req));
+    const job = await updateAutoScheduleJob({
+      id: req.params.id,
+      orgId,
+      name: req.body?.name,
+      run_at: req.body?.run_at,
+      start_date: req.body?.start_date,
+      end_date: req.body?.end_date,
+      groups: req.body?.groups,
+      allow_saturday: req.body?.allow_saturday,
+      blocked_dates: req.body?.blocked_dates,
+    });
+    res.json(job);
+  } catch (err) {
+    console.error("Failed to update auto schedule job:", err);
+    const code = Number(err?.statusCode) || 500;
+    res.status(code).json({ error: err?.message || "Failed to update job" });
   }
 });
 

@@ -66,6 +66,38 @@ function parseAssignedUserIds(value) {
   return [];
 }
 
+function getAutoUserCountFieldNames(type) {
+  if (!Array.isArray(type?.fields)) return [];
+  return type.fields
+    .filter(
+      (field) =>
+        field &&
+        typeof field === "object" &&
+        field.type === "number" &&
+        field.auto_user_count &&
+        field.name
+    )
+    .map((field) => field.name);
+}
+
+function syncAutoUserCountFields(metadata, type) {
+  const nextMetadata =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...metadata }
+      : {};
+  const autoFieldNames = getAutoUserCountFieldNames(type);
+
+  if (autoFieldNames.length === 0) return nextMetadata;
+
+  const assignedCount = parseAssignedUserIds(nextMetadata.user_ids ?? nextMetadata.userIds).length;
+  autoFieldNames.forEach((fieldName) => {
+    nextMetadata[fieldName] =
+      typeof nextMetadata[fieldName] === "string" ? String(assignedCount) : assignedCount;
+  });
+
+  return nextMetadata;
+}
+
 function formatAssignedUserIds(value) {
   if (typeof value === "string") return value;
   return parseAssignedUserIds(value).join(", ");
@@ -100,6 +132,10 @@ function buildMetadataSearchText(metadata) {
 }
 function getFieldDisplayName(field) {
   return field?.label || field?.name || "";
+}
+
+function isAutoUserCountField(field) {
+  return field?.type === "number" && Boolean(field?.auto_user_count);
 }
 
 function AssignedUserIdsEditor({ value, onChange, inputClassName, users = [] }) {
@@ -725,13 +761,17 @@ export default function Resources() {
 
     const meta = {};
     type.fields.forEach((field) => {
+      if (isAutoUserCountField(field)) {
+        meta[field.name] = 0;
+        return;
+      }
       meta[field.name] = field.default || (field.type === "boolean" ? false : "");
     });
 
     setForm({
       name: "",
       type_id: typeId,
-      metadata: meta,
+      metadata: syncAutoUserCountFields(meta, type),
     });
     setCustomFieldDraft({ name: "", type: "text" });
   }
@@ -753,6 +793,13 @@ export default function Resources() {
     const meta = {};
     type.fields.forEach((field) => {
       const existing = editForm.metadata?.[field.name];
+      if (isAutoUserCountField(field)) {
+        meta[field.name] =
+          existing !== undefined
+            ? existing
+            : 0;
+        return;
+      }
       meta[field.name] =
         existing !== undefined ? existing : field.default || (field.type === "boolean" ? false : "");
     });
@@ -760,7 +807,7 @@ export default function Resources() {
     setEditForm((prev) => ({
       ...prev,
       type_id: typeId,
-      metadata: meta,
+      metadata: syncAutoUserCountFields(meta, type),
     }));
     setEditCustomFieldDraft({ name: "", type: "text" });
   }
@@ -770,14 +817,17 @@ export default function Resources() {
       setForm((prev) => {
         const metadata = { ...prev.metadata, user_ids: value };
         delete metadata.userIds;
-        return { ...prev, metadata };
+        return {
+          ...prev,
+          metadata: syncAutoUserCountFields(metadata, selectedType),
+        };
       });
       return;
     }
 
     setForm((prev) => ({
       ...prev,
-      metadata: { ...prev.metadata, [field]: value },
+      metadata: syncAutoUserCountFields({ ...prev.metadata, [field]: value }, selectedType),
     }));
   }
 
@@ -786,14 +836,20 @@ export default function Resources() {
       setEditForm((prev) => {
         const metadata = { ...prev.metadata, user_ids: value };
         delete metadata.userIds;
-        return { ...prev, metadata };
+        return {
+          ...prev,
+          metadata: syncAutoUserCountFields(metadata, editSelectedType),
+        };
       });
       return;
     }
 
     setEditForm((prev) => ({
       ...prev,
-      metadata: { ...prev.metadata, [field]: value },
+      metadata: syncAutoUserCountFields(
+        { ...prev.metadata, [field]: value },
+        editSelectedType
+      ),
     }));
   }
 
@@ -896,7 +952,7 @@ export default function Resources() {
       id: resource.id,
       name: resource.name || "",
       type_id: resource.type_id || "",
-      metadata: resource.metadata || {},
+      metadata: syncAutoUserCountFields(resource.metadata || {}, type || null),
     });
     setEditCustomFieldDraft({ name: "", type: "text" });
     setShowEdit(true);
@@ -1826,6 +1882,11 @@ async function saveHallLayout() {
                     <label className="mb-1 block text-sm font-medium">
                       {getFieldDisplayName(field)} ({field.type})
                     </label>
+                    {isAutoUserCountField(field) && (
+                      <div className="mb-1 text-xs text-slate-500">
+                        Calculated automatically from Assigned User IDs.
+                      </div>
+                    )}
 
                     {field.type === "boolean" ? (
                       <input
@@ -1838,6 +1899,8 @@ async function saveHallLayout() {
                         type={field.type === "number" ? "number" : "text"}
                         className={theme.input}
                         value={form.metadata[field.name]}
+                        readOnly={isAutoUserCountField(field)}
+                        disabled={isAutoUserCountField(field)}
                         onChange={(e) => handleMetadataChange(field.name, e.target.value)}
                       />
                     )}
@@ -2002,6 +2065,11 @@ async function saveHallLayout() {
                     <label className="mb-1 block text-sm font-medium">
                       {getFieldDisplayName(field)} ({field.type})
                     </label>
+                    {isAutoUserCountField(field) && (
+                      <div className="mb-1 text-xs text-slate-500">
+                        Calculated automatically from Assigned User IDs.
+                      </div>
+                    )}
 
                     {field.type === "boolean" ? (
                       <input
@@ -2016,6 +2084,8 @@ async function saveHallLayout() {
                         type={field.type === "number" ? "number" : "text"}
                         className={`resources-edit-modal__input ${theme.input}`}
                         value={editForm.metadata[field.name] ?? ""}
+                        readOnly={isAutoUserCountField(field)}
+                        disabled={isAutoUserCountField(field)}
                         onChange={(e) => handleEditMetadataChange(field.name, e.target.value)}
                       />
                     )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiDelete, apiGet, apiPost } from "../api/api";
+import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import IsraelDateInput from "../components/IsraelDateInput";
 import SchedulingConstraintsPanel from "../components/SchedulingConstraintsPanel";
 import { formatIsraelDate, formatIsraelDateRange, formatIsraelTime } from "../utils/datetime";
@@ -667,6 +667,8 @@ export default function AutoScheduler({ embedded = false }) {
   const [runMode, setRunMode] = useState("manual"); // manual | deadline
   const [deadlineDate, setDeadlineDate] = useState(() => toDateValue(new Date()));
   const [deadlineTime, setDeadlineTime] = useState("23:59");
+  const [jobName, setJobName] = useState("");
+  const [editingJobId, setEditingJobId] = useState(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [timeWindows, setTimeWindows] = useState(() => DEFAULT_TIME_WINDOWS);
   const [selection, setSelection] = useState({
@@ -686,6 +688,8 @@ export default function AutoScheduler({ embedded = false }) {
   const [jobsLoading, setJobsLoading] = useState(false);
   const [expandedJobIds, setExpandedJobIds] = useState([]);
   const [jobActionState, setJobActionState] = useState({ id: null, action: "" });
+  const [renamingJobId, setRenamingJobId] = useState(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const [suggestionActionKey, setSuggestionActionKey] = useState("");
   const [availabilityModal, setAvailabilityModal] = useState({
     open: false,
@@ -1118,9 +1122,13 @@ export default function AutoScheduler({ embedded = false }) {
     setMessage("");
     try {
       const payload = buildCurrentRunPayload();
-      const data = await apiPost("/auto-schedule", payload);
+      const data = await apiPost("/auto-schedule", {
+        ...payload,
+        name: jobName,
+      });
       const scheduledCount = data?.scheduled?.length || 0;
       const skippedCount = data?.skipped?.length || 0;
+      const label = String(jobName || "").trim();
       setLastRun({
         scheduled: Array.isArray(data?.scheduled) ? data.scheduled : [],
         skipped: Array.isArray(data?.skipped) ? data.skipped : [],
@@ -1129,8 +1137,8 @@ export default function AutoScheduler({ embedded = false }) {
       setMessageTone(skippedCount > 0 && scheduledCount === 0 ? "error" : "success");
       setMessage(
         skippedCount > 0 && scheduledCount === 0
-          ? `Auto schedule completed without results. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
-          : `Auto schedule completed. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
+          ? `${label ? `${label}: ` : ""}Auto schedule completed without results. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
+          : `${label ? `${label}: ` : ""}Auto schedule completed. Scheduled ${scheduledCount}, skipped ${skippedCount}.`
       );
       await loadAllocations();
       await loadJobs();
@@ -1193,22 +1201,36 @@ export default function AutoScheduler({ embedded = false }) {
     setMessage("");
     try {
       const payload = buildCurrentRunPayload();
-      const job = await apiPost("/auto-schedule/jobs", {
+      const nextJobPayload = {
+        name: jobName,
         run_at: runAt.toISOString(),
         start_date: payload.start_date,
         end_date: payload.end_date,
         groups: payload.groups,
         allow_saturday: payload.allow_saturday,
         blocked_dates: payload.blocked_dates,
-      });
+      };
+      const job = editingJobId
+        ? await apiPut(`/auto-schedule/jobs/${editingJobId}`, nextJobPayload)
+        : await apiPost("/auto-schedule/jobs", nextJobPayload);
+      const label = String(job?.name || jobName || "").trim() || `Job #${job?.id || "?"}`;
+      setEditingJobId(Number.isFinite(Number(job?.id)) ? Number(job.id) : null);
+      setJobName(String(job?.name || jobName || "").trim());
       setMessageTone("success");
       setMessage(
-        `Auto schedule job created (ID ${job?.id || "?"}). It will run after the deadline.`
+        editingJobId
+          ? `${label} updated.`
+          : `${label} created. It will run after the deadline.`
       );
       await loadJobs();
     } catch (err) {
       setMessageTone("error");
-      setMessage(err?.message || "Failed to create auto schedule job.");
+      setMessage(
+        err?.message ||
+          (editingJobId
+            ? "Failed to update auto schedule job."
+            : "Failed to create auto schedule job.")
+      );
     } finally {
       setRunning(false);
     }
@@ -1259,6 +1281,10 @@ export default function AutoScheduler({ embedded = false }) {
     try {
       await apiDelete(`/auto-schedule/jobs/${jobId}`);
       setExpandedJobIds((prev) => prev.filter((id) => id !== jobId));
+      if (Number(editingJobId) === jobId) {
+        setEditingJobId(null);
+        setJobName("");
+      }
       setMessageTone("success");
       setMessage(`Job #${jobId} deleted.`);
       await loadJobs();
@@ -1286,9 +1312,38 @@ export default function AutoScheduler({ embedded = false }) {
     }
   }
 
+  function startJobRename(job) {
+    setRenamingJobId(Number(job?.id) || null);
+    setRenameDraft(String(job?.name || "").trim());
+  }
+
+  async function saveJobRename(jobId) {
+    if (!jobId) return;
+    setJobActionState({ id: jobId, action: "rename" });
+    try {
+      const updated = await apiPut(`/auto-schedule/jobs/${jobId}`, {
+        name: renameDraft,
+      });
+      if (Number(editingJobId) === Number(jobId)) {
+        setJobName(String(updated?.name || "").trim());
+      }
+      setRenamingJobId(null);
+      setRenameDraft("");
+      setMessageTone("success");
+      setMessage(`Job #${jobId} name updated.`);
+      await loadJobs();
+    } catch (err) {
+      setMessageTone("error");
+      setMessage(err?.message || "Failed to update job name.");
+    } finally {
+      setJobActionState({ id: null, action: "" });
+    }
+  }
+
   function loadJobIntoEditor(job) {
     const payload = job?.payload || {};
     const payloadGroups = Array.isArray(payload.groups) ? payload.groups : [];
+    const isScheduledJob = String(job?.status || "").trim().toLowerCase() === "scheduled";
     const windowsByKey = new Map();
     const nextWindows = [];
 
@@ -1362,9 +1417,11 @@ export default function AutoScheduler({ embedded = false }) {
     setResponsibleQuery("");
     setResponsibleOptions([]);
     setResponsibleUser(null);
+    setJobName(String(job?.name || "").trim());
+    setEditingJobId(isScheduledJob ? Number(job?.id) || null : null);
 
     const runAt = job?.run_at ? new Date(job.run_at) : null;
-    if (runAt && !Number.isNaN(runAt.getTime()) && String(job?.status || "") === "scheduled") {
+    if (runAt && !Number.isNaN(runAt.getTime()) && isScheduledJob) {
       setRunMode("deadline");
       setDeadlineDate(toDateValue(runAt));
       setDeadlineTime(toTimeValue(runAt));
@@ -1373,7 +1430,11 @@ export default function AutoScheduler({ embedded = false }) {
     }
 
     setMessageTone("success");
-    setMessage(`Job #${job?.id || "?"} loaded into the editor. Update the allocations and run it again.`);
+    setMessage(
+      isScheduledJob
+        ? `Job #${job?.id || "?"} loaded into the editor. Update it and save the job.`
+        : `Job #${job?.id || "?"} loaded as a template for a new run.`
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1427,6 +1488,10 @@ export default function AutoScheduler({ embedded = false }) {
   }, [running, groups.length, rangeStart, rangeEnd, deadlineDate, deadlineTime, selectedRunAt]);
 
   const canScheduleAtDeadline = !deadlineDisabledReason;
+  const isEditingScheduledJob =
+    editingJobId !== null &&
+    editingJobId !== undefined &&
+    Number.isFinite(Number(editingJobId));
 
   const countdownTarget = useMemo(() => {
     if (nextScheduledJob?.runAt) return nextScheduledJob.runAt;
@@ -1493,7 +1558,18 @@ export default function AutoScheduler({ embedded = false }) {
       )}
 
       <div className="auto-run-panel mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
-        <div className="auto-run-panel__range grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div className="auto-run-panel__range grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="auto-run-field">
+            <label className="mb-2 block text-sm font-semibold text-slate-700">Job name</label>
+            <input
+              type="text"
+              maxLength={120}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+              placeholder="Example: Semester A morning schedule"
+              value={jobName}
+              onChange={(e) => setJobName(e.target.value)}
+            />
+          </div>
           <div className="auto-run-field">
             <label className="mb-2 block text-sm font-semibold text-slate-700">Range start</label>
             <IsraelDateInput
@@ -1550,6 +1626,11 @@ export default function AutoScheduler({ embedded = false }) {
 
           {runMode === "deadline" && (
             <div className="auto-run-deadline__grid mt-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          {isEditingScheduledJob && (
+            <div className="auto-run-notice md:col-span-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              Editing scheduled auto job #{editingJobId}. Saving here updates the job itself.
+            </div>
+          )}
           <div className="auto-run-field md:col-span-2">
             <label className="mb-2 block text-sm font-semibold text-slate-700">
               Deadline date
@@ -1573,14 +1654,31 @@ export default function AutoScheduler({ embedded = false }) {
           </div>
           <div className="auto-run-deadline__status md:col-span-2">
             {canScheduleAtDeadline ? (
-              <button
-                type="button"
-                onClick={scheduleAtDeadline}
-                className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-base font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
-                disabled={running}
-              >
-                {running ? "Working..." : "Schedule after deadline"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={scheduleAtDeadline}
+                  className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-base font-semibold text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)] transition hover:bg-slate-800"
+                  disabled={running}
+                >
+                  {running
+                    ? "Working..."
+                    : (isEditingScheduledJob ? "Save job changes" : "Schedule after deadline")}
+                </button>
+                {isEditingScheduledJob && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingJobId(null);
+                      setJobName("");
+                    }}
+                    className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                    disabled={running}
+                  >
+                    Stop editing
+                  </button>
+                )}
+              </div>
             ) : (
               <div className="auto-run-notice rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1725,6 +1823,7 @@ export default function AutoScheduler({ embedded = false }) {
               const runAtLabel = runAt && !Number.isNaN(runAt.getTime())
                 ? runAt.toLocaleString("he-IL")
                 : String(job?.run_at || "");
+              const jobNameLabel = String(job?.name || "").trim();
               const statusKey = String(job?.status || "").trim().toLowerCase();
               const status = statusKey.toUpperCase() || "UNKNOWN";
               const allocationCount = Array.isArray(job?.payload?.groups)
@@ -1742,6 +1841,7 @@ export default function AutoScheduler({ embedded = false }) {
               const revertInfo = result?.revert || null;
               const isReverted = Boolean(revertInfo?.reverted_at);
               const isExpanded = expandedJobIds.includes(job.id);
+              const isRenaming = renamingJobId === job.id;
               const canView = scheduled.length > 0 || skipped.length > 0;
               const actionBusy = jobActionState.id === job.id ? jobActionState.action : "";
               return (
@@ -1750,8 +1850,16 @@ export default function AutoScheduler({ embedded = false }) {
                   className={`auto-job-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4 ${isExpanded ? "auto-job-card--expanded" : ""}`}
                 >
                   <div className="auto-job-card__summary flex flex-wrap items-center justify-between gap-3">
-                    <div className="auto-job-card__title font-semibold text-slate-900">
-                      Job #{job.id} · {status}
+                    <div className="auto-job-card__heading">
+                      <div className="auto-job-card__title font-semibold text-slate-900">
+                        <span className="auto-job-card__name">
+                          {jobNameLabel || `Job #${job.id}`}
+                        </span>
+                        <span className={`auto-job-card__status auto-job-card__status--${statusKey || "unknown"}`}>
+                          {status}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">Job ID: {job.id}</div>
                     </div>
                     <div className="auto-job-card__actions flex flex-wrap gap-2">
                       {canView && (
@@ -1763,13 +1871,32 @@ export default function AutoScheduler({ embedded = false }) {
                           {isExpanded ? "Hide results" : "View results"}
                         </button>
                       )}
-                      {statusKey !== "running" && (
+                      {statusKey === "scheduled" && (
                         <button
                           type="button"
                           className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50"
                           onClick={() => loadJobIntoEditor(job)}
                         >
                           Edit
+                        </button>
+                      )}
+                      {statusKey !== "running" && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50"
+                          onClick={() => startJobRename(job)}
+                          disabled={actionBusy === "rename"}
+                        >
+                          {actionBusy === "rename" && isRenaming ? "Saving..." : "Rename"}
+                        </button>
+                      )}
+                      {statusKey !== "scheduled" && statusKey !== "running" && (
+                        <button
+                          type="button"
+                          className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-50"
+                          onClick={() => loadJobIntoEditor(job)}
+                        >
+                          Use as template
                         </button>
                       )}
                       {(statusKey === "scheduled" || statusKey === "running") && (
@@ -1816,6 +1943,37 @@ export default function AutoScheduler({ embedded = false }) {
                       )}
                     </div>
                   </div>
+                  {isRenaming && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-indigo-200 bg-white px-3 py-3">
+                      <input
+                        type="text"
+                        maxLength={120}
+                        className="min-w-[220px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                        placeholder="Job name"
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
+                        onClick={() => saveJobRename(job.id)}
+                        disabled={actionBusy === "rename"}
+                      >
+                        {actionBusy === "rename" ? "Saving..." : "Save name"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                        onClick={() => {
+                          setRenamingJobId(null);
+                          setRenameDraft("");
+                        }}
+                        disabled={actionBusy === "rename"}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   <div className="auto-job-card__line mt-1 text-xs leading-6 text-slate-600">
                     Run at: {runAtLabel} | Allocations: {allocationCount}
                   </div>

@@ -4,6 +4,27 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../api/api";
 import { getOrgConfig } from "../orgConfig";
 import "./ResourceTypes.css";
 
+function createEmptyField() {
+  return {
+    name: "",
+    type: "string",
+    required: false,
+    default: "",
+    auto_user_count: false,
+  };
+}
+
+function normalizeField(field) {
+  const normalizedType = String(field?.type || "string");
+  return {
+    name: field?.name || "",
+    type: normalizedType,
+    required: Boolean(field?.required),
+    default: field?.default ?? "",
+    auto_user_count: normalizedType === "number" && Boolean(field?.auto_user_count),
+  };
+}
+
 function ModalPortal({ children }) {
   if (typeof document === "undefined") return null;
   return createPortal(children, document.body);
@@ -36,12 +57,13 @@ function MetricCard({ label, value, tone = "slate", theme }) {
 function FieldTable({ rows, onChange, onDelete }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-purple-900/40 bg-black/20">
-      <table className="min-w-[640px] w-full text-left">
+      <table className="min-w-[760px] w-full text-left">
         <thead className="bg-black/40 text-slate-200">
           <tr>
             <th className="border-b border-slate-200 px-3 py-3">Name</th>
             <th className="border-b border-slate-200 px-3 py-3">Type</th>
             <th className="border-b border-slate-200 px-3 py-3">Required</th>
+            <th className="border-b border-slate-200 px-3 py-3">Auto User Count</th>
             <th className="border-b border-slate-200 px-3 py-3">Default</th>
             <th className="border-b border-slate-200 px-3 py-3">Actions</th>
           </tr>
@@ -76,12 +98,27 @@ function FieldTable({ rows, onChange, onDelete }) {
                   className="h-4 w-4 rounded border-slate-300"
                 />
               </td>
+              <td className="border-b border-slate-100 px-3 py-3 text-center">
+                <input
+                  type="checkbox"
+                  checked={Boolean(field.auto_user_count)}
+                  disabled={field.type !== "number"}
+                  onChange={(e) => onChange(index, "auto_user_count", e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={
+                    field.type === "number"
+                      ? "Automatically sync this field to the number of assigned users."
+                      : "Available only for number fields."
+                  }
+                />
+              </td>
               <td className="border-b border-slate-100 px-3 py-3">
                 <input
                   type="text"
                   value={field.default}
+                  disabled={Boolean(field.auto_user_count)}
                   onChange={(e) => onChange(index, "default", e.target.value)}
-                  className="w-full rounded-xl border border-purple-900/40 bg-black/40 px-3 py-2 text-slate-100 outline-none focus:border-red-700 focus:bg-black/50 focus:ring-4 focus:ring-red-950/40"
+                  className="w-full rounded-xl border border-purple-900/40 bg-black/40 px-3 py-2 text-slate-100 outline-none focus:border-red-700 focus:bg-black/50 focus:ring-4 focus:ring-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </td>
               <td className="border-b border-slate-100 px-3 py-3 text-center">
@@ -96,7 +133,7 @@ function FieldTable({ rows, onChange, onDelete }) {
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
+              <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
                 No fields yet. Add the first field below.
               </td>
             </tr>
@@ -203,7 +240,7 @@ export default function ResourceTypes() {
   function addFieldRow() {
     setForm((prev) => ({
       ...prev,
-      fields: [...prev.fields, { name: "", type: "string", required: false, default: "" }],
+      fields: [...prev.fields, createEmptyField()],
     }));
   }
 
@@ -215,13 +252,26 @@ export default function ResourceTypes() {
 
   function handleAddFieldChange(index, key, value) {
     const updated = [...form.fields];
-    updated[index][key] = value;
+    updated[index] = {
+      ...updated[index],
+      [key]: value,
+    };
+    if (key === "type" && value !== "number") {
+      updated[index].auto_user_count = false;
+    }
+    if (key === "auto_user_count" && value) {
+      updated[index].default = "";
+      updated[index].type = "number";
+    }
     setForm((prev) => ({ ...prev, fields: updated }));
   }
 
   async function saveNewType() {
     try {
-      await apiPost("/resource-types", form);
+      await apiPost("/resource-types", {
+        ...form,
+        fields: form.fields.map(normalizeField),
+      });
       setShowAdd(false);
       setForm({ name: "", description: "", fields: [], roles: [] });
       setRoleInput("");
@@ -235,7 +285,7 @@ export default function ResourceTypes() {
     setEditModal({
       open: true,
       type: { ...typeData },
-      fields: JSON.parse(JSON.stringify(typeData.fields || [])),
+      fields: JSON.parse(JSON.stringify(typeData.fields || [])).map(normalizeField),
       roles: Array.isArray(typeData.roles) ? [...typeData.roles] : [],
       roleInput: "",
     });
@@ -243,14 +293,24 @@ export default function ResourceTypes() {
 
   function handleEditFieldChange(index, key, value) {
     const updated = [...editModal.fields];
-    updated[index][key] = value;
+    updated[index] = {
+      ...updated[index],
+      [key]: value,
+    };
+    if (key === "type" && value !== "number") {
+      updated[index].auto_user_count = false;
+    }
+    if (key === "auto_user_count" && value) {
+      updated[index].default = "";
+      updated[index].type = "number";
+    }
     setEditModal((prev) => ({ ...prev, fields: updated }));
   }
 
   function addEditFieldRow() {
     setEditModal((prev) => ({
       ...prev,
-      fields: [...prev.fields, { name: "", type: "string", required: false, default: "" }],
+      fields: [...prev.fields, createEmptyField()],
     }));
   }
 
@@ -265,7 +325,7 @@ export default function ResourceTypes() {
       await apiPut(`/resource-types/${editModal.type.id}`, {
         name: editModal.type.name,
         description: editModal.type.description,
-        fields: editModal.fields,
+        fields: editModal.fields.map(normalizeField),
         roles: editModal.roles,
       });
 
