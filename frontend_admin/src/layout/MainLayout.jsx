@@ -115,6 +115,7 @@ export default function MainLayout() {
   const pageSubtitle = `Manage ${String(currentTitle).toLowerCase()} with a calmer, clearer administrative workspace.`;
   const showTopbar = !location.pathname.startsWith("/availability");
   const showTopbarEyebrow = config.domain !== "shenkar";
+  const showCurrentAreaPill = currentItem.key !== "dashboard";
 
   useEffect(() => {
     document.title = `${currentTitle} | SmartAllocate Admin`;
@@ -217,10 +218,12 @@ export default function MainLayout() {
                 <span className="admin-topbar__pill-label">Workspace</span>
                 <span className="admin-topbar__pill-value">{config.businessName}</span>
               </div>
-              <div className="admin-topbar__pill">
-                <span className="admin-topbar__pill-label">Current Area</span>
-                <span className="admin-topbar__pill-value">{currentItem.description}</span>
-              </div>
+              {showCurrentAreaPill && (
+                <div className="admin-topbar__pill">
+                  <span className="admin-topbar__pill-label">Current Area</span>
+                  <span className="admin-topbar__pill-value">{currentItem.description}</span>
+                </div>
+              )}
             </div>
           </header>
         )}
