@@ -222,7 +222,15 @@ function buildResourceConflictDetail(conflictingBookings, requestedResourceIds, 
 
 function extractUserIds(meta) {
   if (!meta || typeof meta !== "object") return [];
-  const candidates = [meta.user_ids, meta.userIds];
+  const candidates = [meta.user_ids, meta.userIds, meta.student_ids, meta.studentIds];
+  if (Array.isArray(meta.students)) {
+    candidates.push(meta.students);
+  } else if (typeof meta.students === "string") {
+    const trimmed = meta.students.trim();
+    if (/[,\s]/.test(trimmed) || /^\d{6,}$/.test(trimmed)) {
+      candidates.push(trimmed);
+    }
+  }
   if (Array.isArray(meta.users)) {
     candidates.push(meta.users);
   } else if (typeof meta.users === "string") {
@@ -934,6 +942,7 @@ async function buildAlternativeSuggestions({
   rules,
   booking,
   roles,
+  excludeBookingId = null,
   limit = 3,
 }) {
   if (!Array.isArray(resources) || resources.length === 0) return [];
@@ -984,6 +993,18 @@ async function buildAlternativeSuggestions({
       });
       if (evaluation.hardViolations.length > 0) continue;
 
+      const userConflict = await findBookingUserConflict({
+        client,
+        orgId,
+        bookingDate,
+        startTime,
+        endTime,
+        userId: booking?.user_id,
+        resourceRows: nextResources,
+        excludeBookingId,
+      });
+      if (userConflict) continue;
+
       suggestions.push({
         score: evaluation.score,
         resource_ids: resourceIds,
@@ -1028,18 +1049,6 @@ async function buildAlternativeSuggestions({
       return a.summary.localeCompare(b.summary);
     })
     .slice(0, limit);
-}
-
-async function findUserConflict(client, userId, date, startTime, endTime, orgId) {
-  const conflict = await findAnyUserConflict(
-    client,
-    userId ? [String(userId)] : [],
-    date,
-    startTime,
-    endTime,
-    orgId
-  );
-  return conflict;
 }
 
 async function findAnyUserConflict(
@@ -1156,6 +1165,84 @@ async function findAnyUserConflict(
   return rows[0] || null;
 }
 
+async function findBookingUserConflict({
+  client,
+  orgId,
+  bookingDate,
+  startTime,
+  endTime,
+  userId,
+  resourceRows,
+  excludeBookingId = null,
+}) {
+  const normalizedUserId = String(userId || "").trim();
+  const resourceDebug = (Array.isArray(resourceRows) ? resourceRows : []).map((resource) => ({
+    id: Number.isFinite(Number(resource?.id)) ? Number(resource.id) : resource?.id ?? null,
+    name: resource?.name || "",
+    type_name: resource?.type_name || "",
+    metadata: normalizeMetadata(resource?.metadata || resource?.resource_metadata),
+  }));
+  const extractedUserIds = collectAssignedUserIdsFromResourceRows(resourceRows);
+  const debugBase = {
+    bookingDate,
+    startTime,
+    endTime,
+    bookingUserId: normalizedUserId,
+    resources: resourceDebug.map(({ id, name, type_name }) => ({ id, name, type_name })),
+    resourceMetadata: resourceDebug.map(({ id, name, metadata }) => ({ id, name, metadata })),
+    extractedUserIds,
+    excludeBookingId: Number.isFinite(Number(excludeBookingId)) ? Number(excludeBookingId) : null,
+  };
+
+  if (normalizedUserId) {
+    const bookingUserIds = [normalizedUserId];
+    console.log("[findBookingUserConflict] owner check", {
+      ...debugBase,
+      finalUserIds: bookingUserIds,
+    });
+    const bookingUserConflict = await findAnyUserConflict(
+      client,
+      bookingUserIds,
+      bookingDate,
+      startTime,
+      endTime,
+      orgId,
+      excludeBookingId
+    );
+    console.log("[findBookingUserConflict] owner result", {
+      ...debugBase,
+      finalUserIds: bookingUserIds,
+      result: bookingUserConflict,
+    });
+    if (bookingUserConflict) return bookingUserConflict;
+  }
+
+  const relatedUserIds = extractedUserIds.filter(
+    (assignedId) => assignedId !== normalizedUserId
+  );
+  if (relatedUserIds.length === 0) return null;
+
+  console.log("[findBookingUserConflict] related users check", {
+    ...debugBase,
+    finalUserIds: relatedUserIds,
+  });
+  const relatedUserConflict = await findAnyUserConflict(
+    client,
+    relatedUserIds,
+    bookingDate,
+    startTime,
+    endTime,
+    orgId,
+    excludeBookingId
+  );
+  console.log("[findBookingUserConflict] related users result", {
+    ...debugBase,
+    finalUserIds: relatedUserIds,
+    result: relatedUserConflict,
+  });
+  return relatedUserConflict;
+}
+
 async function buildTimeSlotSuggestions({
   client,
   orgId,
@@ -1167,6 +1254,7 @@ async function buildTimeSlotSuggestions({
   candidateTypeIds,
   rules,
   roles,
+  excludeBookingId = null,
   limit = 3,
 }) {
   const startMinutes = timeToMinutes(startTime);
@@ -1197,18 +1285,6 @@ async function buildTimeSlotSuggestions({
   const suggestions = [];
 
   for (const slot of slots) {
-    if (userId) {
-      const userConflict = await findUserConflict(
-        client,
-        userId,
-        bookingDate,
-        slot.start_time,
-        slot.end_time,
-        orgId
-      );
-      if (userConflict) continue;
-    }
-
     let resolvedResourceRows = [...fixedResources];
     let resolvedResourceIds = resolvedResourceRows
       .map((resource) => Number(resource.id))
@@ -1276,6 +1352,18 @@ async function buildTimeSlotSuggestions({
     });
     if (evaluation.hardViolations.length > 0) continue;
 
+    const userConflict = await findBookingUserConflict({
+      client,
+      orgId,
+      bookingDate,
+      startTime: slot.start_time,
+      endTime: slot.end_time,
+      userId,
+      resourceRows: resolvedResourceRows,
+      excludeBookingId,
+    });
+    if (userConflict) continue;
+
     suggestions.push({
       type: "timeslot",
       score: evaluation.score,
@@ -1329,6 +1417,7 @@ async function buildFailureSuggestions({
   candidateTypeIds,
   rules,
   roles,
+  excludeBookingId = null,
 }) {
   const [resourceSuggestions, timeSuggestions] = await Promise.all([
     buildAlternativeSuggestions({
@@ -1346,6 +1435,7 @@ async function buildFailureSuggestions({
         user_id: userId,
       },
       roles,
+      excludeBookingId,
     }),
     buildTimeSlotSuggestions({
       client,
@@ -1358,6 +1448,7 @@ async function buildFailureSuggestions({
       candidateTypeIds,
       rules,
       roles,
+      excludeBookingId,
     }),
   ]);
 
@@ -1422,6 +1513,7 @@ async function buildConflictResolution({
       candidateTypeIds: [],
       rules,
       roles: {},
+      excludeBookingId: Number(existing.id),
     });
     moveExisting = {
       booking: summarizeBookingForConflict(existing),
@@ -1458,19 +1550,19 @@ async function reassignBookingWithSuggestion(client, bookingId, suggestion, orgI
     throw new Error("Conflicting booking not found");
   }
   const booking = bookingRows[0];
-
-  if (booking.user_id) {
-    const conflict = await findUserConflict(
-      client,
-      booking.user_id,
-      nextDate,
-      nextStart,
-      nextEnd,
-      orgId
-    );
-    if (conflict && Number(conflict.id) !== Number(bookingId)) {
-      throw new Error("Displaced booking has no valid user slot");
-    }
+  const nextResourceRows = await loadResourceRowsByIds(client, nextResourceIds, orgId);
+  const userConflict = await findBookingUserConflict({
+    client,
+    orgId,
+    bookingDate: nextDate,
+    startTime: nextStart,
+    endTime: nextEnd,
+    userId: booking.user_id,
+    resourceRows: nextResourceRows,
+    excludeBookingId: bookingId,
+  });
+  if (userConflict) {
+    throw new Error("Displaced booking has no valid user slot");
   }
 
   const resourceConflict = await hasResourceConflict(
@@ -2742,29 +2834,27 @@ router.post("/", async (req, res) => {
         }
       }
 
-      const assignedUserIds = collectAssignedUserIdsFromResourceRows(resolvedResourceRows).filter(
-        (assignedId) => assignedId !== String(user_id || "").trim()
-      );
-      const assignedUserConflict = await findAnyUserConflict(
+      const bookingUserConflict = await findBookingUserConflict({
         client,
-        assignedUserIds,
+        orgId,
         bookingDate,
-        start_time,
-        end_time,
-        orgId
-      );
-      if (assignedUserConflict) {
+        startTime: start_time,
+        endTime: end_time,
+        userId: user_id,
+        resourceRows: resolvedResourceRows,
+      });
+      if (bookingUserConflict) {
         await client.query("ROLLBACK");
         return res.status(409).json({
           error: buildBookedUserConflictMessage(
-            assignedUserConflict,
+            bookingUserConflict,
             "Assigned user",
             bookingDate,
             start_time,
             end_time
           ),
           date: bookingDate,
-          occupied_by: assignedUserConflict,
+          occupied_by: bookingUserConflict,
         });
       }
 
@@ -3031,29 +3121,27 @@ router.put("/:id", async (req, res) => {
       return res.status(400).json({ error: "One or more resources not found" });
     }
 
-    const assignedUserIds = collectAssignedUserIdsFromResourceRows(resourceRows).filter(
-      (assignedId) => assignedId !== String(user_id || "").trim()
-    );
-    const assignedUserConflict = await findAnyUserConflict(
+    const bookingUserConflict = await findBookingUserConflict({
       client,
-      assignedUserIds,
-      date,
-      start_time,
-      end_time,
       orgId,
-      id
-    );
-    if (assignedUserConflict) {
+      bookingDate: date,
+      startTime: start_time,
+      endTime: end_time,
+      userId: user_id,
+      resourceRows: resourceRows,
+      excludeBookingId: id,
+    });
+    if (bookingUserConflict) {
       await client.query("ROLLBACK");
       return res.status(409).json({
         error: buildBookedUserConflictMessage(
-          assignedUserConflict,
+          bookingUserConflict,
           "Assigned user",
           date,
           start_time,
           end_time
         ),
-        occupied_by: assignedUserConflict,
+        occupied_by: bookingUserConflict,
       });
     }
 
