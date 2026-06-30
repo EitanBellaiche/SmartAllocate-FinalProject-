@@ -1589,6 +1589,70 @@
   color: #6b5a78 !important;
 }
 
+.admin-shell--cinema .resources-summary-pill--cinema-unified {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(215, 122, 202, 0.24) !important;
+  background: #f7f7f7 !important;
+  color: #2f2b2e !important;
+  box-shadow: 0 12px 26px rgba(82, 22, 79, 0.055) !important;
+}
+
+.admin-shell--cinema .resources-summary-pill--cinema-unified::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 11px;
+  left: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(215, 122, 202, 0.48);
+}
+
+.admin-shell--cinema .resources-summary-pill--cinema-unified .resources-summary-pill__label {
+  color: #6f596c !important;
+}
+
+.admin-shell--cinema .resources-summary-pill--cinema-unified .resources-summary-pill__value {
+  color: #2f2b2e !important;
+  font-weight: 500 !important;
+}
+
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.border-blue-200,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.border-slate-200,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.border-emerald-200,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.bg-blue-50,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.bg-slate-100,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.bg-emerald-50,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-blue-700,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-slate-700,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-emerald-700 {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background: #f7f7f7 !important;
+  color: #2f2b2e !important;
+  box-shadow: 0 12px 26px rgba(82, 22, 79, 0.055) !important;
+}
+
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill::after {
+  background: rgba(215, 122, 202, 0.48) !important;
+}
+
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill__label,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-blue-700 .resources-summary-pill__label,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-slate-700 .resources-summary-pill__label,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-emerald-700 .resources-summary-pill__label {
+  color: #6f596c !important;
+}
+
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill__value,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-blue-700 .resources-summary-pill__value,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-slate-700 .resources-summary-pill__value,
+.admin-shell--cinema .resources-filter-panel .resources-summary-pill.text-emerald-700 .resources-summary-pill__value {
+  color: #2f2b2e !important;
+  font-weight: 500 !important;
+}
+
 @media (max-width: 1380px) {
   .resources-cinema-grid {
     grid-template-columns: 1fr;

@@ -463,3 +463,231 @@ textarea {
     border-radius: 22px !important;
   }
 }
+
+.admin-shell--cinema .admin-content {
+  --admin-ink: #2d252b;
+  --admin-muted: #6f5c6c;
+  --admin-soft: #f7f7f7;
+  --admin-line: rgba(215, 122, 202, 0.24);
+  --admin-line-strong: rgba(82, 22, 79, 0.22);
+  --admin-blue: #52164f;
+  --admin-teal: #d77aca;
+  --admin-emerald: #d77aca;
+  --admin-amber: #8f3d87;
+  --admin-danger: #52164f;
+}
+
+.admin-shell--cinema .admin-content section:not(.dashboard-hero),
+.admin-shell--cinema .admin-content article:not(.dashboard-resource-card):not(.dashboard-insight-card),
+.admin-shell--cinema .admin-content aside > section,
+.admin-shell--cinema .dashboard-stat-card,
+.admin-shell--cinema .dashboard-insight-card,
+.admin-shell--cinema .dashboard-search,
+.admin-shell--cinema .dashboard-resource-card,
+.admin-shell--cinema .dashboard-modal,
+.admin-shell--cinema .dashboard-booking-card {
+  border-color: rgba(215, 122, 202, 0.22) !important;
+  background: #f7f7f7 !important;
+  box-shadow: 0 20px 44px rgba(82, 22, 79, 0.08);
+}
+
+.admin-shell--cinema .admin-content .bg-white,
+.admin-shell--cinema .admin-content .bg-white\/70,
+.admin-shell--cinema .admin-content .bg-white\/80,
+.admin-shell--cinema .admin-content .bg-white\/85,
+.admin-shell--cinema .admin-content .bg-white\/90,
+.admin-shell--cinema .admin-content .bg-slate-50,
+.admin-shell--cinema .admin-content .bg-slate-50\/70,
+.admin-shell--cinema .admin-content .bg-slate-50\/80,
+.admin-shell--cinema .admin-content .bg-gray-100,
+.admin-shell--cinema .admin-content .bg-\[linear-gradient\(180deg\2c \#fff_0\%\2c \#faf7ff_100\%\)\] {
+  background: #f7f7f7 !important;
+}
+
+.admin-shell--cinema .admin-content .text-purple-950,
+.admin-shell--cinema .admin-content .text-purple-900,
+.admin-shell--cinema .admin-content .text-purple-800,
+.admin-shell--cinema .admin-content .text-purple-700,
+.admin-shell--cinema .admin-content .text-violet-800,
+.admin-shell--cinema .admin-content .text-violet-700,
+.admin-shell--cinema .admin-content .text-fuchsia-700,
+.admin-shell--cinema .admin-content .text-slate-900,
+.admin-shell--cinema .admin-content .text-slate-950 {
+  color: #2d252b !important;
+}
+
+.admin-shell--cinema .admin-content .text-slate-300,
+.admin-shell--cinema .admin-content .text-slate-400,
+.admin-shell--cinema .admin-content .text-slate-500,
+.admin-shell--cinema .admin-content .text-slate-600,
+.admin-shell--cinema .admin-content .text-gray-500 {
+  color: #6f5c6c !important;
+}
+
+.admin-shell--cinema .admin-content .bg-purple-700,
+.admin-shell--cinema .admin-content .bg-purple-800,
+.admin-shell--cinema .admin-content .bg-violet-50,
+.admin-shell--cinema .admin-content .bg-violet-100,
+.admin-shell--cinema .admin-content .bg-fuchsia-50,
+.admin-shell--cinema .admin-content .bg-indigo-50,
+.admin-shell--cinema .admin-content .bg-indigo-600,
+.admin-shell--cinema .admin-content .bg-gray-700,
+.admin-shell--cinema .admin-content .bg-gray-800,
+.admin-shell--cinema .admin-content .bg-black\/20,
+.admin-shell--cinema .admin-content .bg-black\/30,
+.admin-shell--cinema .admin-content .bg-black\/40,
+.admin-shell--cinema .admin-content .bg-black\/50 {
+  background: #f3dff1 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .admin-content button[class*="bg-blue"],
+.admin-shell--cinema .admin-content button[class*="bg-sky"],
+.admin-shell--cinema .admin-content button[class*="bg-indigo"],
+.admin-shell--cinema .admin-content button[class*="bg-gray"],
+.admin-shell--cinema .admin-content button[class*="bg-purple"],
+.admin-shell--cinema .admin-content button[class*="bg-red"],
+.admin-shell--cinema .admin-content button[class*="bg-amber"],
+.admin-shell--cinema .admin-content .dashboard-resource-card__button {
+  border: 1px solid rgba(82, 22, 79, 0.14) !important;
+  background: #52164f !important;
+  color: #f7f7f7 !important;
+  box-shadow: 0 14px 28px rgba(82, 22, 79, 0.14) !important;
+}
+
+.admin-shell--cinema .admin-content button[class*="border"],
+.admin-shell--cinema .admin-content .dashboard-modal__actions button:first-child {
+  border-color: rgba(215, 122, 202, 0.28) !important;
+  background: #f7f7f7 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .admin-content input,
+.admin-shell--cinema .admin-content select,
+.admin-shell--cinema .admin-content textarea {
+  border-color: rgba(215, 122, 202, 0.26) !important;
+  background: #f7f7f7 !important;
+  color: #2d252b !important;
+}
+
+.admin-shell--cinema .admin-content input::placeholder,
+.admin-shell--cinema .admin-content textarea::placeholder {
+  color: #8f7c8c !important;
+}
+
+.admin-shell--cinema .admin-content input:focus,
+.admin-shell--cinema .admin-content select:focus,
+.admin-shell--cinema .admin-content textarea:focus {
+  border-color: #d77aca !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 5px rgba(243, 223, 241, 0.82) !important;
+}
+
+.admin-shell--cinema .admin-content input[type="checkbox"] {
+  accent-color: #d77aca;
+}
+
+.admin-shell--cinema .admin-content thead,
+.admin-shell--cinema .admin-content .bg-black\/40.text-slate-200 {
+  background: #52164f !important;
+  color: #f7f7f7 !important;
+}
+
+.admin-shell--cinema .admin-content td,
+.admin-shell--cinema .admin-content th {
+  border-color: rgba(215, 122, 202, 0.2) !important;
+}
+
+.admin-shell--cinema .admin-content tbody tr {
+  background: #f7f7f7 !important;
+}
+
+.admin-shell--cinema .admin-content tbody tr:hover {
+  background: #f3dff1 !important;
+}
+
+.admin-shell--cinema .admin-content pre {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background: #f7f7f7 !important;
+  color: #2d252b !important;
+}
+
+.admin-shell--cinema .admin-content .fixed.inset-0 > div {
+  border-color: rgba(215, 122, 202, 0.28) !important;
+  background: #f7f7f7 !important;
+  box-shadow: 0 34px 72px rgba(82, 22, 79, 0.22) !important;
+}
+
+.admin-shell--cinema .admin-content .rounded-full,
+.admin-shell--cinema .admin-content span[class*="rounded-full"] {
+  border-color: rgba(215, 122, 202, 0.3) !important;
+}
+
+.admin-shell--cinema .admin-content span[class*="bg-blue"],
+.admin-shell--cinema .admin-content span[class*="bg-sky"],
+.admin-shell--cinema .admin-content span[class*="bg-indigo"],
+.admin-shell--cinema .admin-content span[class*="bg-violet"],
+.admin-shell--cinema .admin-content span[class*="bg-fuchsia"],
+.admin-shell--cinema .admin-content span[class*="bg-emerald"],
+.admin-shell--cinema .admin-content span[class*="bg-amber"],
+.admin-shell--cinema .admin-content .dashboard-search__count,
+.admin-shell--cinema .admin-content .dashboard-hero__chip {
+  background: #f3dff1 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .admin-content span[class*="bg-red"],
+.admin-shell--cinema .admin-content .text-red-700,
+.admin-shell--cinema .admin-content .text-red-600 {
+  background: #f3dff1 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .dashboard-hero {
+  background: #f7f7f7 !important;
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  color: #2d252b !important;
+}
+
+.admin-shell--cinema .dashboard-hero__panel,
+.admin-shell--cinema .dashboard-hero__panel-card {
+  border-color: rgba(215, 122, 202, 0.22) !important;
+  background: #f3dff1 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-calendar {
+  border-color: rgba(215, 122, 202, 0.24);
+  background: #f7f7f7;
+  box-shadow: 0 24px 52px rgba(82, 22, 79, 0.08);
+}
+
+.admin-shell--cinema .admin-content .rbc-toolbar {
+  border-bottom-color: rgba(215, 122, 202, 0.22);
+  background: #f7f7f7;
+}
+
+.admin-shell--cinema .admin-content .rbc-toolbar button {
+  border-color: rgba(215, 122, 202, 0.28) !important;
+  background: #f7f7f7 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-toolbar button.rbc-active,
+.admin-shell--cinema .admin-content .rbc-toolbar button:hover {
+  background: #f3dff1 !important;
+  color: #52164f !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-event {
+  background: #52164f;
+  box-shadow: 0 10px 18px rgba(82, 22, 79, 0.18);
+}
+
+.admin-shell--cinema .admin-content .rbc-today {
+  background: rgba(243, 223, 241, 0.72);
+}
+
+.admin-shell--cinema .admin-content .rbc-off-range-bg {
+  background: #f7f7f7;
+}

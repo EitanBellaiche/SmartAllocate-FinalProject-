@@ -1,0 +1,785 @@
+.admin-shell--cinema {
+  --yp-white: #f7f7f7;
+  --yp-pink-light: #f3dff1;
+  --yp-pink: #d77aca;
+  --yp-plum: #52164f;
+  --yp-ink: #2d252b;
+  --yp-muted: #6f5c6c;
+  --yp-line: rgba(215, 122, 202, 0.25);
+  --yp-line-strong: rgba(82, 22, 79, 0.22);
+  --yp-shadow: rgba(82, 22, 79, 0.09);
+  background: linear-gradient(180deg, var(--yp-white) 0%, var(--yp-white) 58%, var(--yp-pink-light) 100%) !important;
+}
+
+.admin-shell--cinema .admin-content,
+.admin-shell--cinema .admin-content * {
+  border-color: var(--yp-line);
+}
+
+.admin-shell--cinema .admin-content {
+  color: var(--yp-ink);
+}
+
+.admin-shell--cinema .admin-content h1,
+.admin-shell--cinema .admin-content h2,
+.admin-shell--cinema .admin-content h3,
+.admin-shell--cinema .admin-content h4,
+.admin-shell--cinema .admin-content .font-bold,
+.admin-shell--cinema .admin-content .font-semibold,
+.admin-shell--cinema .admin-content .font-black {
+  color: var(--yp-ink) !important;
+}
+
+.admin-shell--cinema .admin-content p,
+.admin-shell--cinema .admin-content .text-slate-300,
+.admin-shell--cinema .admin-content .text-slate-400,
+.admin-shell--cinema .admin-content .text-slate-500,
+.admin-shell--cinema .admin-content .text-slate-600,
+.admin-shell--cinema .admin-content .text-gray-500,
+.admin-shell--cinema .admin-content .text-gray-600 {
+  color: var(--yp-muted) !important;
+}
+
+.admin-shell--cinema .admin-content section,
+.admin-shell--cinema .admin-content article,
+.admin-shell--cinema .admin-content aside > section,
+.admin-shell--cinema .admin-content .dashboard-hero,
+.admin-shell--cinema .admin-content .dashboard-search,
+.admin-shell--cinema .admin-content .dashboard-resource-card,
+.admin-shell--cinema .admin-content .dashboard-insight-card,
+.admin-shell--cinema .admin-content .dashboard-stat-card,
+.admin-shell--cinema .admin-content .resource-types-hero,
+.admin-shell--cinema .admin-content .resource-types-list,
+.admin-shell--cinema .admin-content .resource-type-card,
+.admin-shell--cinema .admin-content .resources-toolbar,
+.admin-shell--cinema .admin-content .resources-list,
+.admin-shell--cinema .admin-content .resource-card,
+.admin-shell--cinema .admin-content .resources-filter-panel,
+.admin-shell--cinema .admin-content .resource-result-group,
+.admin-shell--cinema .admin-content .booking-hero,
+.admin-shell--cinema .admin-content .booking-form-section,
+.admin-shell--cinema .admin-content .booking-live-panel,
+.admin-shell--cinema .admin-content .auto-jobs-panel,
+.admin-shell--cinema .admin-content .auto-run-panel,
+.admin-shell--cinema .admin-content .auto-windows-panel,
+.admin-shell--cinema .admin-content .auto-availability-panel,
+.admin-shell--cinema .admin-content .auto-job-card,
+.admin-shell--cinema .admin-content .auto-window-card,
+.admin-shell--cinema .admin-content .auto-availability-card,
+.admin-shell--cinema .admin-content .availability-page,
+.admin-shell--cinema .admin-content .availability-panel,
+.admin-shell--cinema .admin-content .availability-card,
+.admin-shell--cinema .admin-content .availability-calendar,
+.admin-shell--cinema .admin-content .rules-hero,
+.admin-shell--cinema .admin-content .rules-guidance,
+.admin-shell--cinema .admin-content .rules-builder,
+.admin-shell--cinema .admin-content .rules-list-panel,
+.admin-shell--cinema .admin-content .rules-card,
+.admin-shell--cinema .admin-content .rules-metric,
+.admin-shell--cinema .admin-content .rules-wizard-step-card,
+.admin-shell--cinema .admin-content .resource-requests-hero,
+.admin-shell--cinema .admin-content .resource-requests-panel,
+.admin-shell--cinema .admin-content .resource-requests-card,
+.admin-shell--cinema .admin-content .resource-requests-metric,
+.admin-shell--cinema .admin-content .user-bookings-hero,
+.admin-shell--cinema .admin-content .user-bookings-panel,
+.admin-shell--cinema .admin-content .user-bookings-metric,
+.admin-shell--cinema .admin-content .user-bookings-search,
+.admin-shell--cinema .admin-content .user-bookings-current-card,
+.admin-shell--cinema .admin-content .user-bookings-assigned-card,
+.admin-shell--cinema .admin-content .user-bookings-resource-option,
+.admin-shell--cinema .admin-content .user-bookings-resource-list {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+  box-shadow: 0 20px 44px var(--yp-shadow) !important;
+}
+
+.admin-shell--cinema .admin-content section::before,
+.admin-shell--cinema .admin-content section::after,
+.admin-shell--cinema .admin-content article::before,
+.admin-shell--cinema .admin-content article::after,
+.admin-shell--cinema .admin-content .dashboard-hero::before,
+.admin-shell--cinema .admin-content .dashboard-hero::after,
+.admin-shell--cinema .admin-content .resource-types-hero::before,
+.admin-shell--cinema .admin-content .resource-type-card::before,
+.admin-shell--cinema .admin-content .resources-toolbar::before,
+.admin-shell--cinema .admin-content .resource-card::before,
+.admin-shell--cinema .admin-content .booking-hero::before,
+.admin-shell--cinema .admin-content .booking-form-section::before,
+.admin-shell--cinema .admin-content .rules-hero::before,
+.admin-shell--cinema .admin-content .rules-builder::before,
+.admin-shell--cinema .admin-content .rules-list-panel::before,
+.admin-shell--cinema .admin-content .rules-card::before,
+.admin-shell--cinema .admin-content .resource-requests-hero::before,
+.admin-shell--cinema .admin-content .resource-requests-card::before,
+.admin-shell--cinema .admin-content .user-bookings-hero::before,
+.admin-shell--cinema .admin-content .user-bookings-panel::before {
+  background: var(--yp-pink) !important;
+}
+
+.admin-shell--cinema .admin-content .bg-white,
+.admin-shell--cinema .admin-content .bg-white\/70,
+.admin-shell--cinema .admin-content .bg-white\/75,
+.admin-shell--cinema .admin-content .bg-white\/80,
+.admin-shell--cinema .admin-content .bg-white\/85,
+.admin-shell--cinema .admin-content .bg-white\/90,
+.admin-shell--cinema .admin-content .bg-slate-50,
+.admin-shell--cinema .admin-content .bg-slate-50\/70,
+.admin-shell--cinema .admin-content .bg-slate-50\/80,
+.admin-shell--cinema .admin-content .bg-gray-100 {
+  background: var(--yp-white) !important;
+}
+
+.admin-shell--cinema .admin-content [class*="bg-violet"],
+.admin-shell--cinema .admin-content [class*="bg-fuchsia"],
+.admin-shell--cinema .admin-content [class*="bg-indigo"],
+.admin-shell--cinema .admin-content [class*="bg-blue"],
+.admin-shell--cinema .admin-content [class*="bg-sky"],
+.admin-shell--cinema .admin-content [class*="bg-cyan"],
+.admin-shell--cinema .admin-content [class*="bg-teal"],
+.admin-shell--cinema .admin-content [class*="bg-emerald"],
+.admin-shell--cinema .admin-content [class*="bg-green"],
+.admin-shell--cinema .admin-content [class*="bg-amber"],
+.admin-shell--cinema .admin-content [class*="bg-orange"],
+.admin-shell--cinema .admin-content [class*="bg-red"] {
+  background: var(--yp-pink-light) !important;
+  color: var(--yp-plum) !important;
+}
+
+.admin-shell--cinema .admin-content button[class*="bg-"],
+.admin-shell--cinema .admin-content .dashboard-resource-card__button,
+.admin-shell--cinema .admin-content .resources-add-button,
+.admin-shell--cinema .admin-content .resource-types-add-button,
+.admin-shell--cinema .admin-content .rules-wizard-button,
+.admin-shell--cinema .admin-content .rules-wizard-modal__primary,
+.admin-shell--cinema .admin-content .resource-requests-refresh,
+.admin-shell--cinema .admin-content .user-bookings-save,
+.admin-shell--cinema .admin-content .availability-edit-modal__save,
+.admin-shell--cinema .admin-content .availability-create-modal__save {
+  border: 1px solid rgba(82, 22, 79, 0.14) !important;
+  background: var(--yp-plum) !important;
+  color: var(--yp-white) !important;
+  box-shadow: 0 14px 28px rgba(82, 22, 79, 0.14) !important;
+}
+
+.admin-shell--cinema .admin-content button[class*="border"],
+.admin-shell--cinema .admin-content .rules-card__view-button,
+.admin-shell--cinema .admin-content .resource-requests-back,
+.admin-shell--cinema .admin-content .auto-jobs-panel__refresh {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--cinema .admin-content button:hover:not(:disabled),
+.admin-shell--cinema .admin-content a:hover {
+  filter: none;
+}
+
+.admin-shell--cinema .admin-content input,
+.admin-shell--cinema .admin-content select,
+.admin-shell--cinema .admin-content textarea {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+  color: var(--yp-ink) !important;
+}
+
+.admin-shell--cinema .admin-content input:focus,
+.admin-shell--cinema .admin-content select:focus,
+.admin-shell--cinema .admin-content textarea:focus {
+  border-color: var(--yp-pink) !important;
+  box-shadow: 0 0 0 5px rgba(243, 223, 241, 0.86) !important;
+}
+
+.admin-shell--cinema .admin-content input[type="checkbox"],
+.admin-shell--cinema .admin-content input[type="radio"] {
+  accent-color: var(--yp-pink);
+}
+
+.admin-shell--cinema .admin-content table,
+.admin-shell--cinema .admin-content .rbc-calendar {
+  color: var(--yp-ink);
+}
+
+.admin-shell--cinema .admin-content thead,
+.admin-shell--cinema .admin-content .bg-black\/40.text-slate-200 {
+  background: var(--yp-plum) !important;
+  color: var(--yp-white) !important;
+}
+
+.admin-shell--cinema .admin-content tbody tr,
+.admin-shell--cinema .admin-content .rbc-off-range-bg {
+  background: var(--yp-white) !important;
+}
+
+.admin-shell--cinema .admin-content tbody tr:hover,
+.admin-shell--cinema .admin-content .rbc-today {
+  background: var(--yp-pink-light) !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-toolbar,
+.admin-shell--cinema .admin-content .rbc-calendar {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-toolbar button {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+  color: var(--yp-plum) !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-toolbar button.rbc-active,
+.admin-shell--cinema .admin-content .rbc-toolbar button:hover {
+  background: var(--yp-pink-light) !important;
+  color: var(--yp-plum) !important;
+}
+
+.admin-shell--cinema .admin-content .rbc-event {
+  background: var(--yp-plum) !important;
+  color: var(--yp-white) !important;
+}
+
+.admin-shell--cinema .admin-content pre,
+.admin-shell--cinema .admin-content code {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+  color: var(--yp-ink) !important;
+}
+
+.admin-shell--cinema .admin-content .fixed.inset-0 > div,
+.admin-shell--cinema .admin-content .dashboard-modal,
+.admin-shell--cinema .admin-content .rules-wizard-modal {
+  border-color: var(--yp-line) !important;
+  background: var(--yp-white) !important;
+  box-shadow: 0 34px 72px rgba(82, 22, 79, 0.22) !important;
+}
+
+.admin-shell--cinema .admin-content .seat,
+.admin-shell--cinema .admin-content [class*="seatAvailable"],
+.admin-shell--cinema .admin-content [class*="seat-available"] {
+  border-color: rgba(215, 122, 202, 0.5) !important;
+  background: var(--yp-pink-light) !important;
+  color: var(--yp-plum) !important;
+}
+
+.admin-shell--cinema .admin-content [class*="seatBlocked"],
+.admin-shell--cinema .admin-content [class*="seat-blocked"] {
+  border-color: rgba(82, 22, 79, 0.2) !important;
+  background: var(--yp-white) !important;
+  color: var(--yp-muted) !important;
+}
+
+.admin-shell--cinema .admin-content [class*="seatBroken"],
+.admin-shell--cinema .admin-content [class*="seat-broken"] {
+  border-color: rgba(82, 22, 79, 0.35) !important;
+  background: var(--yp-pink-light) !important;
+  color: var(--yp-plum) !important;
+}
+
+.admin-shell--cinema .dashboard-search,
+.admin-shell--cinema .dashboard-stat-card,
+.admin-shell--cinema .dashboard-insight-card {
+  border: 1px solid rgba(215, 122, 202, 0.22) !important;
+  border-radius: 22px !important;
+  background: var(--yp-white) !important;
+  box-shadow: 0 16px 34px rgba(82, 22, 79, 0.075) !important;
+}
+
+.admin-shell--cinema .dashboard-search {
+  padding: 22px 24px !important;
+}
+
+.admin-shell--cinema .dashboard-stat-card,
+.admin-shell--cinema .dashboard-insight-card {
+  padding: 18px !important;
+}
+
+.admin-shell--cinema .dashboard-search::before,
+.admin-shell--cinema .dashboard-search::after,
+.admin-shell--cinema .dashboard-stat-card::before,
+.admin-shell--cinema .dashboard-stat-card::after,
+.admin-shell--cinema .dashboard-insight-card::before,
+.admin-shell--cinema .dashboard-insight-card::after {
+  display: none !important;
+  content: none !important;
+}
+
+.admin-shell--cinema .dashboard-search__label,
+.admin-shell--cinema .dashboard-search__label--classic,
+.admin-shell--cinema .dashboard-stat-card__eyebrow,
+.admin-shell--cinema .dashboard-stat-card__eyebrow--classic,
+.admin-shell--cinema .dashboard-insight-card__label {
+  width: fit-content !important;
+  display: inline-flex !important;
+  align-items: center;
+  min-height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--yp-muted) !important;
+  box-shadow: none !important;
+  font-size: 0.72rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.18em !important;
+  text-transform: uppercase;
+}
+
+.admin-shell--cinema .dashboard-search__title,
+.admin-shell--cinema .dashboard-stat-card__title,
+.admin-shell--cinema .dashboard-insight-card__value {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.admin-shell--cinema .dashboard-stat-card__value {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+}
+
+.admin-shell--cinema .dashboard-search__subtitle,
+.admin-shell--cinema .dashboard-insight-card__text,
+.admin-shell--cinema .dashboard-stat-card p {
+  color: var(--yp-muted) !important;
+  font-weight: 400 !important;
+}
+
+.admin-shell--cinema .dashboard-search__count {
+  border: 1px solid rgba(215, 122, 202, 0.24) !important;
+  background: var(--yp-pink-light) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--cinema .dashboard-search__input {
+  border: 1px solid rgba(215, 122, 202, 0.32) !important;
+  border-radius: 18px !important;
+  background: #ffffff !important;
+  color: var(--yp-ink) !important;
+  box-shadow: inset 0 1px 0 rgba(247, 247, 247, 0.9) !important;
+}
+
+.admin-shell--cinema .dashboard-search__input:focus {
+  border-color: var(--yp-pink) !important;
+  box-shadow: 0 0 0 5px rgba(243, 223, 241, 0.88) !important;
+}
+
+.admin-shell--cinema .dashboard-search__empty {
+  border: 1px dashed rgba(215, 122, 202, 0.26) !important;
+  border-radius: 18px !important;
+  background: rgba(243, 223, 241, 0.18) !important;
+}
+
+.admin-shell--cinema .dashboard-search__empty h3 {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+}
+
+.admin-shell--cinema .dashboard-search__empty p {
+  color: var(--yp-muted) !important;
+}
+
+.admin-shell--cinema .dashboard-stat-card__bar {
+  overflow: hidden;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(243, 223, 241, 0.75) !important;
+}
+
+.admin-shell--cinema .dashboard-stat-card__bar span,
+.admin-shell--cinema .dashboard-hero__progress-track span {
+  background: var(--yp-pink) !important;
+}
+
+.admin-shell--cinema .resource-types-page {
+  --rt-ink: var(--yp-ink);
+  --rt-muted: var(--yp-muted);
+  --rt-line: var(--yp-line);
+}
+
+.admin-shell--cinema .resource-types-hero,
+.admin-shell--cinema .resource-types-list {
+  border-color: rgba(215, 122, 202, 0.22) !important;
+  background: var(--yp-white) !important;
+  box-shadow: 0 18px 42px rgba(82, 22, 79, 0.075) !important;
+}
+
+.admin-shell--cinema .resource-types-hero::before,
+.admin-shell--cinema .resource-type-card::before,
+.admin-shell--cinema .resource-type-card > div > div:first-child > div:nth-child(3) > div::before,
+.admin-shell--cinema .resource-type-card > div > div:first-child > div:nth-child(3) > div:nth-child(2)::before {
+  background: var(--yp-pink) !important;
+  opacity: 0.72 !important;
+}
+
+.admin-shell--cinema .resource-types-eyebrow,
+.admin-shell--cinema .resource-type-card span[class*="rounded-full"] {
+  border-color: rgba(215, 122, 202, 0.26) !important;
+  background: rgba(243, 223, 241, 0.44) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--cinema .resource-types-add-button,
+.admin-shell--cinema .resource-type-card__actions button:first-child {
+  border: 1px solid rgba(215, 122, 202, 0.26) !important;
+  background: rgba(243, 223, 241, 0.44) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--cinema .resource-type-card__actions button:last-child {
+  border: 1px solid rgba(82, 22, 79, 0.18) !important;
+  background: rgba(82, 22, 79, 0.08) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell--cinema .resource-types-metric,
+.admin-shell--cinema .resource-types-metric--blue,
+.admin-shell--cinema .resource-types-metric--slate,
+.admin-shell--cinema .resource-types-metric--amber {
+  border-color: rgba(215, 122, 202, 0.22) !important;
+  background: rgba(247, 247, 247, 0.95) !important;
+  color: var(--yp-ink) !important;
+  box-shadow: 0 12px 26px rgba(82, 22, 79, 0.055) !important;
+}
+
+.admin-shell--cinema .resource-types-metric::after {
+  background: rgba(215, 122, 202, 0.48) !important;
+  opacity: 1 !important;
+}
+
+.admin-shell--cinema .resource-types-metric__label {
+  color: var(--yp-muted) !important;
+  font-weight: 600 !important;
+}
+
+.admin-shell--cinema .resource-types-metric__value {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+}
+
+.admin-shell--cinema .resource-type-card,
+.admin-shell--cinema .resource-type-card .rounded-2xl.border.p-4,
+.admin-shell--cinema .resource-type-card > div > div:first-child > div:nth-child(3) > div {
+  border-color: rgba(215, 122, 202, 0.2) !important;
+  background: #ffffff !important;
+  box-shadow: 0 14px 30px rgba(82, 22, 79, 0.055) !important;
+}
+
+.admin-shell--cinema .resource-type-card:hover {
+  border-color: rgba(215, 122, 202, 0.38) !important;
+  box-shadow: 0 18px 38px rgba(82, 22, 79, 0.08) !important;
+}
+
+.admin-shell--cinema .resource-type-card h2 {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+}
+
+.admin-shell--cinema .resource-type-card p,
+.admin-shell--cinema .resource-type-card [class*="tracking"] {
+  color: var(--yp-muted) !important;
+}
+
+.admin-shell--cinema .resource-type-card > div > div:first-child > div:nth-child(3) > div span,
+.admin-shell--cinema .resource-type-card > div > div:first-child > div:nth-child(3) > div:nth-child(2) span,
+.admin-shell--cinema .resource-type-card > div > div:first-child > div:nth-child(3) > div span:last-child {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background: rgba(243, 223, 241, 0.36) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+}
+
+.resource-types-modal-backdrop--cinema {
+  background: rgba(247, 247, 247, 0.92) !important;
+  backdrop-filter: blur(7px) saturate(0.96) !important;
+}
+
+.resource-types-modal--cinema {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow:
+    0 28px 64px rgba(82, 22, 79, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.resource-types-modal--cinema::before,
+.resource-types-modal--cinema::after {
+  display: none !important;
+  content: none !important;
+}
+
+.resource-types-modal--cinema h2 {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.resource-types-modal--cinema h3 {
+  color: var(--yp-ink) !important;
+  font-weight: 600 !important;
+}
+
+.resource-types-modal--cinema input,
+.resource-types-modal--cinema select {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background-color: #ffffff !important;
+  color: var(--yp-ink) !important;
+  box-shadow: inset 0 1px 0 rgba(247, 247, 247, 0.9) !important;
+}
+
+.resource-types-modal--cinema input:focus,
+.resource-types-modal--cinema select:focus {
+  border-color: rgba(215, 122, 202, 0.62) !important;
+  box-shadow: 0 0 0 5px rgba(243, 223, 241, 0.82) !important;
+}
+
+.resource-types-modal--cinema table {
+  border: 1px solid rgba(215, 122, 202, 0.2) !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+}
+
+.resource-types-modal--cinema thead {
+  background: rgba(243, 223, 241, 0.62) !important;
+  color: var(--yp-plum) !important;
+}
+
+.resource-types-modal--cinema th,
+.resource-types-modal--cinema td {
+  border-color: rgba(215, 122, 202, 0.16) !important;
+}
+
+.resource-types-modal--cinema tbody tr {
+  background: #ffffff !important;
+}
+
+.resource-types-modal--cinema tbody tr:hover {
+  background: rgba(243, 223, 241, 0.18) !important;
+}
+
+.resource-types-modal--cinema button {
+  border: 1px solid rgba(215, 122, 202, 0.26) !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+}
+
+.resource-types-modal--cinema button[class*="bg-red"],
+.resource-types-modal--cinema button[class*="hover:bg-red"],
+.resource-types-modal--cinema .bg-red-900\/40,
+.resource-types-modal--cinema .hover\:bg-red-900\/60 {
+  background: rgba(243, 223, 241, 0.5) !important;
+  color: var(--yp-plum) !important;
+}
+
+.resource-types-modal--cinema button[class*="bg-red"]:hover,
+.resource-types-modal--cinema button[class*="hover:bg-red"]:hover,
+.resource-types-modal--cinema .bg-red-900\/40:hover,
+.resource-types-modal--cinema .hover\:bg-red-900\/60:hover {
+  background: rgba(215, 122, 202, 0.28) !important;
+  color: var(--yp-plum) !important;
+}
+
+.resource-types-modal--cinema button[class*="bg-purple"],
+.resource-types-modal--cinema button[class*="bg-fuchsia"] {
+  background: var(--yp-plum) !important;
+  color: #ffffff !important;
+}
+
+.resource-types-modal--cinema span[class*="rounded-full"] {
+  border-color: rgba(215, 122, 202, 0.28) !important;
+  background: rgba(243, 223, 241, 0.48) !important;
+  color: var(--yp-plum) !important;
+}
+
+.resource-types-modal--cinema span[class*="rounded-full"] button {
+  border: 0 !important;
+  color: var(--yp-pink) !important;
+}
+
+.admin-shell--cinema .resources-summary-pill,
+.admin-shell--cinema .resources-summary-pill.border-blue-200,
+.admin-shell--cinema .resources-summary-pill.border-slate-200,
+.admin-shell--cinema .resources-summary-pill.border-emerald-200 {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(215, 122, 202, 0.22) !important;
+  background: rgba(247, 247, 247, 0.96) !important;
+  color: var(--yp-ink) !important;
+  box-shadow: 0 12px 26px rgba(82, 22, 79, 0.055) !important;
+}
+
+.admin-shell--cinema .resources-summary-pill::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 11px;
+  left: 16px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(215, 122, 202, 0.48);
+}
+
+.admin-shell--cinema .resources-summary-pill__label {
+  color: var(--yp-muted) !important;
+  font-weight: 600 !important;
+}
+
+.admin-shell--cinema .resources-summary-pill__value {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+}
+
+.resources-modal-backdrop--cinema {
+  background: rgba(247, 247, 247, 0.92) !important;
+  backdrop-filter: blur(7px) saturate(0.96) !important;
+}
+
+.resources-modal-surface--cinema.resources-add-modal {
+  border: 1px solid rgba(215, 122, 202, 0.24) !important;
+  border-radius: 28px !important;
+  background: #ffffff !important;
+  background-image: none !important;
+  box-shadow:
+    0 28px 64px rgba(82, 22, 79, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+}
+
+.resources-modal-surface--cinema.resources-add-modal::before,
+.resources-modal-surface--cinema.resources-add-modal::after {
+  display: none !important;
+  content: none !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__header {
+  border-bottom-color: rgba(215, 122, 202, 0.2) !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__eyebrow {
+  color: var(--yp-plum) !important;
+  font-weight: 700 !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__header h2 {
+  color: var(--yp-ink) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__header p,
+.resources-modal-surface--cinema .resources-add-modal__field label,
+.resources-modal-surface--cinema .text-slate-500 {
+  color: var(--yp-muted) !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__field label,
+.resources-modal-surface--cinema h3,
+.resources-modal-surface--cinema label {
+  font-weight: 600 !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__input,
+.resources-modal-surface--cinema input,
+.resources-modal-surface--cinema select,
+.resources-modal-surface--cinema textarea {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background-color: #ffffff !important;
+  color: var(--yp-ink) !important;
+  box-shadow: inset 0 1px 0 rgba(247, 247, 247, 0.9) !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__input:focus,
+.resources-modal-surface--cinema input:focus,
+.resources-modal-surface--cinema select:focus,
+.resources-modal-surface--cinema textarea:focus {
+  border-color: rgba(215, 122, 202, 0.62) !important;
+  box-shadow: 0 0 0 5px rgba(243, 223, 241, 0.82) !important;
+}
+
+.resources-modal-surface--cinema .resources-assigned-users {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background: rgba(247, 247, 247, 0.78) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86) !important;
+}
+
+.resources-modal-surface--cinema .resources-assigned-users__header h3 {
+  color: var(--yp-ink) !important;
+  font-weight: 600 !important;
+}
+
+.resources-modal-surface--cinema .resources-assigned-users__header p,
+.resources-modal-surface--cinema .resources-assigned-users__hint {
+  color: var(--yp-muted) !important;
+}
+
+.resources-modal-surface--cinema .resources-assigned-users__count,
+.resources-modal-surface--cinema .resources-assigned-users__chip,
+.resources-modal-surface--cinema .resources-assigned-users__hint code {
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background: rgba(243, 223, 241, 0.48) !important;
+  color: var(--yp-plum) !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__footer {
+  border-top-color: rgba(215, 122, 202, 0.2) !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__cancel,
+.resources-modal-surface--cinema .resources-add-modal__add-field,
+.resources-modal-surface--cinema .resources-add-modal__remove-field {
+  border: 1px solid rgba(215, 122, 202, 0.26) !important;
+  background: rgba(243, 223, 241, 0.48) !important;
+  color: var(--yp-plum) !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__remove-field {
+  background: rgba(82, 22, 79, 0.07) !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__save {
+  border: 1px solid rgba(82, 22, 79, 0.2) !important;
+  background: var(--yp-plum) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 24px rgba(82, 22, 79, 0.16) !important;
+  font-weight: 600 !important;
+}
+
+.resources-modal-surface--cinema .resources-add-modal__save:hover {
+  background: #42123f !important;
+}
+
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill,
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill.border-blue-200,
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill.border-slate-200,
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill.border-emerald-200,
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill.bg-blue-50,
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill.bg-slate-100,
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill.bg-emerald-50 {
+  --tw-bg-opacity: 1 !important;
+  --tw-border-opacity: 1 !important;
+  border-color: rgba(215, 122, 202, 0.24) !important;
+  background-color: #f7f7f7 !important;
+  background-image: none !important;
+  background: #f7f7f7 !important;
+  color: #2d252b !important;
+}
+
+.admin-shell--cinema .admin-content .resources-filter-panel .resources-summary-pill::after {
+  background-color: rgba(215, 122, 202, 0.48) !important;
+  background-image: none !important;
+}
+
+.admin-shell--cinema .admin-content .cinema-seat-row-label,
+.admin-shell--cinema .admin-content .cinema-seat-row-label *,
+.admin-shell--cinema .admin-content .resources-list .grid.items-center > .cinema-seat-row-label {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}

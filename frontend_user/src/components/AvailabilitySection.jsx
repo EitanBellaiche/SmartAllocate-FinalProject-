@@ -72,6 +72,7 @@ export default function AvailabilitySection({
   return (
     <>
       <header
+        className="availability-page-header"
         style={{
           padding: "12px 0",
           borderBottom: "1px solid #e2e8f0",
@@ -85,7 +86,7 @@ export default function AvailabilitySection({
       </header>
 
       {hasDeadline && !lockedAvailability && (
-        <div className="glass card stack" style={{ marginBottom: 16, maxWidth: 620 }}>
+        <div className="glass card stack availability-deadline-card" style={{ marginBottom: 16, maxWidth: 620 }}>
           <div className="row">
             <span className="badge-soft badge-info">Scheduling deadline</span>
             <span className="badge-soft badge-info" style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -121,7 +122,7 @@ export default function AvailabilitySection({
 
       {availabilityMessage && (
         <div
-          className="glass"
+          className="glass availability-message"
           style={{
             marginBottom: 16,
             padding: 12,
@@ -134,14 +135,14 @@ export default function AvailabilitySection({
       )}
 
       {lockMessage && (
-        <div className="glass card stack" style={{ marginBottom: 16, maxWidth: 620 }}>
+        <div className="glass card stack availability-lock-card" style={{ marginBottom: 16, maxWidth: 620 }}>
           <span className="badge-soft badge-warn">Locked</span>
           {lockMessage}
         </div>
       )}
 
-      <div className="glass card stack" style={{ maxWidth: 620 }}>
-        <div className="row">
+      <div className="glass card stack availability-form-card" style={{ maxWidth: 620 }}>
+        <div className="row availability-form-card__head">
           <div style={{ fontWeight: 900 }}>Add availability</div>
           <span className="badge-soft">{lockedAvailability ? "Locked" : "Editable"}</span>
         </div>
@@ -153,7 +154,7 @@ export default function AvailabilitySection({
           <legend className="field" style={{ fontWeight: 900, color: "#0f172a" }}>
             Days of week
           </legend>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          <div className="availability-quick-actions" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
             <button
               type="button"
               onClick={() =>
@@ -192,6 +193,7 @@ export default function AvailabilitySection({
             </button>
           </div>
           <div
+            className="availability-days-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
@@ -201,6 +203,7 @@ export default function AvailabilitySection({
           >
             {[0, 1, 2, 3, 4, 5, 6].map((day) => (
               <label
+                className="availability-day-option"
                 key={day}
                 style={{
                   display: "flex",
@@ -232,7 +235,7 @@ export default function AvailabilitySection({
           </div>
         </fieldset>
 
-        <div className="card stack" style={{ border: "1px dashed rgba(59,130,246,0.35)", background: "rgba(59,130,246,0.04)" }}>
+        <div className="card stack availability-split-card" style={{ border: "1px dashed rgba(59,130,246,0.35)", background: "rgba(59,130,246,0.04)" }}>
           <div style={{ fontWeight: 800, color: "#0f172a", marginBottom: 6 }}>
             Split a day around an unavailable window
           </div>
@@ -462,16 +465,16 @@ export default function AvailabilitySection({
         </button>
       </div>
 
-      <div style={{ marginTop: 20 }}>
+      <div className="availability-saved-section" style={{ marginTop: 20 }}>
         <h3 style={{ marginBottom: 8, color: "#0f172a" }}>Saved availability</h3>
         {userAvailability.length === 0 ? (
-          <div className="glass" style={{ padding: 12, borderRadius: 12 }}>
+          <div className="glass availability-empty-card" style={{ padding: 12, borderRadius: 12 }}>
             No availability saved yet.
           </div>
         ) : (
-          <div className="grid-auto">
+          <div className="grid-auto availability-saved-grid">
             {userAvailability.map((slot) => (
-              <div key={slot.id} className="glass" style={{ padding: 12, borderRadius: 12 }}>
+              <div key={slot.id} className="glass availability-slot-card" style={{ padding: 12, borderRadius: 12 }}>
                 <div style={{ fontWeight: 700, color: "#0f172a" }}>
                   {weekdayLabel(slot.day_of_week)}
                 </div>

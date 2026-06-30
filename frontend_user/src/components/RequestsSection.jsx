@@ -34,6 +34,7 @@ export default function RequestsSection({
   return (
     <>
       <header
+        className="requests-page-header"
         style={{
           padding: "12px 0",
           borderBottom: "1px solid #e2e8f0",
@@ -50,7 +51,7 @@ export default function RequestsSection({
 
       {requestSent && (
         <div
-          className="glass"
+          className="glass requests-success-message"
           style={{
             padding: 12,
             borderRadius: 12,
@@ -64,7 +65,7 @@ export default function RequestsSection({
 
       {requestView === "form" ? (
         <div
-          className="glass"
+          className="glass requests-form-panel"
           style={{
             padding: 18,
             borderRadius: 18,
@@ -72,7 +73,7 @@ export default function RequestsSection({
             background: "#fff",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <div className="requests-form-panel__head" style={{ display: "flex", justifyContent: "space-between" }}>
             <div>
               <div style={{ fontWeight: 800, color: "#0f172a" }}>
                 Request details
@@ -107,11 +108,12 @@ export default function RequestsSection({
 
           {selectedRequestResource ? (
             <>
-              <div style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
-                {selectedRequestResource.name}{" "}
-                {selectedRequestResource.type_name
-                  ? `(${formatTypeLabel(selectedRequestResource.type_name, labels)})`
-                  : ""}
+              <div className="requests-selected-resource" style={{ color: "#475569", fontSize: 12, marginTop: 8 }}>
+                <span className="requests-selected-resource__label">Selected resource</span>
+                <strong>{selectedRequestResource.name}</strong>
+                {selectedRequestResource.type_name && (
+                  <span>{formatTypeLabel(selectedRequestResource.type_name, labels)}</span>
+                )}
               </div>
               {requestError && (
                 <div style={{ marginTop: 10, color: "#b91c1c" }}>
@@ -119,6 +121,7 @@ export default function RequestsSection({
                 </div>
               )}
               <textarea
+                className="requests-note-input"
                 value={requestNote}
                 onChange={(e) => setRequestNote(e.target.value)}
                 placeholder="Reason for the request..."
@@ -134,7 +137,7 @@ export default function RequestsSection({
                   color: "#0f172a",
                 }}
               />
-              <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+              <div className="requests-form-actions" style={{ marginTop: 12, display: "flex", gap: 10 }}>
                 <button
                   onClick={submitResourceRequest}
                   disabled={requestSubmitting}
@@ -196,13 +199,14 @@ export default function RequestsSection({
         </div>
       ) : (
         <div
-          className="glass"
+          className="glass requests-list-panel"
           style={{
             padding: 16,
             borderRadius: 18,
           }}
         >
           <div
+            className="requests-toolbar"
             style={{
               display: "flex",
               flexWrap: "wrap",
@@ -211,6 +215,7 @@ export default function RequestsSection({
             }}
           >
             <input
+              className="requests-search-input"
               value={requestQuery}
               onChange={(e) => setRequestQuery(e.target.value)}
               placeholder={`Search ${labelsLower.resources}...`}
@@ -224,7 +229,7 @@ export default function RequestsSection({
                 color: "#0f172a",
               }}
             />
-            <label style={{ display: "flex", gap: 6, fontSize: 12 }}>
+            <label className="requests-available-toggle" style={{ display: "flex", gap: 6, fontSize: 12 }}>
               <input
                 type="checkbox"
                 checked={onlyAvailable}
@@ -233,6 +238,7 @@ export default function RequestsSection({
               Only available
             </label>
             <button
+              className="requests-load-button"
               onClick={() => loadResources({ allowEmptyQuery: true })}
               disabled={resourceLoading}
               style={{
@@ -284,6 +290,7 @@ export default function RequestsSection({
 
           {filteredRequestResources.length > 0 && (
             <div
+              className="requests-results-grid"
               style={{
                 marginTop: 16,
                 display: "grid",
@@ -295,7 +302,7 @@ export default function RequestsSection({
                 return (
                   <div
                     key={r.id}
-                    className="glass"
+                    className="glass requests-resource-card"
                     style={{
                       borderRadius: 18,
                       padding: 16,
@@ -324,6 +331,9 @@ export default function RequestsSection({
                         </div>
                       </div>
                       <button
+                        className={`requests-availability-button ${
+                          available ? "requests-availability-button--available" : ""
+                        }`}
                         type="button"
                         onClick={() => openAvailability(r)}
                         style={{
@@ -353,11 +363,15 @@ export default function RequestsSection({
                     </div>
 
                     {r.metadata && Object.keys(r.metadata).length > 0 && (
-                      <div style={{ color: "#64748b", fontSize: 12 }}>
+                      <div className="requests-resource-meta" style={{ color: "#64748b", fontSize: 12 }}>
                         {Object.entries(r.metadata)
                           .slice(0, 4)
-                          .map(([k, v]) => `${k}: ${v}`)
-                          .join(" | ")}
+                          .map(([k, v]) => (
+                            <span className="requests-resource-meta-chip" key={k}>
+                              <span>{k}</span>
+                              <strong>{String(v)}</strong>
+                            </span>
+                          ))}
                       </div>
                     )}
 
@@ -370,8 +384,9 @@ export default function RequestsSection({
                         flexWrap: "wrap",
                       }}
                     >
-                      <div style={{ color: "#475569", fontSize: 12 }}>Resource ID: {r.id}</div>
+                      <div className="requests-resource-id" style={{ color: "#475569", fontSize: 12 }}>Resource ID: {r.id}</div>
                       <button
+                        className="requests-request-button"
                         onClick={() => {
                           setRequestResourceId(r.id);
                           setRequestSent("");

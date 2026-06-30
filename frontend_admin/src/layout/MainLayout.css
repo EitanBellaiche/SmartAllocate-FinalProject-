@@ -457,6 +457,111 @@
   color: #1f1235;
 }
 
+.admin-shell--cinema {
+  background: linear-gradient(180deg, #f7f7f7 0%, #f7f7f7 54%, #f3dff1 100%);
+  color: #2d252b;
+}
+
+.admin-shell--cinema .admin-sidebar {
+  background:
+    linear-gradient(180deg, rgba(247, 247, 247, 0.055) 0%, transparent 20%),
+    linear-gradient(180deg, #52164f 0%, #52164f 54%, #42123f 100%);
+  border-right-color: rgba(215, 122, 202, 0.24);
+  box-shadow: 14px 0 38px rgba(82, 22, 79, 0.16);
+}
+
+.admin-shell--cinema .brand-lockup__eyebrow,
+.admin-shell--cinema .admin-sidebar__spotlight-label,
+.admin-shell--cinema .admin-topbar__label {
+  color: #d77aca;
+}
+
+.admin-shell--cinema .brand-lockup__title,
+.admin-shell--cinema .admin-nav-item,
+.admin-shell--cinema .admin-sidebar__signout {
+  color: #f7f7f7;
+}
+
+.admin-shell--cinema .admin-sidebar__subtitle,
+.admin-shell--cinema .admin-nav-item__meta,
+.admin-shell--cinema .admin-sidebar__copyright,
+.admin-shell--cinema .admin-sidebar__spotlight-text {
+  color: rgba(243, 223, 241, 0.76);
+}
+
+.admin-shell--cinema .admin-sidebar__status {
+  background: rgba(243, 223, 241, 0.14);
+  border-color: rgba(215, 122, 202, 0.28);
+  color: #f3dff1;
+}
+
+.admin-shell--cinema .admin-sidebar__status-dot {
+  background: #d77aca;
+  box-shadow: 0 0 0 6px rgba(215, 122, 202, 0.18);
+}
+
+.admin-shell--cinema .admin-nav-item:hover {
+  border-color: rgba(215, 122, 202, 0.26);
+  background: rgba(243, 223, 241, 0.11);
+}
+
+.admin-shell--cinema .admin-nav-item--active {
+  background: rgba(215, 122, 202, 0.18);
+  border-color: rgba(215, 122, 202, 0.38);
+  box-shadow: 0 16px 28px rgba(82, 22, 79, 0.18);
+}
+
+.admin-shell--cinema .admin-nav-item__icon {
+  background: rgba(247, 247, 247, 0.08);
+}
+
+.admin-shell--cinema .admin-nav-item--active .admin-nav-item__icon {
+  background: rgba(243, 223, 241, 0.15);
+}
+
+.admin-shell--cinema .admin-sidebar__spotlight {
+  background: rgba(243, 223, 241, 0.1);
+  border-color: rgba(215, 122, 202, 0.22);
+}
+
+.admin-shell--cinema .admin-sidebar__signout {
+  border-color: rgba(243, 223, 241, 0.22);
+  background: rgba(247, 247, 247, 0.055);
+}
+
+.admin-shell--cinema .admin-sidebar__signout:hover {
+  border-color: rgba(215, 122, 202, 0.34);
+  background: rgba(243, 223, 241, 0.12);
+}
+
+.admin-shell--cinema .admin-topbar,
+.admin-shell--cinema .admin-mobilebar {
+  border-color: rgba(215, 122, 202, 0.24);
+  background: #f7f7f7;
+  box-shadow: 0 20px 46px rgba(82, 22, 79, 0.09);
+}
+
+.admin-shell--cinema .admin-topbar__title {
+  color: #2d252b;
+}
+
+.admin-shell--cinema .admin-topbar__subtitle {
+  color: #6f5c6c;
+}
+
+.admin-shell--cinema .admin-topbar__pill {
+  border-color: rgba(215, 122, 202, 0.28);
+  background: #f7f7f7;
+}
+
+.admin-shell--cinema .admin-topbar__pill-label {
+  color: #8f3d87;
+}
+
+.admin-shell--cinema .admin-topbar__pill-value {
+  color: #2d252b;
+}
+
 .admin-shell--clinic {
   background:
     radial-gradient(circle at 16% 8%, rgba(16, 185, 129, 0.14), transparent 28%),

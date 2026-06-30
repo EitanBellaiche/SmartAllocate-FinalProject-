@@ -584,11 +584,12 @@ function splitRowIntoSections(rowItems) {
   };
 }
 
-function SummaryPill({ label, value, tone = "slate", isClassic = false }) {
+function SummaryPill({ label, value, tone = "slate", isClassic = false, isCinema = false }) {
+  const unifiedCinemaTone = "border-[#e8cfe5] bg-[#f7f7f7] text-[#2d252b]";
   const tones = {
-    blue: "border-blue-200 bg-blue-50 text-blue-700",
-    slate: "border-slate-200 bg-slate-100 text-slate-700",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    blue: unifiedCinemaTone,
+    slate: unifiedCinemaTone,
+    emerald: unifiedCinemaTone,
   };
 
   const classicTones = {
@@ -597,7 +598,11 @@ function SummaryPill({ label, value, tone = "slate", isClassic = false }) {
     emerald: "border-stone-300 bg-stone-50 text-stone-700",
   };
 
-  const toneClass = isClassic ? (classicTones[tone] || classicTones.slate) : (tones[tone] || tones.slate);
+  const toneClass = isCinema
+    ? "resources-summary-pill--cinema-unified"
+    : isClassic
+    ? (classicTones[tone] || classicTones.slate)
+    : (tones[tone] || tones.slate);
   const labelClass = isClassic
     ? "resources-summary-pill__label resources-summary-pill__label--classic text-xs font-semibold uppercase"
     : "resources-summary-pill__label text-xs font-semibold uppercase tracking-[0.16em]";
@@ -605,11 +610,37 @@ function SummaryPill({ label, value, tone = "slate", isClassic = false }) {
   const valueClass = isNumericValue
     ? "resources-summary-pill__value resources-summary-pill__value--numeric mt-2 text-2xl font-black"
     : "resources-summary-pill__value mt-2 text-2xl font-black";
+  const cinemaStyle = isCinema
+    ? {
+        position: "relative",
+        overflow: "hidden",
+        borderColor: "rgba(215, 122, 202, 0.24)",
+        background: "#f7f7f7",
+        color: "#2f2b2e",
+        boxShadow: "0 12px 26px rgba(82, 22, 79, 0.055)",
+      }
+    : undefined;
+  const cinemaLabelStyle = isCinema ? { color: "#6f596c" } : undefined;
+  const cinemaValueStyle = isCinema ? { color: "#2f2b2e", fontWeight: 500 } : undefined;
 
   return (
-    <div className={`resources-summary-pill rounded-2xl border px-4 py-3 ${toneClass}`}>
-      <div className={labelClass}>{label}</div>
-      <div className={valueClass}>{value}</div>
+    <div className={`resources-summary-pill rounded-2xl border px-4 py-3 ${toneClass}`} style={cinemaStyle}>
+      <div className={labelClass} style={cinemaLabelStyle}>{label}</div>
+      <div className={valueClass} style={cinemaValueStyle}>{value}</div>
+      {isCinema && (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            right: 16,
+            bottom: 11,
+            left: 16,
+            height: 3,
+            borderRadius: 999,
+            background: "rgba(215, 122, 202, 0.48)",
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1404,18 +1435,21 @@ async function saveHallLayout() {
               value={isCinema ? (hasActiveFilter ? filteredResources.length : 0) : hasActiveFilter ? nameMatchedResources.length : 0}
               tone="blue"
               isClassic={!isCinema}
+              isCinema={isCinema}
             />
             <SummaryPill
               label={config.resources.selectedFilter}
               value={selectedTypeName}
               tone="slate"
               isClassic={!isCinema}
+              isCinema={isCinema}
             />
             <SummaryPill
               label={config.resources.totalResources}
               value={resources.length}
               tone="emerald"
               isClassic={!isCinema}
+              isCinema={isCinema}
             />
           </div>
         </div>
@@ -1482,7 +1516,7 @@ async function saveHallLayout() {
                                 key={rowLabel}
                                 className="grid items-center gap-3 sm:grid-cols-[52px_1fr] lg:grid-cols-[58px_1fr]"
                               >
-                                <div className={`flex h-[32px] lg:h-[36px] items-center justify-center rounded-xl text-sm font-bold shadow-lg ${config.theme.buttonPrimary}`}>
+                                <div className={`cinema-seat-row-label flex h-[32px] lg:h-[36px] items-center justify-center rounded-xl text-sm font-bold text-white shadow-lg ${config.theme.buttonPrimary}`} style={isCinema ? { color: "#ffffff", WebkitTextFillColor: "#ffffff" } : undefined}>
                                   {rowLabel}
                                 </div>
 
@@ -1828,8 +1862,8 @@ async function saveHallLayout() {
 
       {showAdd && (
         <ModalPortal>
-        <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""}`}>
-          <div className={`resources-modal-surface resources-add-modal max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""}`}>
+        <div className={`resources-modal-backdrop fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 ${isShenkar ? "resources-modal-backdrop--shenkar" : ""} ${isCinema ? "resources-modal-backdrop--cinema" : ""}`}>
+          <div className={`resources-modal-surface resources-add-modal max-h-[90vh] w-full max-w-[640px] overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6 ${isShenkar ? "resources-modal-surface--shenkar" : ""} ${isCinema ? "resources-modal-surface--cinema" : ""}`}>
             <div className="resources-add-modal__header">
               <div className="resources-add-modal__eyebrow">Resource setup</div>
               <h2>{config.resources.addTitle}</h2>

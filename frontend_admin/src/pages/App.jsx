@@ -15,6 +15,7 @@ import Rules from "./Rules";
 import ResourceRequests from "./ResourceRequests";
 import UserBookings from "./UserBookings";
 import UserGroups from "./UserGroups";
+import "../cinemaPalette.css";
 
 const DEFAULT_USER_URL = "http://localhost:4173";
 const RAW_USER_URL = import.meta.env.VITE_USER_URL;

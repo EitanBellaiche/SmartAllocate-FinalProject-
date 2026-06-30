@@ -5293,3 +5293,1154 @@ select {
     width: 100%;
   }
 }
+
+/* Shenkar availability */
+.user-app-shell--shenkar .availability-page-header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  min-height: 128px;
+  margin-bottom: 24px !important;
+  padding: 24px 28px !important;
+  border: 1px solid rgba(190, 181, 158, 0.66) !important;
+  border-radius: 28px;
+  background: #fffdfa;
+  box-shadow: 0 20px 48px rgba(95, 86, 73, 0.1);
+}
+
+.user-app-shell--shenkar .availability-page-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  border-radius: 28px 28px 0 0;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .availability-page-header::after {
+  content: "Scheduling windows";
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid rgba(197, 187, 163, 0.84);
+  border-radius: 18px;
+  background: #f8f5ed;
+  color: #5f5649;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-page-header h1 {
+  margin: 0;
+  color: #2c2c29 !important;
+  font-size: clamp(2rem, 3.4vw, 3.05rem);
+  line-height: 1.04;
+  font-weight: 500 !important;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .availability-page-header p {
+  margin: 10px 0 0 !important;
+  max-width: 720px;
+  color: #5d6d70 !important;
+  font-size: 1rem;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-deadline-card,
+.user-app-shell--shenkar .availability-lock-card,
+.user-app-shell--shenkar .availability-message,
+.user-app-shell--shenkar .availability-form-card,
+.user-app-shell--shenkar .availability-empty-card,
+.user-app-shell--shenkar .availability-slot-card {
+  border: 1px solid rgba(216, 209, 191, 0.68) !important;
+  background: #fffdfa !important;
+  box-shadow: 0 22px 54px rgba(95, 86, 73, 0.1) !important;
+}
+
+.user-app-shell--shenkar .availability-form-card {
+  max-width: 980px !important;
+  padding: 24px !important;
+  border-radius: 28px !important;
+}
+
+.user-app-shell--shenkar .availability-form-card__head {
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(216, 209, 191, 0.62);
+}
+
+.user-app-shell--shenkar .availability-form-card__head > div {
+  color: #171d2d;
+  font-size: 1.2rem;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .availability-form-card .help {
+  color: #5d6d70;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-form-card .badge-soft {
+  border: 1px solid rgba(143, 170, 179, 0.35);
+  background: #e8f2f3;
+  color: #1f5f7a;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-form-card .field,
+.user-app-shell--shenkar .availability-saved-section h3 {
+  color: #253038;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .availability-quick-actions .btn,
+.user-app-shell--shenkar .availability-form-card .btn-secondary {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(197, 187, 163, 0.72);
+  border-radius: 14px;
+  background: #f8f5ed;
+  color: #6a604f;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-days-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  margin-top: 12px !important;
+}
+
+.user-app-shell--shenkar .availability-day-option {
+  min-height: 50px;
+  padding: 0 14px !important;
+  border: 1px solid rgba(216, 209, 191, 0.72) !important;
+  border-radius: 15px !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(95, 86, 73, 0.05);
+  color: #253038 !important;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-day-option:has(input:checked) {
+  border-color: rgba(143, 170, 179, 0.68) !important;
+  background: #edf5f5 !important;
+}
+
+.user-app-shell--shenkar .availability-day-option input {
+  accent-color: #8faab3;
+}
+
+.user-app-shell--shenkar .availability-split-card {
+  position: relative;
+  overflow: hidden;
+  margin-top: 2px;
+  padding: 20px !important;
+  border: 1px solid rgba(143, 170, 179, 0.44) !important;
+  border-radius: 22px !important;
+  background: #f6fbfb !important;
+}
+
+.user-app-shell--shenkar .availability-split-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .availability-split-card > div:first-child {
+  color: #171d2d !important;
+  font-size: 1.1rem;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .availability-split-card > div:nth-child(2) {
+  color: #5d6d70 !important;
+  font-size: 0.9rem !important;
+}
+
+.user-app-shell--shenkar .availability-form-card .control {
+  min-height: 46px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-radius: 13px;
+  background: #ffffff;
+  color: #253038;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-form-card .control:focus {
+  outline: none;
+  border-color: rgba(143, 170, 179, 0.82);
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.14);
+}
+
+.user-app-shell--shenkar .availability-form-card .btn-primary {
+  min-height: 50px;
+  border: 1px solid rgba(143, 170, 179, 0.46);
+  border-radius: 15px;
+  background: #8faab3;
+  color: #1f2a2f;
+  box-shadow: 0 14px 30px rgba(95, 86, 73, 0.12);
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-form-card .btn-primary:hover:not(:disabled) {
+  background: #829ea6;
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .availability-saved-section {
+  max-width: 980px;
+  margin-top: 24px !important;
+}
+
+.user-app-shell--shenkar .availability-saved-section h3 {
+  margin: 0 0 12px !important;
+  font-size: 1.28rem;
+}
+
+.user-app-shell--shenkar .availability-empty-card {
+  padding: 18px !important;
+  border-radius: 18px !important;
+  color: #5d6d70;
+}
+
+.user-app-shell--shenkar .availability-saved-grid {
+  gap: 12px;
+}
+
+.user-app-shell--shenkar .availability-slot-card {
+  position: relative;
+  overflow: hidden;
+  padding: 16px !important;
+  border-radius: 18px !important;
+}
+
+.user-app-shell--shenkar .availability-slot-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: #d8cfbc;
+}
+
+.user-app-shell--shenkar .availability-slot-card > div:first-child {
+  color: #171d2d !important;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .availability-slot-card button {
+  border-color: rgba(216, 209, 191, 0.72) !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  color: #6a604f !important;
+  font-weight: 500;
+}
+
+@media (max-width: 760px) {
+  .user-app-shell--shenkar .availability-page-header {
+    display: block;
+    padding: 22px !important;
+  }
+
+  .user-app-shell--shenkar .availability-page-header::after {
+    margin-top: 18px;
+    width: fit-content;
+  }
+
+  .user-app-shell--shenkar .availability-form-card {
+    padding: 18px !important;
+    border-radius: 24px !important;
+  }
+
+  .user-app-shell--shenkar .availability-days-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Shenkar resource requests */
+.user-app-shell--shenkar .requests-page-header {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  min-height: 128px;
+  margin-bottom: 24px !important;
+  padding: 24px 28px !important;
+  border: 1px solid rgba(190, 181, 158, 0.66) !important;
+  border-radius: 28px;
+  background: #fffdfa;
+  box-shadow: 0 20px 48px rgba(95, 86, 73, 0.1);
+}
+
+.user-app-shell--shenkar .requests-page-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  border-radius: 28px 28px 0 0;
+  background: #8faab3;
+}
+
+.user-app-shell--shenkar .requests-page-header::after {
+  content: "Request queue";
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 1px solid rgba(197, 187, 163, 0.84);
+  border-radius: 18px;
+  background: #f8f5ed;
+  color: #5f5649;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .requests-page-header h1 {
+  margin: 0;
+  color: #2c2c29 !important;
+  font-size: clamp(2rem, 3.4vw, 3.05rem);
+  line-height: 1.04;
+  font-weight: 500 !important;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .requests-page-header p {
+  margin: 10px 0 0 !important;
+  max-width: 720px;
+  color: #5d6d70 !important;
+  font-size: 1rem;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .requests-success-message,
+.user-app-shell--shenkar .requests-form-panel,
+.user-app-shell--shenkar .requests-list-panel {
+  border: 1px solid rgba(216, 209, 191, 0.68) !important;
+  border-radius: 28px !important;
+  background: #fffdfa !important;
+  box-shadow: 0 22px 54px rgba(95, 86, 73, 0.1) !important;
+}
+
+.user-app-shell--shenkar .requests-list-panel,
+.user-app-shell--shenkar .requests-form-panel {
+  padding: 24px !important;
+}
+
+.user-app-shell--shenkar .requests-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center !important;
+  gap: 14px !important;
+}
+
+.user-app-shell--shenkar .requests-search-input,
+.user-app-shell--shenkar .requests-note-input {
+  min-height: 54px;
+  padding: 0 18px !important;
+  border: 1px solid rgba(216, 209, 191, 0.72) !important;
+  border-radius: 17px !important;
+  background: #ffffff !important;
+  color: #253038 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  font-size: 0.96rem;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .requests-note-input {
+  min-height: 128px;
+  padding: 14px 16px !important;
+  resize: vertical;
+}
+
+.user-app-shell--shenkar .requests-search-input::placeholder,
+.user-app-shell--shenkar .requests-note-input::placeholder {
+  color: #8a8171;
+}
+
+.user-app-shell--shenkar .requests-search-input:focus,
+.user-app-shell--shenkar .requests-note-input:focus {
+  outline: none;
+  border-color: rgba(143, 170, 179, 0.82) !important;
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.14);
+}
+
+.user-app-shell--shenkar .requests-available-toggle {
+  min-height: 48px;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-radius: 15px;
+  background: #ffffff;
+  color: #5f5649;
+  font-size: 0.9rem !important;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.user-app-shell--shenkar .requests-available-toggle input {
+  accent-color: #8faab3;
+}
+
+.user-app-shell--shenkar .requests-load-button,
+.user-app-shell--shenkar .requests-request-button,
+.user-app-shell--shenkar .requests-form-actions button:first-child {
+  min-height: 50px;
+  border: 1px solid rgba(143, 170, 179, 0.46) !important;
+  border-radius: 16px !important;
+  background: #8faab3 !important;
+  color: #1f2a2f !important;
+  box-shadow: 0 14px 30px rgba(95, 86, 73, 0.12) !important;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .requests-load-button {
+  min-height: 46px;
+  padding: 0 18px !important;
+  border-color: rgba(143, 170, 179, 0.58) !important;
+  background: rgba(237, 245, 245, 0.78) !important;
+  color: #315863 !important;
+  box-shadow: none !important;
+}
+
+.user-app-shell--shenkar .requests-request-button {
+  min-height: 40px;
+  padding: 0 16px !important;
+  border-color: rgba(143, 170, 179, 0.62) !important;
+  background: rgba(237, 245, 245, 0.68) !important;
+  color: #315863 !important;
+  box-shadow: none !important;
+  font-size: 0.86rem;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .requests-load-button:hover:not(:disabled),
+.user-app-shell--shenkar .requests-request-button:hover,
+.user-app-shell--shenkar .requests-form-actions button:first-child:hover:not(:disabled) {
+  background: #829ea6 !important;
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .requests-results-grid {
+  gap: 14px !important;
+  margin-top: 18px !important;
+}
+
+.user-app-shell--shenkar .requests-resource-card {
+  position: relative;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px !important;
+  padding: 22px 22px 20px !important;
+  border: 1px solid rgba(216, 209, 191, 0.7) !important;
+  border-radius: 24px !important;
+  background: #ffffff !important;
+  box-shadow: 0 14px 34px rgba(95, 86, 73, 0.075) !important;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.user-app-shell--shenkar .requests-resource-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: #d8cfbc;
+}
+
+.user-app-shell--shenkar .requests-resource-card:hover {
+  border-color: rgba(143, 170, 179, 0.72) !important;
+  box-shadow: 0 20px 44px rgba(95, 86, 73, 0.11) !important;
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .requests-resource-card > div:first-child,
+.user-app-shell--shenkar .requests-resource-card > div:last-child {
+  padding-left: 10px;
+}
+
+.user-app-shell--shenkar .requests-resource-card > div:first-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start !important;
+  gap: 18px !important;
+}
+
+.user-app-shell--shenkar .requests-resource-card > div:last-child {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end !important;
+  gap: 18px !important;
+  padding-top: 4px;
+}
+
+.user-app-shell--shenkar .requests-resource-card > div:first-child > div:first-child > div:first-child {
+  color: #171d2d !important;
+  font-size: 1.12rem;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .requests-resource-card > div:first-child > div:first-child > div:nth-child(2) {
+  margin-top: 4px;
+  color: #5d6d70 !important;
+  font-size: 0.9rem !important;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .requests-resource-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 10px;
+  color: #6a604f !important;
+  font-size: 0.88rem !important;
+  line-height: 1.3;
+}
+
+.user-app-shell--shenkar .requests-resource-meta-chip {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-radius: 999px;
+  background: #fffdfa;
+  color: #6a604f;
+}
+
+.user-app-shell--shenkar .requests-resource-meta-chip span {
+  color: #8a8171;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .requests-resource-meta-chip strong {
+  color: #253038;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .requests-resource-id {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0 12px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-radius: 999px;
+  background: #f8f5ed;
+  color: #6a604f !important;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .requests-availability-button {
+  min-height: 34px;
+  padding: 0 12px !important;
+  border: 1px solid rgba(143, 170, 179, 0.42) !important;
+  border-radius: 999px !important;
+  background: rgba(237, 245, 245, 0.58) !important;
+  color: #41555c !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+  font-size: 0.82rem !important;
+}
+
+.user-app-shell--shenkar .requests-availability-button--available {
+  border-color: rgba(102, 151, 122, 0.36) !important;
+  background: #edf7ef !important;
+  color: #386b48 !important;
+}
+
+.user-app-shell--shenkar .requests-form-panel__head {
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-radius: 20px;
+  background: linear-gradient(100deg, #ffffff 0%, #ffffff 72%, #edf5f5 100%);
+}
+
+.user-app-shell--shenkar .requests-form-panel__head > div > div:first-child {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #171d2d !important;
+  font-size: 1.22rem;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .requests-form-panel__head > div > div:first-child::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #8faab3;
+  box-shadow: 0 0 0 5px rgba(143, 170, 179, 0.14);
+}
+
+.user-app-shell--shenkar .requests-form-panel__head > div > div:nth-child(2) {
+  margin-top: 6px;
+  color: #5d6d70 !important;
+  font-size: 0.92rem !important;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .requests-form-panel__head button,
+.user-app-shell--shenkar .requests-form-actions button:nth-child(2) {
+  border: 1px solid rgba(216, 209, 191, 0.72) !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  color: #5f5649 !important;
+  box-shadow: none !important;
+  font-weight: 500 !important;
+}
+
+.user-app-shell--shenkar .requests-form-panel {
+  width: 100%;
+  max-width: none;
+  padding: 26px !important;
+}
+
+.user-app-shell--shenkar .requests-selected-resource {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px !important;
+  padding: 14px 16px;
+  border: 1px solid rgba(216, 209, 191, 0.66);
+  border-radius: 18px;
+  background: #ffffff;
+  color: #5d6d70 !important;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.06);
+}
+
+.user-app-shell--shenkar .requests-selected-resource__label {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #edf5f5;
+  color: #315863;
+  font-size: 0.74rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.user-app-shell--shenkar .requests-selected-resource strong {
+  color: #171d2d;
+  font-size: 1.02rem;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .requests-selected-resource span:last-child:not(.requests-selected-resource__label) {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-radius: 999px;
+  background: #f8f5ed;
+  color: #6a604f;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .requests-form-panel .requests-note-input {
+  margin-top: 14px !important;
+  min-height: 150px;
+  border-radius: 20px !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(190, 181, 158, 0.76) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 4px rgba(248, 245, 237, 0.72);
+  line-height: 1.6;
+}
+
+.user-app-shell--shenkar .requests-form-actions {
+  margin-top: 16px !important;
+  align-items: center;
+}
+
+.user-app-shell--shenkar .requests-form-actions button:first-child {
+  min-width: 132px;
+  min-height: 44px;
+  padding: 0 18px !important;
+}
+
+.user-app-shell--shenkar .requests-form-actions button:nth-child(2) {
+  min-height: 42px;
+  padding: 0 16px !important;
+}
+
+@media (max-width: 760px) {
+  .user-app-shell--shenkar .requests-page-header {
+    display: block;
+    padding: 22px !important;
+  }
+
+  .user-app-shell--shenkar .requests-page-header::after {
+    margin-top: 18px;
+    width: fit-content;
+  }
+
+  .user-app-shell--shenkar .requests-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .requests-load-button,
+  .user-app-shell--shenkar .requests-request-button {
+    width: 100%;
+  }
+}
+
+/* Shenkar availability modal */
+.user-app-shell--shenkar .availability-modal {
+  background: rgba(25, 29, 31, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.user-app-shell--shenkar .availability-modal__card {
+  width: min(1060px, 94vw);
+  max-height: 90vh;
+  padding: 24px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-top: 5px solid #8faab3;
+  border-radius: 28px;
+  background: #fffdfa !important;
+  box-shadow: 0 28px 80px rgba(24, 28, 31, 0.26);
+}
+
+.user-app-shell--shenkar .availability-modal__header {
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(216, 209, 191, 0.62);
+}
+
+.user-app-shell--shenkar .availability-modal__title {
+  color: #2c2c29;
+  font-size: 1.42rem;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.user-app-shell--shenkar .availability-modal__subtitle {
+  margin-top: 6px;
+  color: #5d6d70;
+  font-size: 0.95rem;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-modal__action {
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-radius: 14px;
+  background: #ffffff;
+  color: #253038;
+  box-shadow: 0 8px 18px rgba(95, 86, 73, 0.06);
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal__action:hover {
+  border-color: rgba(143, 170, 179, 0.72);
+  background: #f6fbfb;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-calendar {
+  overflow: hidden;
+  border: 1px solid rgba(216, 209, 191, 0.68);
+  border-radius: 26px;
+  background: #fffdfa;
+  box-shadow: 0 18px 44px rgba(95, 86, 73, 0.1);
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-calendar__head {
+  background: #edf5f5;
+  border-bottom: 1px solid rgba(216, 209, 191, 0.62);
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-calendar__month {
+  color: #171d2d;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-calendar__nav button,
+.user-app-shell--shenkar .availability-modal .mobile-calendar__mode {
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  background: #ffffff;
+  color: #41555c;
+  box-shadow: none;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-calendar__weekdays {
+  background: #edf5f5;
+  color: #5d6d70;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-day {
+  min-height: 86px;
+  border: 1px solid rgba(216, 209, 191, 0.68);
+  border-radius: 17px;
+  background: #ffffff;
+  box-shadow: 0 10px 22px rgba(95, 86, 73, 0.06);
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-day:hover {
+  border-color: rgba(143, 170, 179, 0.72);
+  background: #fbfdfd;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-day__number {
+  color: #171d2d;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-day--outside .mobile-day__number {
+  color: #a7a29a;
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-day--selected {
+  border-color: rgba(143, 170, 179, 0.88);
+  background: #f0f7f7;
+  box-shadow: 0 0 0 3px rgba(143, 170, 179, 0.16);
+}
+
+.user-app-shell--shenkar .availability-modal .mobile-calendar__agenda {
+  margin: 16px;
+  border: 1px solid rgba(216, 209, 191, 0.58);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.user-app-shell--shenkar .availability-modal__empty {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(216, 209, 191, 0.62);
+  border-radius: 16px;
+  background: #ffffff;
+  color: #5d6d70;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-modal__request-card {
+  position: sticky;
+  bottom: 0;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid rgba(216, 209, 191, 0.68);
+  border-radius: 22px;
+  background: #fffdfa !important;
+  box-shadow: 0 -8px 30px rgba(95, 86, 73, 0.08);
+}
+
+.user-app-shell--shenkar .availability-modal__request-title {
+  color: #171d2d;
+  font-size: 1.12rem;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal__selected-date {
+  margin-top: 7px;
+  color: #5d6d70;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-modal__controls {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.user-app-shell--shenkar .availability-modal__field {
+  display: grid;
+  gap: 6px;
+  color: #5d6d70;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal__time-input {
+  min-height: 44px;
+  margin-left: 0;
+  padding: 0 12px;
+  border: 1px solid rgba(216, 209, 191, 0.72);
+  border-radius: 13px;
+  background: #ffffff;
+  color: #253038;
+  font-weight: 400;
+}
+
+.user-app-shell--shenkar .availability-modal__time-input:focus {
+  outline: none;
+  border-color: rgba(143, 170, 179, 0.82);
+  box-shadow: 0 0 0 4px rgba(143, 170, 179, 0.14);
+}
+
+.user-app-shell--shenkar .availability-modal__submit,
+.user-app-shell--shenkar .availability-modal .btn-primary {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgba(143, 170, 179, 0.46);
+  border-radius: 14px;
+  background: #8faab3;
+  color: #1f2a2f;
+  box-shadow: 0 12px 26px rgba(95, 86, 73, 0.12);
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal__submit:hover:not(:disabled),
+.user-app-shell--shenkar .availability-modal .btn-primary:hover:not(:disabled) {
+  background: #829ea6;
+  transform: translateY(-1px);
+}
+
+.user-app-shell--shenkar .availability-modal__submit:disabled,
+.user-app-shell--shenkar .availability-modal .btn-primary:disabled {
+  background: #c3ccd0;
+  color: #68777c;
+  box-shadow: none;
+}
+
+.user-app-shell--shenkar .availability-modal__booking-card {
+  border: 1px solid rgba(143, 170, 179, 0.42);
+  background: #edf5f5;
+  color: #253038;
+  box-shadow: none;
+}
+
+.user-app-shell--shenkar .availability-modal__booking-time {
+  font-weight: 500;
+}
+
+.user-app-shell--shenkar .availability-modal__request-error,
+.user-app-shell--shenkar .availability-modal__error {
+  padding: 12px 14px;
+  border: 1px solid rgba(185, 28, 28, 0.16);
+  border-radius: 14px;
+  background: #fff1f1;
+  color: #9f1d1d;
+}
+
+.user-app-shell--shenkar .availability-modal__request-success {
+  padding: 12px 14px;
+  border: 1px solid rgba(72, 124, 88, 0.2);
+  border-radius: 14px;
+  background: #edf7ef;
+  color: #386b48;
+}
+
+@media (max-width: 760px) {
+  .user-app-shell--shenkar .availability-modal {
+    padding: 12px;
+  }
+
+  .user-app-shell--shenkar .availability-modal__card {
+    padding: 18px;
+    border-radius: 24px;
+  }
+
+  .user-app-shell--shenkar .availability-modal__header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .availability-modal__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .user-app-shell--shenkar .availability-modal__submit {
+    width: 100%;
+  }
+}
+
+/* Shenkar unified page headers */
+.user-app-shell--shenkar .user-page-header--shenkar-schedule,
+.user-app-shell--shenkar .search-section__header,
+.user-app-shell--shenkar .notifications-page-header,
+.user-app-shell--shenkar .availability-page-header,
+.user-app-shell--shenkar .requests-page-header {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center !important;
+  gap: 24px;
+  min-height: 128px;
+  margin-bottom: 24px !important;
+  padding: 24px 28px !important;
+  border: 1px solid rgba(190, 181, 158, 0.66) !important;
+  border-radius: 28px !important;
+  background: #fffdfa !important;
+  box-shadow: 0 20px 48px rgba(95, 86, 73, 0.1) !important;
+  overflow: hidden;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule::before,
+.user-app-shell--shenkar .search-section__header::before,
+.user-app-shell--shenkar .notifications-page-header::before,
+.user-app-shell--shenkar .availability-page-header::before,
+.user-app-shell--shenkar .requests-page-header::before {
+  display: none !important;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-title,
+.user-app-shell--shenkar .search-section__title,
+.user-app-shell--shenkar .notifications-page-header .user-page-title,
+.user-app-shell--shenkar .availability-page-header h1,
+.user-app-shell--shenkar .requests-page-header h1 {
+  margin: 0 !important;
+  color: #2c2c29 !important;
+  font-size: clamp(2rem, 3.4vw, 3.05rem) !important;
+  line-height: 1.04 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-subtitle,
+.user-app-shell--shenkar .search-section__subtitle,
+.user-app-shell--shenkar .notifications-page-header .user-page-subtitle,
+.user-app-shell--shenkar .availability-page-header p,
+.user-app-shell--shenkar .requests-page-header p {
+  max-width: 760px;
+  margin: 10px 0 0 !important;
+  color: #5d6d70 !important;
+  font-size: 1rem !important;
+  line-height: 1.55 !important;
+  font-weight: 400 !important;
+}
+
+.user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-pill,
+.user-app-shell--shenkar .notifications-page-header .user-page-pill,
+.user-app-shell--shenkar .search-section__header::after,
+.user-app-shell--shenkar .availability-page-header::after,
+.user-app-shell--shenkar .requests-page-header::after {
+  min-width: 150px;
+  min-height: 58px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  padding: 0 18px !important;
+  border: 1px solid rgba(197, 187, 163, 0.84) !important;
+  border-radius: 18px !important;
+  background: #f8f5ed !important;
+  color: #5f5649 !important;
+  box-shadow: none !important;
+  font-size: 0.86rem !important;
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+  text-align: center;
+}
+
+.user-app-shell--shenkar .search-section__header > div,
+.user-app-shell--shenkar .availability-page-header > div,
+.user-app-shell--shenkar .requests-page-header > div,
+.user-app-shell--shenkar .notifications-page-header > div,
+.user-app-shell--shenkar .user-page-header--shenkar-schedule > div {
+  min-width: 0;
+}
+
+.user-app-shell--shenkar .search-section__header .search-section__subtitle,
+.user-app-shell--shenkar .availability-page-header p,
+.user-app-shell--shenkar .requests-page-header p {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
+  justify-self: start;
+  margin-top: 10px !important;
+}
+
+.user-app-shell--shenkar .search-section__header::after,
+.user-app-shell--shenkar .availability-page-header::after,
+.user-app-shell--shenkar .requests-page-header::after {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+}
+
+.user-app-shell--shenkar .search-section__header,
+.user-app-shell--shenkar .requests-page-header {
+  align-content: center !important;
+  row-gap: 6px !important;
+  min-height: 128px !important;
+}
+
+.user-app-shell--shenkar .search-section__title,
+.user-app-shell--shenkar .requests-page-header h1 {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+}
+
+.user-app-shell--shenkar .search-section__header .search-section__subtitle,
+.user-app-shell--shenkar .requests-page-header p {
+  align-self: start;
+  margin-top: 4px !important;
+}
+
+.user-app-shell--shenkar .search-section__header::after,
+.user-app-shell--shenkar .requests-page-header::after {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.user-app-shell--shenkar .search-section__header::after {
+  content: "Live allocation view";
+}
+
+.user-app-shell--shenkar .availability-page-header::after {
+  content: "Scheduling windows";
+}
+
+.user-app-shell--shenkar .requests-page-header::after {
+  content: "Request queue";
+}
+
+.user-app-shell--shenkar .notifications-page-header .user-page-pill {
+  content: none;
+}
+
+@media (max-width: 760px) {
+  .user-app-shell--shenkar .user-page-header--shenkar-schedule,
+  .user-app-shell--shenkar .search-section__header,
+  .user-app-shell--shenkar .notifications-page-header,
+  .user-app-shell--shenkar .availability-page-header,
+  .user-app-shell--shenkar .requests-page-header {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 22px !important;
+  }
+
+  .user-app-shell--shenkar .user-page-header--shenkar-schedule .user-page-pill,
+  .user-app-shell--shenkar .notifications-page-header .user-page-pill,
+  .user-app-shell--shenkar .search-section__header::after,
+  .user-app-shell--shenkar .availability-page-header::after,
+  .user-app-shell--shenkar .requests-page-header::after {
+    justify-self: start;
+    min-width: 0;
+    min-height: 46px;
+    width: fit-content;
+  }
+}
