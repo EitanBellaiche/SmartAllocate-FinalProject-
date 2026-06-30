@@ -18,6 +18,50 @@ function getBookingWeekday(dateValue) {
   return new Date(year, month - 1, day).getDay();
 }
 
+function formatConflictBookingDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return formatIsraelDate(value);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jerusalem",
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatConflictResourceSummary(resources) {
+  const list = Array.isArray(resources) ? resources : [];
+  const names = list
+    .map((resource) => String(resource?.name || "").trim())
+    .filter(Boolean);
+  return names.length > 0 ? names.join(", ") : "No resource details";
+}
+
+function formatConflictResourceTypeSummary(resources) {
+  const types = Array.from(
+    new Set(
+      (Array.isArray(resources) ? resources : [])
+        .map((resource) => String(resource?.type_name || "").trim())
+        .filter(Boolean)
+    )
+  );
+  return types.length > 0 ? types.join(", ") : "Not specified";
+}
+
+function formatSuggestionDateLabel(suggestion) {
+  return suggestion?.date ? formatConflictBookingDate(suggestion.date) : "Flexible date";
+}
+
+function formatSuggestionTimeRange(suggestion) {
+  const start = formatIsraelTime(suggestion?.start_time);
+  const end = formatIsraelTime(suggestion?.end_time);
+  if (start && end) return `${start} - ${end}`;
+  if (start) return start;
+  if (end) return end;
+  return "Flexible time";
+}
+
 function buildBookingResourceSignature(booking) {
   return (Array.isArray(booking?.resources) ? booking.resources : [])
     .map((resource) => Number(resource?.id))
@@ -911,44 +955,81 @@ export default function Booking() {
             )}
 
             {conflictResolution && (
-              <div className="mb-6 rounded-[24px] border border-violet-200 bg-violet-50 px-4 py-4 shadow-sm">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-700">
-                  Slot Conflict
-                </div>
-                <div className="mt-2 text-sm text-slate-700">
+              <div className="booking-conflict-panel mb-6">
+                <div className="booking-conflict-panel__eyebrow">Slot Conflict</div>
+                <div className="booking-conflict-panel__description">
                   The selected date and time are already occupied. First choose what should stay in this slot, then pick a replacement slot for the other booking.
                 </div>
                 {Array.isArray(conflictResolution?.conflicting_bookings) &&
                   conflictResolution.conflicting_bookings.length > 0 && (
-                    <div className="mt-3 space-y-2">
+                    <div className="booking-conflict-panel__list">
                       {conflictResolution.conflicting_bookings.map((booking) => (
                         <div
                           key={`conflict-booking-${booking.id}`}
-                          className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm text-slate-700"
+                          className="booking-conflict-card"
                         >
-                          <div className="font-semibold text-slate-900">
-                            Existing booking #{booking.id}
+                          <div className="booking-conflict-card__header">
+                            <div>
+                              <div className="booking-conflict-card__title">
+                                Existing booking #{booking.id}
+                              </div>
+                              {(booking.user_full_name || booking.user_id || booking.user_email) && (
+                                <div className="booking-conflict-card__subtitle">
+                                  {booking.user_full_name || booking.user_id || "Assigned user"}
+                                  {booking.user_email ? ` • ${booking.user_email}` : ""}
+                                </div>
+                              )}
+                            </div>
+                            <div className="booking-conflict-card__time-pill">
+                              {formatIsraelTime(booking.start_time)} - {formatIsraelTime(booking.end_time)}
+                            </div>
                           </div>
-                          <div className="mt-1 text-slate-600">
-                            {booking.date} {booking.start_time} - {booking.end_time}
-                          </div>
-                          <div className="mt-1">
-                            {Array.isArray(booking.resources)
-                              ? booking.resources.map((resource) => resource.name).join(", ")
-                              : ""}
+                          <div className="booking-conflict-card__meta-grid">
+                            <div className="booking-conflict-card__meta-item">
+                              <div className="booking-conflict-card__resource-label">Date</div>
+                              <div className="booking-conflict-card__meta-value">
+                                {formatConflictBookingDate(booking.date)}
+                              </div>
+                            </div>
+                            <div className="booking-conflict-card__meta-item">
+                              <div className="booking-conflict-card__resource-label">Time</div>
+                              <div className="booking-conflict-card__meta-value booking-conflict-card__meta-value--strong">
+                                {formatIsraelTime(booking.start_time)} - {formatIsraelTime(booking.end_time)}
+                              </div>
+                            </div>
+                            <div className="booking-conflict-card__meta-item booking-conflict-card__meta-item--wide">
+                              <div className="booking-conflict-card__resource-label">Resource</div>
+                              <div className="booking-conflict-card__resource-value">
+                                {formatConflictResourceSummary(booking.resources)}
+                              </div>
+                            </div>
+                            <div className="booking-conflict-card__meta-item">
+                              <div className="booking-conflict-card__resource-label">Type</div>
+                              <div className="booking-conflict-card__meta-value">
+                                {formatConflictResourceTypeSummary(booking.resources)}
+                              </div>
+                            </div>
+                            {(booking.user_full_name || booking.user_id) && (
+                              <div className="booking-conflict-card__meta-item">
+                                <div className="booking-conflict-card__resource-label">Booked for</div>
+                                <div className="booking-conflict-card__meta-value">
+                                  {booking.user_full_name || booking.user_id}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
-                <div className="mt-4 flex flex-wrap gap-3">
+                <div className="booking-conflict-panel__actions">
                   <button
                     type="button"
                     onClick={() => setConflictStrategy("move_new")}
-                    className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`booking-conflict-button booking-conflict-button--secondary ${
                       conflictStrategy === "move_new"
-                        ? "border-violet-600 bg-violet-600 text-white"
-                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "booking-conflict-button--selected"
+                        : ""
                     }`}
                   >
                     Keep existing here
@@ -957,22 +1038,22 @@ export default function Booking() {
                     type="button"
                     disabled={!conflictResolution?.move_existing?.can_auto_reassign}
                     onClick={() => setConflictStrategy("move_existing")}
-                    className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                    className={`booking-conflict-button booking-conflict-button--primary ${
                       conflictStrategy === "move_existing"
-                        ? "bg-violet-700 text-white"
-                        : "bg-violet-600 text-white hover:bg-violet-700"
-                    } disabled:cursor-not-allowed disabled:bg-slate-400`}
+                        ? "booking-conflict-button--selected"
+                        : ""
+                    }`}
                   >
                     Keep new here and move existing
                   </button>
                 </div>
                 {conflictResolution?.move_existing && !conflictResolution.move_existing.can_auto_reassign && (
-                  <div className="mt-3 text-sm text-amber-700">
+                  <div className="booking-conflict-panel__note booking-conflict-panel__note--warning">
                     No safe automatic alternative was found for the existing booking, so it cannot be moved right now.
                   </div>
                 )}
                 {!conflictStrategy && (
-                  <div className="mt-3 text-sm text-slate-600">
+                  <div className="booking-conflict-panel__note">
                     Select one option above to see the relevant alternatives.
                   </div>
                 )}
@@ -980,59 +1061,83 @@ export default function Booking() {
             )}
 
             {conflictResolution && conflictStrategy === "move_new" && suggestions.length > 0 && (
-              <div className="mb-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              <div className="booking-suggestion-panel booking-suggestion-panel--emerald mb-6">
+                <div className="booking-suggestion-panel__eyebrow">
                   Alternatives For The New Booking
                 </div>
-                <div className="mt-2 text-sm text-slate-600">
+                <div className="booking-suggestion-panel__description">
                   The current booking stays in this slot. Choose where to move the new booking.
                 </div>
-                <div className="mt-3 space-y-3">
+                <div className="booking-suggestion-panel__list">
                   {suggestions.map((suggestion, index) => (
                     <div
                       key={`${suggestion.summary || "suggestion"}-${index}`}
-                      className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                      className="booking-suggestion-card"
                     >
-                      <div>
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
-                            {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
-                          </span>
-                          {Number.isFinite(Number(suggestion?.score)) && (
-                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                              Score {Number(suggestion.score)}
+                      <div className="booking-suggestion-card__content">
+                        <div className="booking-suggestion-card__header">
+                          <div className="booking-suggestion-card__badges">
+                            <span className="booking-suggestion-card__badge booking-suggestion-card__badge--tone">
+                              {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
                             </span>
-                          )}
+                            {Number.isFinite(Number(suggestion?.score)) && (
+                              <span className="booking-suggestion-card__badge">
+                                Score {Number(suggestion.score)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="booking-suggestion-card__time-pill">
+                            {formatSuggestionTimeRange(suggestion)}
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold text-slate-900">
+                        <div className="booking-suggestion-card__title">
                           {suggestion.summary || "Alternative"}
                         </div>
                         {suggestion.why && (
-                          <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                          <div className="booking-suggestion-card__why">{suggestion.why}</div>
                         )}
-                        {suggestion.type === "timeslot" && (
-                          <div className="mt-1 text-sm text-slate-600">
-                            Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
-                          </div>
-                        )}
-                        {suggestion.type === "timeslot" &&
-                          Number.isFinite(Number(suggestion.distance_from_original)) && (
-                            <div className="mt-1 text-sm text-slate-500">
-                              Distance from original time: {Number(suggestion.distance_from_original)} minutes
+                        <div className="booking-suggestion-card__meta-grid">
+                          <div className="booking-suggestion-card__meta-item">
+                            <div className="booking-suggestion-card__label">Date</div>
+                            <div className="booking-suggestion-card__value">
+                              {formatSuggestionDateLabel(suggestion)}
                             </div>
-                          )}
-                        <div className="mt-1 text-sm text-slate-600">
-                          {Array.isArray(suggestion.resources)
-                            ? suggestion.resources.map((resource) => resource.name).join(", ")
-                            : ""}
+                          </div>
+                          <div className="booking-suggestion-card__meta-item">
+                            <div className="booking-suggestion-card__label">Time</div>
+                            <div className="booking-suggestion-card__value booking-suggestion-card__value--strong">
+                              {formatSuggestionTimeRange(suggestion)}
+                            </div>
+                          </div>
+                          {suggestion.type === "timeslot" &&
+                            Number.isFinite(Number(suggestion.distance_from_original)) && (
+                              <div className="booking-suggestion-card__meta-item">
+                                <div className="booking-suggestion-card__label">Distance</div>
+                                <div className="booking-suggestion-card__value">
+                                  {Number(suggestion.distance_from_original)} minutes
+                                </div>
+                              </div>
+                            )}
+                          <div className="booking-suggestion-card__meta-item booking-suggestion-card__meta-item--wide">
+                            <div className="booking-suggestion-card__label">Resource</div>
+                            <div className="booking-suggestion-card__resource-value">
+                              {formatConflictResourceSummary(suggestion.resources)}
+                            </div>
+                          </div>
+                          <div className="booking-suggestion-card__meta-item">
+                            <div className="booking-suggestion-card__label">Type</div>
+                            <div className="booking-suggestion-card__value">
+                              {formatConflictResourceTypeSummary(suggestion.resources)}
+                            </div>
+                          </div>
                         </div>
                         {Array.isArray(suggestion?.rule_summary?.soft_matches) &&
                           suggestion.rule_summary.soft_matches.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="booking-suggestion-card__matches">
                               {suggestion.rule_summary.soft_matches.slice(0, 4).map((match, matchIndex) => (
                                 <span
                                   key={`${suggestion.summary || "suggestion"}-match-${match.id || matchIndex}`}
-                                  className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
+                                  className="booking-suggestion-card__match"
                                 >
                                   {match.name}
                                   {Number.isFinite(Number(match.delta)) ? ` (${Number(match.delta) > 0 ? "+" : ""}${Number(match.delta)})` : ""}
@@ -1044,7 +1149,7 @@ export default function Booking() {
                       <button
                         type="button"
                         onClick={() => applySuggestion(suggestion)}
-                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                        className="booking-suggestion-card__action booking-suggestion-card__action--emerald"
                       >
                         Use suggestion
                       </button>
@@ -1058,60 +1163,84 @@ export default function Booking() {
               conflictStrategy === "move_existing" &&
               Array.isArray(conflictResolution?.move_existing?.suggestions) &&
               conflictResolution.move_existing.suggestions.length > 0 && (
-                <div className="mb-6 rounded-[24px] border border-sky-200 bg-sky-50 px-4 py-4 shadow-sm">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-sky-700">
+                <div className="booking-suggestion-panel booking-suggestion-panel--sky mb-6">
+                  <div className="booking-suggestion-panel__eyebrow">
                     Alternatives For The Existing Booking
                   </div>
-                  <div className="mt-2 text-sm text-slate-600">
+                  <div className="booking-suggestion-panel__description">
                     Your new booking stays in the requested slot. Choose where to move booking #
                     {conflictResolution?.move_existing?.booking?.id}.
                   </div>
-                  <div className="mt-3 space-y-3">
+                  <div className="booking-suggestion-panel__list">
                     {conflictResolution.move_existing.suggestions.map((suggestion, index) => (
                       <div
                         key={`${suggestion.summary || "move-existing"}-${index}`}
-                        className="flex flex-col gap-3 rounded-2xl border border-sky-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                        className="booking-suggestion-card"
                       >
-                        <div>
-                          <div className="mb-2 flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-800">
-                              {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
-                            </span>
-                            {Number.isFinite(Number(suggestion?.score)) && (
-                              <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                                Score {Number(suggestion.score)}
+                        <div className="booking-suggestion-card__content">
+                          <div className="booking-suggestion-card__header">
+                            <div className="booking-suggestion-card__badges">
+                              <span className="booking-suggestion-card__badge booking-suggestion-card__badge--tone">
+                                {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
                               </span>
-                            )}
+                              {Number.isFinite(Number(suggestion?.score)) && (
+                                <span className="booking-suggestion-card__badge">
+                                  Score {Number(suggestion.score)}
+                                </span>
+                              )}
+                            </div>
+                          <div className="booking-suggestion-card__time-pill">
+                              {formatSuggestionTimeRange(suggestion)}
+                            </div>
                           </div>
-                          <div className="text-sm font-semibold text-slate-900">
+                          <div className="booking-suggestion-card__title">
                             {suggestion.summary || "Alternative"}
                           </div>
                           {suggestion.why && (
-                            <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                            <div className="booking-suggestion-card__why">{suggestion.why}</div>
                           )}
-                          {suggestion.type === "timeslot" && (
-                            <div className="mt-1 text-sm text-slate-600">
-                              Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
-                            </div>
-                          )}
-                          {suggestion.type === "timeslot" &&
-                            Number.isFinite(Number(suggestion.distance_from_original)) && (
-                              <div className="mt-1 text-sm text-slate-500">
-                                Distance from original time: {Number(suggestion.distance_from_original)} minutes
+                          <div className="booking-suggestion-card__meta-grid">
+                            <div className="booking-suggestion-card__meta-item">
+                              <div className="booking-suggestion-card__label">Date</div>
+                              <div className="booking-suggestion-card__value">
+                                {formatSuggestionDateLabel(suggestion)}
                               </div>
-                            )}
-                          <div className="mt-1 text-sm text-slate-600">
-                            {Array.isArray(suggestion.resources)
-                              ? suggestion.resources.map((resource) => resource.name).join(", ")
-                              : ""}
+                            </div>
+                            <div className="booking-suggestion-card__meta-item">
+                              <div className="booking-suggestion-card__label">Time</div>
+                              <div className="booking-suggestion-card__value booking-suggestion-card__value--strong">
+                                {formatSuggestionTimeRange(suggestion)}
+                              </div>
+                            </div>
+                            {suggestion.type === "timeslot" &&
+                              Number.isFinite(Number(suggestion.distance_from_original)) && (
+                                <div className="booking-suggestion-card__meta-item">
+                                  <div className="booking-suggestion-card__label">Distance</div>
+                                  <div className="booking-suggestion-card__value">
+                                    {Number(suggestion.distance_from_original)} minutes
+                                  </div>
+                                </div>
+                              )}
+                            <div className="booking-suggestion-card__meta-item booking-suggestion-card__meta-item--wide">
+                              <div className="booking-suggestion-card__label">Resource</div>
+                              <div className="booking-suggestion-card__resource-value">
+                                {formatConflictResourceSummary(suggestion.resources)}
+                              </div>
+                            </div>
+                            <div className="booking-suggestion-card__meta-item">
+                              <div className="booking-suggestion-card__label">Type</div>
+                              <div className="booking-suggestion-card__value">
+                                {formatConflictResourceTypeSummary(suggestion.resources)}
+                              </div>
+                            </div>
                           </div>
                           {Array.isArray(suggestion?.rule_summary?.soft_matches) &&
                             suggestion.rule_summary.soft_matches.length > 0 && (
-                              <div className="mt-2 flex flex-wrap gap-2">
+                              <div className="booking-suggestion-card__matches">
                                 {suggestion.rule_summary.soft_matches.slice(0, 4).map((match, matchIndex) => (
                                   <span
                                     key={`${suggestion.summary || "move-existing"}-match-${match.id || matchIndex}`}
-                                    className="rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-xs font-medium text-sky-800"
+                                    className="booking-suggestion-card__match"
                                   >
                                     {match.name}
                                     {Number.isFinite(Number(match.delta))
@@ -1171,7 +1300,7 @@ export default function Booking() {
                               setSubmitting(false);
                             }
                           }}
-                          className="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                          className="booking-suggestion-card__action booking-suggestion-card__action--sky"
                         >
                           Move existing here
                         </button>
@@ -1182,56 +1311,80 @@ export default function Booking() {
               )}
 
             {!conflictResolution && suggestions.length > 0 && (
-              <div className="mb-6 rounded-[24px] border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              <div className="booking-suggestion-panel booking-suggestion-panel--emerald mb-6">
+                <div className="booking-suggestion-panel__eyebrow">
                   Suggested alternatives
                 </div>
-                <div className="mt-3 space-y-3">
+                <div className="booking-suggestion-panel__list">
                   {suggestions.map((suggestion, index) => (
                     <div
                       key={`${suggestion.summary || "suggestion"}-${index}`}
-                      className="flex flex-col gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                      className="booking-suggestion-card"
                     >
-                      <div>
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-800">
-                            {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
-                          </span>
-                          {Number.isFinite(Number(suggestion?.score)) && (
-                            <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-700">
-                              Score {Number(suggestion.score)}
+                      <div className="booking-suggestion-card__content">
+                        <div className="booking-suggestion-card__header">
+                          <div className="booking-suggestion-card__badges">
+                            <span className="booking-suggestion-card__badge booking-suggestion-card__badge--tone">
+                              {suggestion.type === "timeslot" ? "Time Alternative" : "Resource Alternative"}
                             </span>
-                          )}
+                            {Number.isFinite(Number(suggestion?.score)) && (
+                              <span className="booking-suggestion-card__badge">
+                                Score {Number(suggestion.score)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="booking-suggestion-card__time-pill">
+                            {formatSuggestionTimeRange(suggestion)}
+                          </div>
                         </div>
-                        <div className="text-sm font-semibold text-slate-900">
+                        <div className="booking-suggestion-card__title">
                           {suggestion.summary || "Alternative"}
                         </div>
                         {suggestion.why && (
-                          <div className="mt-1 text-sm text-slate-600">{suggestion.why}</div>
+                          <div className="booking-suggestion-card__why">{suggestion.why}</div>
                         )}
-                        {suggestion.type === "timeslot" && (
-                          <div className="mt-1 text-sm text-slate-600">
-                            Suggested slot: {suggestion.date} {suggestion.start_time} - {suggestion.end_time}
-                          </div>
-                        )}
-                        {suggestion.type === "timeslot" &&
-                          Number.isFinite(Number(suggestion.distance_from_original)) && (
-                            <div className="mt-1 text-sm text-slate-500">
-                              Distance from original time: {Number(suggestion.distance_from_original)} minutes
+                        <div className="booking-suggestion-card__meta-grid">
+                          <div className="booking-suggestion-card__meta-item">
+                            <div className="booking-suggestion-card__label">Date</div>
+                            <div className="booking-suggestion-card__value">
+                              {formatSuggestionDateLabel(suggestion)}
                             </div>
-                          )}
-                        <div className="mt-1 text-sm text-slate-600">
-                          {Array.isArray(suggestion.resources)
-                            ? suggestion.resources.map((resource) => resource.name).join(", ")
-                            : ""}
+                          </div>
+                          <div className="booking-suggestion-card__meta-item">
+                            <div className="booking-suggestion-card__label">Time</div>
+                            <div className="booking-suggestion-card__value booking-suggestion-card__value--strong">
+                              {formatSuggestionTimeRange(suggestion)}
+                            </div>
+                          </div>
+                          {suggestion.type === "timeslot" &&
+                            Number.isFinite(Number(suggestion.distance_from_original)) && (
+                              <div className="booking-suggestion-card__meta-item">
+                                <div className="booking-suggestion-card__label">Distance</div>
+                                <div className="booking-suggestion-card__value">
+                                  {Number(suggestion.distance_from_original)} minutes
+                                </div>
+                              </div>
+                            )}
+                          <div className="booking-suggestion-card__meta-item booking-suggestion-card__meta-item--wide">
+                            <div className="booking-suggestion-card__label">Resource</div>
+                            <div className="booking-suggestion-card__resource-value">
+                              {formatConflictResourceSummary(suggestion.resources)}
+                            </div>
+                          </div>
+                          <div className="booking-suggestion-card__meta-item">
+                            <div className="booking-suggestion-card__label">Type</div>
+                            <div className="booking-suggestion-card__value">
+                              {formatConflictResourceTypeSummary(suggestion.resources)}
+                            </div>
+                          </div>
                         </div>
                         {Array.isArray(suggestion?.rule_summary?.soft_matches) &&
                           suggestion.rule_summary.soft_matches.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="booking-suggestion-card__matches">
                               {suggestion.rule_summary.soft_matches.slice(0, 4).map((match, matchIndex) => (
                                 <span
                                   key={`${suggestion.summary || "suggestion"}-match-${match.id || matchIndex}`}
-                                  className="rounded-full border border-emerald-200 bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
+                                  className="booking-suggestion-card__match"
                                 >
                                   {match.name}
                                   {Number.isFinite(Number(match.delta)) ? ` (${Number(match.delta) > 0 ? "+" : ""}${Number(match.delta)})` : ""}
@@ -1243,7 +1396,7 @@ export default function Booking() {
                       <button
                         type="button"
                         onClick={() => applySuggestion(suggestion)}
-                        className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                        className="booking-suggestion-card__action booking-suggestion-card__action--emerald"
                       >
                         Use suggestion
                       </button>
