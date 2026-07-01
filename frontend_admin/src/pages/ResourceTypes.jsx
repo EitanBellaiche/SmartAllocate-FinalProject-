@@ -510,27 +510,6 @@ export default function ResourceTypes() {
               + Add Field
             </button>
 
-            <h3 className={`mb-2 text-lg font-semibold ${theme.textStrong}`}>Roles</h3>
-            <RoleEditor
-              roles={form.roles}
-              roleInput={roleInput}
-              setRoleInput={setRoleInput}
-              onAddRole={() => {
-                if (!roleInput.trim()) return;
-                setForm((prev) => ({
-                  ...prev,
-                  roles: [...prev.roles, roleInput.trim()],
-                }));
-                setRoleInput("");
-              }}
-              onRemoveRole={(index) =>
-                setForm((prev) => ({
-                  ...prev,
-                  roles: prev.roles.filter((_, idx) => idx !== index),
-                }))
-              }
-            />
-
               <div className="mt-6 flex justify-end gap-2">
                 <button
                   onClick={() => setShowAdd(false)}
@@ -598,33 +577,6 @@ export default function ResourceTypes() {
             >
               + Add Field
             </button>
-
-            <h3 className={`mb-2 text-lg font-semibold ${theme.textStrong}`}>Roles</h3>
-            <RoleEditor
-              roles={editModal.roles}
-              roleInput={editModal.roleInput}
-              setRoleInput={(value) =>
-                setEditModal((prev) => ({
-                  ...prev,
-                  roleInput: value,
-                }))
-              }
-              onAddRole={() => {
-                const value = editModal.roleInput.trim();
-                if (!value) return;
-                setEditModal((prev) => ({
-                  ...prev,
-                  roles: [...prev.roles, value],
-                  roleInput: "",
-                }));
-              }}
-              onRemoveRole={(index) =>
-                setEditModal((prev) => ({
-                  ...prev,
-                  roles: prev.roles.filter((_, idx) => idx !== index),
-                }))
-              }
-            />
 
               <div className="mt-6 flex justify-end gap-2">
                 <button
