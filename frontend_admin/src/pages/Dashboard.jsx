@@ -39,7 +39,7 @@ export default function Dashboard() {
       try {
         const [resourcesResult, bookingsResult, typeResult, pendingRequestsResult] = await Promise.allSettled([
           apiGet("/resources"),
-          apiGet("/bookings"),
+          apiGet("/bookings?include_cancelled=1"),
           apiGet("/resource-types"),
           apiGet("/resource-requests?status=pending"),
         ]);
@@ -80,6 +80,7 @@ export default function Dashboard() {
 
         const today = getIsraelDateValue();
         const activeBookings = bookings.filter((booking) => !booking?.cancelled_at);
+        const cancelledBookings = bookings.filter((booking) => booking?.cancelled_at);
         const bookingsToday = activeBookings.filter((booking) =>
           String(booking?.date || "").startsWith(today)
         );
@@ -89,6 +90,7 @@ export default function Dashboard() {
           bookingsToday: bookingsToday.length,
           pending: pendingRequests.length,
           totalBookings: activeBookings.length,
+          cancelledBookings: cancelledBookings.length,
           totalBookingRecords: bookings.length,
           totalResourceTypes: typeData.length,
         });
@@ -102,6 +104,7 @@ export default function Dashboard() {
           bookingsToday: 0,
           pending: 0,
           totalBookings: 0,
+          cancelledBookings: 0,
           totalBookingRecords: 0,
           totalResourceTypes: 0,
         });
@@ -409,7 +412,11 @@ export default function Dashboard() {
           <div className="dashboard-hero__panel-grid">
             <div className="dashboard-hero__panel-card dashboard-hero__panel-card--primary">
               <strong>{stats.totalBookingRecords}</strong>
-              <span>Total booking records in the system, including cancelled history</span>
+              <span>Total booking records in historical system data</span>
+            </div>
+            <div className="dashboard-hero__panel-card">
+              <strong>{stats.cancelledBookings}</strong>
+              <span>Cancelled booking records in historical system data</span>
             </div>
             <div className="dashboard-hero__panel-card">
               <strong>{stats.totalResourceTypes}</strong>
