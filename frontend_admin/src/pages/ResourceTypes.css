@@ -489,10 +489,16 @@
   box-shadow: 0 0 0 5px rgba(14, 165, 233, 0.11) !important;
 }
 
-.resource-types-modal table {
-  table-layout: auto;
+.resource-types-field-table {
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   border-radius: 14px;
+}
+
+.resource-types-field-table table {
+  width: 100%;
+  table-layout: fixed;
 }
 
 .resource-types-modal thead {
@@ -508,31 +514,50 @@
   border-color: rgba(226, 232, 240, 0.9) !important;
 }
 
-.resource-types-modal th:nth-child(1),
-.resource-types-modal td:nth-child(1) {
-  width: 27%;
-}
-
-.resource-types-modal th:nth-child(2),
-.resource-types-modal td:nth-child(2) {
-  width: 24%;
-  min-width: 150px;
-}
-
-.resource-types-modal th:nth-child(3),
-.resource-types-modal td:nth-child(3) {
-  width: 12%;
-}
-
-.resource-types-modal th:nth-child(4),
-.resource-types-modal td:nth-child(4) {
+.resource-types-field-table__name {
   width: 22%;
 }
 
-.resource-types-modal th:nth-child(5),
-.resource-types-modal td:nth-child(5) {
-  width: 15%;
-  min-width: 110px;
+.resource-types-field-table__type {
+  width: 20%;
+}
+
+.resource-types-field-table__check {
+  width: 13%;
+}
+
+.resource-types-field-table__default {
+  width: 18%;
+}
+
+.resource-types-field-table__actions {
+  width: 14%;
+}
+
+.resource-types-field-table th,
+.resource-types-field-table td {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.resource-types-field-table th:last-child,
+.resource-types-field-table td:last-child {
+  text-overflow: clip;
+}
+
+.resource-types-field-table th {
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.resource-types-field-table th span {
+  display: block;
+}
+
+.resource-types-field-table input,
+.resource-types-field-table select {
+  min-width: 0;
 }
 
 .resource-types-modal tbody tr {

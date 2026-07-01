@@ -56,14 +56,25 @@ function MetricCard({ label, value, tone = "slate", theme }) {
 
 function FieldTable({ rows, onChange, onDelete }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-purple-900/40 bg-black/20">
-      <table className="min-w-[760px] w-full text-left">
+    <div className="resource-types-field-table rounded-2xl border border-purple-900/40 bg-black/20">
+      <table className="w-full text-left">
+        <colgroup>
+          <col className="resource-types-field-table__name" />
+          <col className="resource-types-field-table__type" />
+          <col className="resource-types-field-table__check" />
+          <col className="resource-types-field-table__check" />
+          <col className="resource-types-field-table__default" />
+          <col className="resource-types-field-table__actions" />
+        </colgroup>
         <thead className="bg-black/40 text-slate-200">
           <tr>
             <th className="border-b border-slate-200 px-3 py-3">Name</th>
             <th className="border-b border-slate-200 px-3 py-3">Type</th>
             <th className="border-b border-slate-200 px-3 py-3">Required</th>
-            <th className="border-b border-slate-200 px-3 py-3">Auto User Count</th>
+            <th className="border-b border-slate-200 px-3 py-3">
+              <span>Auto User</span>
+              <span>Count</span>
+            </th>
             <th className="border-b border-slate-200 px-3 py-3">Default</th>
             <th className="border-b border-slate-200 px-3 py-3">Actions</th>
           </tr>
