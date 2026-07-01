@@ -347,6 +347,29 @@
   font-weight: 400 !important;
 }
 
+.admin-shell--cinema .dashboard-hero__panel-label {
+  color: #f3dff1 !important;
+}
+
+.admin-shell--cinema .dashboard-hero__panel-title,
+.admin-shell--cinema .dashboard-hero__panel-card strong {
+  color: #ffffff !important;
+}
+
+.admin-shell--cinema .dashboard-hero__panel-copy,
+.admin-shell--cinema .dashboard-hero__panel-card span {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.admin-shell--cinema .dashboard-hero__progress-label span,
+.admin-shell--cinema .dashboard-hero__progress-label strong {
+  color: #ffffff !important;
+}
+
+.admin-shell--cinema .dashboard-hero__progress-track {
+  background: rgba(82, 22, 79, 0.55) !important;
+}
+
 .admin-shell--cinema .dashboard-search__count {
   border: 1px solid rgba(215, 122, 202, 0.24) !important;
   background: var(--yp-pink-light) !important;
@@ -782,4 +805,35 @@
 .admin-shell--cinema .admin-content .resources-list .grid.items-center > .cinema-seat-row-label {
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff !important;
+}
+
+.admin-shell--cinema .admin-content .dashboard-hero__panel,
+.admin-shell--cinema .admin-content .dashboard-hero__panel * {
+  color: rgba(255, 255, 255, 0.88) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.admin-shell--cinema .admin-content .dashboard-hero__panel .dashboard-hero__panel-label {
+  color: #f3dff1 !important;
+  -webkit-text-fill-color: #f3dff1 !important;
+}
+
+.admin-shell--cinema .admin-content .dashboard-hero__panel .dashboard-hero__panel-title,
+.admin-shell--cinema .admin-content .dashboard-hero__panel .dashboard-hero__panel-card strong,
+.admin-shell--cinema .admin-content .dashboard-hero__panel .dashboard-hero__progress-label strong {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.admin-shell--cinema .admin-content .dashboard-hero__panel .dashboard-hero__panel-copy,
+.admin-shell--cinema .admin-content .dashboard-hero__panel .dashboard-hero__panel-card span {
+  color: rgba(255, 255, 255, 0.82) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.admin-shell--cinema .admin-content .dashboard-hero__eyebrow {
+  border-color: rgba(215, 122, 202, 0.42) !important;
+  background: rgba(243, 223, 241, 0.78) !important;
+  color: #52164f !important;
+  -webkit-text-fill-color: #52164f !important;
 }
