@@ -372,7 +372,7 @@ export function filterBookingsToPrimaryResources(bookings) {
 
 export function normalizeRole(value) {
   const roleValue = String(value || "").trim().toLowerCase();
-  if (["admin", "manager", "administrator"].includes(roleValue)) return "admin";
+  if (["admin", "administrator"].includes(roleValue)) return "admin";
   if (["responsible", "manager", "staff", "supervisor", "lead"].includes(roleValue)) {
     return "manager";
   }

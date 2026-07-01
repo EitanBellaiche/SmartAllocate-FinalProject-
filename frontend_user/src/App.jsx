@@ -268,8 +268,9 @@ export default function App() {
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
   const isShenkar = compactOrgId === "shenkar";
+  const canManageAvailability = role === "manager" || role === "admin";
   const canAccessAvailability =
-    role === "manager" ||
+    canManageAvailability ||
     section === "availability" ||
     userAvailability.length > 0 ||
     Boolean(deadlineInfo?.has_deadline);
@@ -600,7 +601,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hasUser || (!canAccessAvailability && role !== "manager")) {
+    if (!hasUser || (!canAccessAvailability && !canManageAvailability)) {
       setDeadlineInfo(null);
       return;
     }
@@ -623,7 +624,7 @@ export default function App() {
       active = false;
       clearInterval(interval);
     };
-  }, [hasUser, role, currentUserId, canAccessAvailability]);
+  }, [hasUser, canManageAvailability, currentUserId, canAccessAvailability]);
 
   useEffect(() => {
     if (!deadlineInfo?.scheduling_range) return;
@@ -640,7 +641,7 @@ export default function App() {
   }, [deadlineInfo, canAccessAvailability]);
 
   useEffect(() => {
-    if (!hasUser || !canAccessAvailability) return;
+    if (!hasUser || (!canAccessAvailability && !canManageAvailability)) return;
     const id = currentUserId.trim();
     if (!id) return;
     let active = true;
@@ -655,7 +656,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hasUser, canAccessAvailability, currentUserId]);
+  }, [hasUser, canAccessAvailability, canManageAvailability, currentUserId]);
 
   if (!hasUser) {
     return (
