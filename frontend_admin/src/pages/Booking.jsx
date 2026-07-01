@@ -93,6 +93,7 @@ export default function Booking() {
   const [selectedResources, setSelectedResources] = useState([]);
   const [resourceTypeQuery, setResourceTypeQuery] = useState("");
   const [resourceQuery, setResourceQuery] = useState("");
+  const [existingBookingQuery, setExistingBookingQuery] = useState("");
   const [resourceFilterTypeId, setResourceFilterTypeId] = useState("");
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
@@ -190,6 +191,15 @@ export default function Booking() {
     () => bookings.filter((booking) => booking?.cancelled_at),
     [bookings]
   );
+  const filteredActiveBookings = useMemo(() => {
+    const query = existingBookingQuery.trim().toLowerCase();
+    if (!query) return activeBookings;
+    return activeBookings.filter((booking) =>
+      (Array.isArray(booking?.resources) ? booking.resources : []).some((resource) =>
+        String(resource?.name || "").toLowerCase().includes(query)
+      )
+    );
+  }, [activeBookings, existingBookingQuery]);
   const selectedResourcesKey = selectedResources.join(",");
   const selectedTypeIdsKey = selectedTypeIds.join(",");
 
@@ -1833,8 +1843,22 @@ export default function Booking() {
                     </div>
                   </div>
 
+                  <div className="booking-live-search mt-4">
+                    <label className="sr-only" htmlFor="existing-booking-search">
+                      Search existing bookings by course name
+                    </label>
+                    <input
+                      id="existing-booking-search"
+                      type="search"
+                      value={existingBookingQuery}
+                      onChange={(event) => setExistingBookingQuery(event.target.value)}
+                      placeholder="Search by course name..."
+                      className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition ${theme.input}`}
+                    />
+                  </div>
+
                   <div className="booking-live-list mt-5 space-y-3">
-                    {activeBookings.map((booking) => (
+                    {filteredActiveBookings.map((booking) => (
                       <div
                         key={booking.id}
                         className="booking-live-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-slate-300 hover:bg-white"
@@ -1898,6 +1922,12 @@ export default function Booking() {
                     {activeBookings.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
                         No active bookings.
+                      </div>
+                    )}
+
+                    {activeBookings.length > 0 && filteredActiveBookings.length === 0 && (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                        No bookings found for this course.
                       </div>
                     )}
 
