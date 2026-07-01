@@ -84,6 +84,35 @@ export default function Dashboard() {
         const bookingsToday = activeBookings.filter((booking) =>
           String(booking?.date || "").startsWith(today)
         );
+        const resourceTypeCounts = resourcesData.reduce((acc, resource) => {
+          const key = String(resource?.type_id || resource?.type_name || "unassigned");
+          acc.set(key, {
+            label: resource?.type_name || "Unassigned",
+            count: (acc.get(key)?.count || 0) + 1,
+          });
+          return acc;
+        }, new Map());
+        const typesWithInventory = Array.from(resourceTypeCounts.values()).filter(
+          (entry) => entry.count > 0
+        ).length;
+        const largestCategory = Array.from(resourceTypeCounts.values()).sort(
+          (a, b) => b.count - a.count
+        )[0];
+        const resourceBookingCounts = activeBookings.reduce((acc, booking) => {
+          if (!Array.isArray(booking?.resources)) return acc;
+          booking.resources.forEach((resource) => {
+            const key = String(resource?.id || resource?.name || "");
+            if (!key) return;
+            acc.set(key, {
+              label: resource?.name || `Resource ${resource?.id}`,
+              count: (acc.get(key)?.count || 0) + 1,
+            });
+          });
+          return acc;
+        }, new Map());
+        const mostBookedResource = Array.from(resourceBookingCounts.values()).sort(
+          (a, b) => b.count - a.count
+        )[0];
 
         setStats({
           totalResources: resourcesData.length,
@@ -93,6 +122,11 @@ export default function Dashboard() {
           cancelledBookings: cancelledBookings.length,
           totalBookingRecords: bookings.length,
           totalResourceTypes: typeData.length,
+          typesWithInventory,
+          largestCategoryLabel: largestCategory?.label || "No resources",
+          largestCategoryCount: largestCategory?.count || 0,
+          mostBookedResourceLabel: mostBookedResource?.label || "No booking data",
+          mostBookedResourceCount: mostBookedResource?.count || 0,
         });
         setResources(resourcesData);
         setTypes(typeData);
@@ -107,6 +141,11 @@ export default function Dashboard() {
           cancelledBookings: 0,
           totalBookingRecords: 0,
           totalResourceTypes: 0,
+          typesWithInventory: 0,
+          largestCategoryLabel: "No resources",
+          largestCategoryCount: 0,
+          mostBookedResourceLabel: "No booking data",
+          mostBookedResourceCount: 0,
         });
         setLoadWarning("Dashboard data could not be loaded. Check the API connection.");
       } finally {
@@ -119,16 +158,12 @@ export default function Dashboard() {
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const hasSearchQuery = normalizedSearchQuery.length > 0;
-  const resourcePerType = stats
-    ? (stats.totalResources / Math.max(stats.totalResourceTypes || 1, 1)).toFixed(1)
-    : "0";
   const pendingRate = stats?.totalBookings
     ? Math.round((stats.pending / stats.totalBookings) * 100)
     : 0;
   const todayCoverage = stats?.totalResources
     ? Math.min(100, Math.round((stats.bookingsToday / stats.totalResources) * 100))
     : 0;
-
   const filteredResources = useMemo(() => {
     if (!hasSearchQuery) return [];
 
@@ -152,19 +187,19 @@ export default function Dashboard() {
 
   const insightCards = [
     {
-      label: "Resources Per Type",
-      value: resourcePerType,
-      text: "A healthy spread helps the system allocate capacity without forcing operators into manual exceptions.",
+      label: "Inventory Coverage",
+      value: `${stats.typesWithInventory}/${stats.totalResourceTypes}`,
+      text: "Resource categories that already have inventory, helping reveal gaps in the catalog structure.",
     },
     {
-      label: "Pending Approval Rate",
-      value: `${pendingRate}%`,
-      text: "This shows how much work still depends on human review instead of flowing through a cleaner operational path.",
+      label: "Largest Category",
+      value: stats.largestCategoryLabel,
+      text: `${stats.largestCategoryCount} resources sit in this category, showing where most capacity is concentrated.`,
     },
     {
-      label: "Today's Coverage",
-      value: `${todayCoverage}%`,
-      text: "A quick signal for how much of your resource inventory is already tied into today's scheduling activity.",
+      label: "Most Booked Resource",
+      value: stats.mostBookedResourceLabel,
+      text: `${stats.mostBookedResourceCount} historical active bookings reference this resource.`,
     },
   ];
 

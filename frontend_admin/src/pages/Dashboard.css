@@ -403,6 +403,7 @@
   font-size: 1.7rem;
   line-height: 1;
   letter-spacing: -0.05em;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-insight-card__text {
